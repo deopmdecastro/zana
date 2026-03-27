@@ -1,0 +1,24 @@
+{
+  "name": "Review",
+  "type": "object",
+  "properties": {
+    "product_id": {
+      "type": "string",
+      "description": "ID do produto avaliado"
+    },
+    "rating": {
+      "type": "number",
+      "description": "Avalia\u00e7\u00e3o de 1 a 5"
+    },
+    "comment": {
+      "type": "string"
+    },
+    "author_name": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "product_id",
+    "rating"
+  ]
+}

@@ -1,0 +1,1 @@
+- [x] Step 1: Edit vite.config.js - remove base44 plugin, set logLevel 'info'\n- [x] Step 7: Fix imports/dependencies - src/main.jsx @/ -> ./\n

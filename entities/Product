@@ -1,0 +1,93 @@
+{
+  "name": "Product",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nome do produto"
+    },
+    "description": {
+      "type": "string",
+      "description": "Descri\u00e7\u00e3o detalhada do produto"
+    },
+    "price": {
+      "type": "number",
+      "description": "Pre\u00e7o em euros"
+    },
+    "original_price": {
+      "type": "number",
+      "description": "Pre\u00e7o original antes do desconto"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "colares",
+        "brincos",
+        "pulseiras",
+        "aneis",
+        "conjuntos"
+      ],
+      "description": "Categoria do produto"
+    },
+    "material": {
+      "type": "string",
+      "enum": [
+        "aco_inox",
+        "prata",
+        "dourado",
+        "rose_gold",
+        "perolas",
+        "cristais"
+      ],
+      "description": "Material principal"
+    },
+    "colors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Cores dispon\u00edveis"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "URLs das imagens do produto"
+    },
+    "stock": {
+      "type": "number",
+      "default": 0,
+      "description": "Quantidade em stock"
+    },
+    "is_featured": {
+      "type": "boolean",
+      "default": false,
+      "description": "Produto em destaque"
+    },
+    "is_new": {
+      "type": "boolean",
+      "default": false,
+      "description": "Novidade"
+    },
+    "is_bestseller": {
+      "type": "boolean",
+      "default": false,
+      "description": "Mais vendido"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "inactive",
+        "out_of_stock"
+      ],
+      "default": "active"
+    }
+  },
+  "required": [
+    "name",
+    "price",
+    "category"
+  ]
+}

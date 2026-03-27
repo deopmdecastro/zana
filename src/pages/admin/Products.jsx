@@ -1,0 +1,235 @@
+import React, { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
+import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
+import { toast } from 'sonner';
+
+const emptyProduct = {
+  name: '', description: '', price: '', original_price: '', category: 'colares',
+  material: 'dourado', colors: [], images: [], stock: 0, is_featured: false,
+  is_new: false, is_bestseller: false, status: 'active'
+};
+
+export default function AdminProducts() {
+  const queryClient = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(emptyProduct);
+  const [search, setSearch] = useState('');
+  const [imageInput, setImageInput] = useState('');
+
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['admin-products'],
+    queryFn: () => base44.entities.Product.list('-created_date', 500),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data) => base44.entities.Product.create(data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); setDialogOpen(false); toast.success('Produto criado'); },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => base44.entities.Product.update(id, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); setDialogOpen(false); toast.success('Produto atualizado'); },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id) => base44.entities.Product.delete(id),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); toast.success('Produto removido'); },
+  });
+
+  const openCreate = () => { setEditing(null); setForm(emptyProduct); setDialogOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ ...p, price: p.price || '', original_price: p.original_price || '', stock: p.stock || 0 }); setDialogOpen(true); };
+
+  const handleSubmit = () => {
+    const data = { ...form, price: parseFloat(form.price) || 0, original_price: form.original_price ? parseFloat(form.original_price) : undefined, stock: parseInt(form.stock) || 0 };
+    if (!data.name) { toast.error('Nome é obrigatório'); return; }
+    if (editing) { updateMutation.mutate({ id: editing.id, data }); }
+    else { createMutation.mutate(data); }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    setForm(prev => ({ ...prev, images: [...(prev.images || []), file_url] }));
+  };
+
+  const addImageUrl = () => {
+    if (imageInput.trim()) {
+      setForm(prev => ({ ...prev, images: [...(prev.images || []), imageInput.trim()] }));
+      setImageInput('');
+    }
+  };
+
+  const filtered = products.filter(p => p.name?.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="font-heading text-3xl">Produtos</h1>
+        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2"><Plus className="w-4 h-4" /> Novo Produto</Button>
+      </div>
+
+      <div className="relative max-w-sm mb-6">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input placeholder="Pesquisar..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-10 rounded-none" />
+      </div>
+
+      {/* Products Table */}
+      <div className="bg-card rounded-lg border border-border overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-secondary/30">
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Categoria</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Preço</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Stock</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map(p => (
+              <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
+                <td className="p-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
+                      {p.images?.[0] ? <img src={p.images[0]} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-auto mt-2.5 text-muted-foreground/30" />}
+                    </div>
+                    <span className="font-body text-sm font-medium">{p.name}</span>
+                  </div>
+                </td>
+                <td className="p-3 font-body text-xs capitalize">{p.category}</td>
+                <td className="p-3 font-body text-sm">{p.price?.toFixed(2)} €</td>
+                <td className="p-3 font-body text-sm">{p.stock || 0}</td>
+                <td className="p-3"><Badge variant="secondary" className="text-[10px]">{p.status}</Badge></td>
+                <td className="p-3 text-right">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(p.id)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {filtered.length === 0 && <p className="text-center py-8 font-body text-sm text-muted-foreground">Sem produtos</p>}
+      </div>
+
+      {/* Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">{editing ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="font-body text-xs">Nome *</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-none mt-1" />
+            </div>
+            <div>
+              <Label className="font-body text-xs">Descrição</Label>
+              <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-none mt-1" rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="font-body text-xs">Preço (€) *</Label>
+                <Input type="number" step="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} className="rounded-none mt-1" />
+              </div>
+              <div>
+                <Label className="font-body text-xs">Preço Original (€)</Label>
+                <Input type="number" step="0.01" value={form.original_price} onChange={(e) => setForm({ ...form, original_price: e.target.value })} className="rounded-none mt-1" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="font-body text-xs">Categoria</Label>
+                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                  <SelectTrigger className="rounded-none mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="colares">Colares</SelectItem>
+                    <SelectItem value="brincos">Brincos</SelectItem>
+                    <SelectItem value="pulseiras">Pulseiras</SelectItem>
+                    <SelectItem value="aneis">Anéis</SelectItem>
+                    <SelectItem value="conjuntos">Conjuntos</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="font-body text-xs">Material</Label>
+                <Select value={form.material} onValueChange={(v) => setForm({ ...form, material: v })}>
+                  <SelectTrigger className="rounded-none mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="aco_inox">Aço Inox</SelectItem>
+                    <SelectItem value="prata">Prata</SelectItem>
+                    <SelectItem value="dourado">Dourado</SelectItem>
+                    <SelectItem value="rose_gold">Rose Gold</SelectItem>
+                    <SelectItem value="perolas">Pérolas</SelectItem>
+                    <SelectItem value="cristais">Cristais</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="font-body text-xs">Stock</Label>
+              <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="rounded-none mt-1" />
+            </div>
+            <div>
+              <Label className="font-body text-xs">Imagens</Label>
+              <div className="flex gap-2 mt-1 flex-wrap">
+                {form.images?.map((img, i) => (
+                  <div key={i} className="relative w-16 h-16 rounded overflow-hidden">
+                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <button onClick={() => setForm({ ...form, images: form.images.filter((_, j) => j !== i) })} className="absolute top-0 right-0 bg-destructive text-destructive-foreground w-4 h-4 text-[10px] flex items-center justify-center">×</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Input placeholder="URL da imagem" value={imageInput} onChange={(e) => setImageInput(e.target.value)} className="rounded-none flex-1" />
+                <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-none">+</Button>
+              </div>
+              <div className="mt-2">
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="font-body text-xs" />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_featured} onCheckedChange={(v) => setForm({ ...form, is_featured: v })} />
+                <Label className="font-body text-xs">Destaque</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_new} onCheckedChange={(v) => setForm({ ...form, is_new: v })} />
+                <Label className="font-body text-xs">Novidade</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_bestseller} onCheckedChange={(v) => setForm({ ...form, is_bestseller: v })} />
+                <Label className="font-body text-xs">Bestseller</Label>
+              </div>
+            </div>
+            <div>
+              <Label className="font-body text-xs">Estado</Label>
+              <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                <SelectTrigger className="rounded-none mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Ativo</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
+                  <SelectItem value="out_of_stock">Sem Stock</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button onClick={handleSubmit} className="w-full rounded-none font-body text-sm tracking-wider">
+              {editing ? 'Guardar Alterações' : 'Criar Produto'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
