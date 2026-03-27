@@ -1,6 +1,15 @@
+import React, { Suspense, lazy } from 'react';
 // import { Toaster } from '@/components/ui/toaster'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 // import { queryClientInstance } from '@/lib/query-client'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+
+
+import PageLoader from '@/components/ui/page-loader';
+import { AuthProvider, useAuth } from '@/lib/AuthContext';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
+import { CartProvider } from '@/lib/CartContext';
+
 const queryClientInstance = new QueryClient({
   defaultOptions: {
     queries: {
@@ -9,37 +18,32 @@ const queryClientInstance = new QueryClient({
     },
   },
 });
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
-
-import PageNotFound from './lib/PageNotFound';
-import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import UserNotRegisteredError from '@/components/UserNotRegisteredError';
-import { CartProvider } from '@/lib/CartContext';
+const PageNotFound = lazy(() => import('./lib/PageNotFound'));
 
 // Layouts
-import StoreLayout from './components/layout/StoreLayout';
-import AdminLayout from './components/layout/AdminLayout';
+const StoreLayout = lazy(() => import('@/components/layout/StoreLayout'));
+const AdminLayout = lazy(() => import('@/components/layout/AdminLayout'));
 
 // Pages
-import Home from '@/pages/Home';
-import Catalog from '@/pages/Catalog';
-import ProductDetail from '@/pages/ProductDetail';
-import Cart from '@/pages/Cart';
-import Checkout from '@/pages/Checkout';
-import About from '@/pages/About';
-import Blog from '@/pages/Blog';
-import BlogPostPage from '@/pages/BlogPostPage';
-import Contact from '@/pages/Contact';
-import WishlistPage from '@/pages/Wishlist';
-import Account from '@/pages/Account';
+const Home = lazy(() => import('@/pages/Home'));
+const Catalog = lazy(() => import('@/pages/Catalog'));
+const ProductDetail = lazy(() => import('@/pages/ProductDetail'));
+const Cart = lazy(() => import('@/pages/Cart'));
+const Checkout = lazy(() => import('@/pages/Checkout'));
+const About = lazy(() => import('@/pages/About'));
+const Blog = lazy(() => import('@/pages/Blog'));
+const BlogPostPage = lazy(() => import('@/pages/BlogPostPage'));
+const Contact = lazy(() => import('@/pages/Contact'));
+const WishlistPage = lazy(() => import('@/pages/Wishlist'));
+const Account = lazy(() => import('@/pages/Account'));
 
 // Admin
-import Dashboard from '@/pages/admin/Dashboard';
-import AdminProducts from '@/pages/admin/Products';
-import AdminOrders from '@/pages/admin/Orders';
-import AdminCustomers from '@/pages/admin/Customers';
-import BlogAdmin from '@/pages/admin/BlogAdmin';
+const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
+const AdminProducts = lazy(() => import('@/pages/admin/Products'));
+const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
+const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
+const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -100,8 +104,10 @@ function App() {
     <AuthProvider>
       <QueryClientProvider client={queryClientInstance}>
         <CartProvider>
-          <Router>
-            <AuthenticatedApp />
+          <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Suspense fallback={<PageLoader label="A carregar..." />}>
+              <AuthenticatedApp />
+            </Suspense>
           </Router>
   {/* <Toaster /> */}
         </CartProvider>

@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: zana
+      POSTGRES_PASSWORD: zana
+      POSTGRES_DB: zana
+    ports:
+      # Use 5433 to avoid conflicts with an existing local Postgres on 5432
+      - "5433:5432"
+    volumes:
+      - zana_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zana -d zana"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  zana_pgdata:

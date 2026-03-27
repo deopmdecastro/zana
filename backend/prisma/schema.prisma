@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  fullName     String?
+  phone        String?
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  postalCode   String?
+  country      String   @default("Portugal")
+
+  newsletterOptIn   Boolean @default(false)
+  orderUpdatesEmail Boolean @default(true)
+
+  passwordHash String
+  passwordSalt String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([createdAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([usedAt])
+  @@unique([tokenHash])
+}
+
+enum ProductCategory {
+  colares
+  brincos
+  pulseiras
+  aneis
+  conjuntos
+}
+
+enum ProductMaterial {
+  aco_inox
+  prata
+  dourado
+  rose_gold
+  perolas
+  cristais
+}
+
+enum ProductStatus {
+  active
+  inactive
+  out_of_stock
+}
+
+model Product {
+  id            String        @id @default(cuid())
+  name          String
+  description   String?
+  price         Decimal       @db.Decimal(12, 2)
+  originalPrice Decimal?      @db.Decimal(12, 2)
+  category      ProductCategory
+  material      ProductMaterial?
+  colors        String[]      @default([])
+  images        String[]      @default([])
+  stock         Int           @default(0)
+  isFeatured    Boolean       @default(false)
+  isNew         Boolean       @default(false)
+  isBestseller  Boolean       @default(false)
+  status        ProductStatus @default(active)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  reviews       Review[]
+  orderItems    OrderItem[]
+
+  @@index([category])
+  @@index([status])
+}
+
+enum OrderStatus {
+  pending
+  confirmed
+  processing
+  shipped
+  delivered
+  cancelled
+}
+
+enum PaymentMethod {
+  mbway
+  transferencia
+  multibanco
+  paypal
+}
+
+model Order {
+  id                String        @id @default(cuid())
+  customerName      String
+  customerEmail     String
+  customerPhone     String?
+  shippingAddress   String?
+  shippingCity      String?
+  shippingPostalCode String?
+  shippingCountry   String        @default("Portugal")
+  subtotal          Decimal?      @db.Decimal(12, 2)
+  shippingCost      Decimal       @default(0) @db.Decimal(12, 2)
+  total             Decimal       @db.Decimal(12, 2)
+  status            OrderStatus   @default(pending)
+  paymentMethod     PaymentMethod?
+  notes             String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  items             OrderItem[]
+
+  @@index([status])
+  @@index([customerEmail])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  productId    String?
+  productName  String
+  productImage String?
+  price        Decimal  @db.Decimal(12, 2)
+  quantity     Int
+  color        String?
+
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  productId  String
+  rating     Int
+  comment    String?
+  authorName String?
+  createdAt  DateTime @default(now())
+
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model WishlistItem {
+  id           String   @id @default(cuid())
+  productId    String
+  productName  String?
+  productImage String?
+  productPrice Decimal? @db.Decimal(12, 2)
+  createdAt    DateTime @default(now())
+
+  @@index([productId])
+}
+
+enum BlogCategory {
+  tendencias
+  dicas
+  novidades
+  inspiracao
+}
+
+enum BlogStatus {
+  draft
+  published
+}
+
+model BlogPost {
+  id        String       @id @default(cuid())
+  title     String
+  content   String
+  excerpt   String?
+  imageUrl  String?
+  category  BlogCategory?
+  status    BlogStatus   @default(draft)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([status])
+  @@index([category])
+}

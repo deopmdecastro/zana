@@ -2,9 +2,22 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
 import { Button } from '@/components/ui/button';
+import { base44 } from '@/api/base44Client';
 
 export default function HeroBanner() {
+  const { data: user } = useQuery({
+    queryKey: ['me'],
+    queryFn: () => base44.auth.me(),
+    retry: false,
+  });
+
+  const secondaryCta = user
+    ? { to: '/sobre', label: 'Sobre Nós' }
+    : { to: '/conta', label: 'Entrar' };
+
   return (
     <section className="relative overflow-hidden bg-primary min-h-[80vh] md:min-h-[90vh] flex items-center">
       <div className="absolute inset-0">
@@ -32,7 +45,8 @@ export default function HeroBanner() {
             detalhe
           </h1>
           <p className="font-body text-sm md:text-base text-primary-foreground/80 max-w-md mb-8 leading-relaxed">
-            Descubra bijuterias que celebram a essência da mulher moderna. Peças únicas, delicadas e sofisticadas.
+            Descubra bijuterias que celebram a essência da mulher moderna. Peças
+            únicas, delicadas e sofisticadas.
           </p>
           <div className="flex flex-wrap gap-4">
             <Link to="/catalogo">
@@ -41,9 +55,12 @@ export default function HeroBanner() {
                 <ArrowRight className="w-4 h-4 ml-2" />
               </Button>
             </Link>
-            <Link to="/sobre">
-              <Button variant="outline" className="border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10 rounded-none px-8 py-6 text-sm tracking-wider font-body">
-                Sobre Nós
+            <Link to={secondaryCta.to}>
+              <Button
+                variant="outline"
+                className="bg-transparent border-primary-foreground/40 text-primary-foreground hover:bg-primary-foreground/10 rounded-none px-8 py-6 text-sm tracking-wider font-body"
+              >
+                {secondaryCta.label}
               </Button>
             </Link>
           </div>
@@ -52,3 +69,4 @@ export default function HeroBanner() {
     </section>
   );
 }
+
