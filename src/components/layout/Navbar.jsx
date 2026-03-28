@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Heart, Menu, X, User, Store } from 'lucide-react';
 import { useCart } from '@/lib/CartContext';
@@ -16,6 +16,22 @@ export default function Navbar() {
   const siteName = String(branding?.site_name ?? 'Zana').trim() || 'Zana';
   const isLogged = Boolean(user);
 
+  useEffect(() => {
+    const updateThemeColor = () => {
+      const meta = document.querySelector('meta[name="theme-color"]');
+      const nav = document.getElementById('app-topbar');
+      if (!meta || !nav) return;
+      const bg = window.getComputedStyle(nav).backgroundColor;
+      if (bg) {
+        meta.setAttribute('content', bg);
+      }
+    };
+
+    updateThemeColor();
+    window.addEventListener('resize', updateThemeColor);
+    return () => window.removeEventListener('resize', updateThemeColor);
+  }, []);
+
   const links = [
     { to: '/', label: 'Início' },
     { to: '/catalogo', label: 'Catálogo' },
@@ -27,7 +43,7 @@ export default function Navbar() {
 	  ];
 
   return (
-    <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">
+    <nav id="app-topbar" className="sticky top-0 z-50 bg-primary/95 backdrop-blur-md border-b border-primary/20">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
           <div className="flex items-center gap-3">

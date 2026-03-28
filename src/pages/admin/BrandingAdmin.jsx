@@ -13,6 +13,8 @@ const defaults = {
   logo_primary_url: '',
   logo_url: '',
   favicon_url: '',
+  app_icon_url: '',
+  theme_color: '#782641',
   site_name: 'Zana',
 };
 
@@ -40,6 +42,8 @@ export default function BrandingAdmin() {
       logo_primary_url: String(form.logo_primary_url ?? '').trim() || null,
       logo_url: String(form.logo_url ?? '').trim() || null,
       favicon_url: String(form.favicon_url ?? '').trim() || null,
+      app_icon_url: String(form.app_icon_url ?? '').trim() || null,
+      theme_color: String(form.theme_color ?? '').trim() || null,
     };
 
     await toastApiPromise(saveMutation.mutateAsync(payload), {
@@ -90,6 +94,34 @@ export default function BrandingAdmin() {
                 label="Logo (footer)"
                 recommended="SVG ou PNG"
                 onChange={(url) => setForm((p) => ({ ...p, logo_url: url }))}
+              />
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h3 className="font-heading text-xl mb-4">Tema</h3>
+            <div className="max-w-xl">
+              <Label className="font-body text-xs">Cor principal</Label>
+              <Input
+                type="color"
+                value={form.theme_color ?? '#782641'}
+                onChange={(e) => setForm((p) => ({ ...p, theme_color: e.target.value }))}
+                className="rounded-none mt-1 h-12 w-24 p-0"
+              />
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h3 className="font-heading text-xl mb-4">Ícone do app</h3>
+            <p className="font-body text-sm text-muted-foreground mb-4">
+              Ícone usado para o PWA e instalações em telefones após guardar.
+            </p>
+            <div className="max-w-xl">
+              <ImageUpload
+                value={form.app_icon_url ?? ''}
+                label="Ícone do app"
+                recommended="PNG 512×512 (ou 256×256)"
+                onChange={(url) => setForm((p) => ({ ...p, app_icon_url: url }))}
               />
             </div>
           </div>
