@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, X, Send } from 'lucide-react';
+import { MessageSquare, X, Send, RotateCcw, MessageSquarePlus } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { base44 } from '@/api/base44Client';
@@ -18,6 +18,20 @@ function formatWhen(value) {
   }
 }
 
+async function fetchSupportChatThread() {
+  try {
+    return await base44.support.chat.get();
+  } catch (err) {
+    if (err?.status !== 404) throw err;
+
+    // Fallback: older backend without /api/support/chat endpoints.
+    const tickets = await base44.support.tickets.list(50);
+    const openTicket = (Array.isArray(tickets) ? tickets : []).find((t) => String(t?.status ?? '') !== 'closed');
+    if (!openTicket?.id) return { ticket: null, messages: [] };
+    return await base44.support.tickets.get(openTicket.id);
+  }
+}
+
 export default function SupportChatWidget() {
   const { user } = useAuth();
   const location = useLocation();
@@ -28,13 +42,12 @@ export default function SupportChatWidget() {
   const scrollRef = useRef(null);
 
   const path = location.pathname ?? '';
-  const hidden = path.startsWith('/admin');
-  if (hidden) return null;
+  const hidden = path.startsWith('/admin') || path.startsWith('/suporte');
 
   const { data, isLoading } = useQuery({
     queryKey: ['support-chat'],
-    queryFn: () => base44.support.chat.get(),
-    enabled: !!user && open,
+    queryFn: fetchSupportChatThread,
+    enabled: !!user && open && !hidden,
     refetchInterval: open ? 10_000 : false,
   });
 
@@ -48,13 +61,69 @@ export default function SupportChatWidget() {
   }, [open, messages.length]);
 
   const sendMutation = useMutation({
-    mutationFn: (message) => base44.support.chat.send(message),
+    mutationFn: async (message) => {
+      try {
+        return await base44.support.chat.send(message);
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+
+        const ticketId = data?.ticket?.id;
+        if (ticketId) {
+          const msg = await base44.support.tickets.addMessage(ticketId, message);
+          return { ticket_id: ticketId, created_ticket: false, message: msg };
+        }
+        const created = await base44.support.tickets.create({ subject: 'Chat / Suporte', message });
+        return { ticket_id: created?.ticket?.id ?? null, created_ticket: true, message: null };
+      }
+    },
     onSuccess: async () => {
       setDraft('');
       await queryClient.invalidateQueries({ queryKey: ['support-chat'] });
       await queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar.')),
+  });
+
+  const openMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        return await base44.support.chat.open();
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+        const created = await base44.support.tickets.create({
+          subject: 'Chat / Suporte',
+          message: 'Iniciei um pedido de suporte pelo chat.',
+        });
+        return { ok: true, ticket_id: created?.ticket?.id ?? null, created_ticket: true };
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['support-chat'] });
+      await queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
+      toast.success('Suporte aberto');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível abrir suporte.')),
+  });
+
+  const closeMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        return await base44.support.chat.close();
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+        const ticketId = data?.ticket?.id;
+        if (!ticketId) return { ok: true };
+        // Fallback: no chat close endpoint yet; just collapse the widget.
+        return { ok: true };
+      }
+    },
+    onSuccess: async () => {
+      queryClient.setQueryData(['support-chat'], { ticket: null, messages: [] });
+      await queryClient.invalidateQueries({ queryKey: ['support-chat'] });
+      await queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
+      toast.success('Chat encerrado');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível encerrar.')),
   });
 
   const handleOpen = () => {
@@ -76,8 +145,12 @@ export default function SupportChatWidget() {
     sendMutation.mutate(msg);
   };
 
+  if (hidden) return null;
+
+  const hasTicket = !!data?.ticket?.id;
+
   return (
-    <div className="fixed bottom-5 right-5 z-50">
+    <div className="fixed right-5 z-50" style={{ bottom: 'calc(20px + var(--zana-cookie-banner-offset, 0px))' }}>
       {!open ? (
         <Button className="rounded-full h-12 px-4 font-body text-sm tracking-wide shadow-lg gap-2" onClick={handleOpen}>
           <MessageSquare className="w-4 h-4" />
@@ -94,9 +167,36 @@ export default function SupportChatWidget() {
                 {user ? 'Responderemos o mais rápido possível.' : 'Faça login para enviar mensagens.'}
               </div>
             </div>
-            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setOpen(false)} aria-label="Fechar">
-              <X className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              {hasTicket ? (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label="Encerrar suporte"
+                  title="Encerrar suporte"
+                  disabled={!user || closeMutation.isPending}
+                  onClick={() => closeMutation.mutate()}
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label="Abrir suporte"
+                  title="Abrir suporte"
+                  disabled={!user || openMutation.isPending}
+                  onClick={() => openMutation.mutate()}
+                >
+                  <MessageSquarePlus className="w-4 h-4" />
+                </Button>
+              )}
+              <Button variant="ghost" size="icon" className="shrink-0" onClick={() => setOpen(false)} aria-label="Fechar">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
 
           {!user ? (
@@ -173,4 +273,3 @@ export default function SupportChatWidget() {
     </div>
   );
 }
-

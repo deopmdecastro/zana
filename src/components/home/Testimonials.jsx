@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import StarRating from '@/components/ui/star-rating';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { getErrorMessage } from '@/lib/toast';
 
 const fallbackTestimonials = [
@@ -48,6 +49,10 @@ export default function Testimonials() {
     queryFn: () => base44.entities.Product.filter({}, '-created_date', 200),
     staleTime: 60_000,
   });
+
+  const productOptions = useMemo(() => {
+    return (Array.isArray(products) ? products : []).map((p) => ({ value: p.id, label: p.name }));
+  }, [products]);
 
   const testimonials = useMemo(() => {
     const source = (Array.isArray(reviews) ? reviews : [])
@@ -105,7 +110,7 @@ export default function Testimonials() {
           >
             Avaliar
           </Button>
-          <p className="font-body text-xs text-muted-foreground mt-2">As avaliações são publicadas após aprovação do admin.</p>
+          <p className="font-body text-xs text-muted-foreground mt-2">Obrigado pelo seu feedback.</p>
         </div>
       </div>
 
@@ -132,18 +137,30 @@ export default function Testimonials() {
             <div className="space-y-4">
               <div>
                 <Label className="font-body text-xs">Produto</Label>
-                <select
-                  value={form.product_id}
-                  onChange={(e) => setForm((p) => ({ ...p, product_id: e.target.value }))}
-                  className="mt-1 w-full border border-border bg-background px-3 py-2 text-sm font-body rounded-none"
-                >
-                  <option value="">Selecionar...</option>
-                  {(Array.isArray(products) ? products : []).map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                <div className="mt-1">
+                  {productOptions.length > 10 ? (
+                    <SearchableSelect
+                      value={form.product_id}
+                      onChange={(v) => setForm((p) => ({ ...p, product_id: v }))}
+                      options={productOptions}
+                      placeholder="Selecionar..."
+                      searchPlaceholder="Pesquisar produto..."
+                    />
+                  ) : (
+                    <select
+                      value={form.product_id}
+                      onChange={(e) => setForm((p) => ({ ...p, product_id: e.target.value }))}
+                      className="w-full border border-border bg-background px-3 py-2 text-sm font-body rounded-none"
+                    >
+                      <option value="">Selecionar...</option>
+                      {productOptions.map((p) => (
+                        <option key={p.value} value={p.value}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
 
               <div>

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { ChevronDown, ChevronUp, FileText, Search, TrendingUp, MapPin, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { entityCode } from '@/utils/entityCode';
@@ -189,6 +190,10 @@ export default function AdminLogs() {
     return Array.from(unique).sort((a, b) => a.localeCompare(b));
   }, [logs]);
 
+  const entityFilterOptions = useMemo(() => {
+    return [{ value: 'all', label: 'Todas' }, ...entities.map((e) => ({ value: e, label: e }))];
+  }, [entities]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return logs.filter((l) => {
@@ -208,19 +213,32 @@ export default function AdminLogs() {
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <h1 className="font-heading text-3xl">Logs</h1>
         <div className="flex gap-2 items-center flex-wrap">
-          <Select value={entityFilter} onValueChange={setEntityFilter}>
-            <SelectTrigger className="w-44 rounded-none">
-              <SelectValue placeholder="Entidade" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas</SelectItem>
-              {entities.map((e) => (
-                <SelectItem key={e} value={e}>
-                  {e}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {entities.length > 10 ? (
+            <div className="w-44">
+              <SearchableSelect
+                value={entityFilter}
+                onChange={setEntityFilter}
+                options={entityFilterOptions}
+                placeholder="Entidade"
+                searchPlaceholder="Pesquisar entidade..."
+                className="rounded-none"
+              />
+            </div>
+          ) : (
+            <Select value={entityFilter} onValueChange={setEntityFilter}>
+              <SelectTrigger className="w-44 rounded-none">
+                <SelectValue placeholder="Entidade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {entities.map((e) => (
+                  <SelectItem key={e} value={e}>
+                    {e}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Select value={actionFilter} onValueChange={setActionFilter}>
             <SelectTrigger className="w-36 rounded-none">
               <SelectValue placeholder="Ação" />

@@ -1399,9 +1399,12 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
   const existing = await prisma.supportTicket.findUnique({ where: { id: req.params.id } })
   if (!existing || existing.userId !== user.id) return res.status(404).json({ error: 'not_found' })
 
+  const shouldReopen = String(existing.status ?? '') === 'closed'
+
   const updated = await prisma.supportTicket.update({
     where: { id: existing.id },
     data: {
+      ...(shouldReopen ? { status: 'open' } : {}),
       messages: {
         create: {
           authorType: 'customer',
@@ -1415,33 +1418,75 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 
   await writeAuditLog({ actorId: user.id, action: 'create', entityType: 'SupportMessage', entityId: updated.messages?.[0]?.id ?? null, meta: { ticket_id: updated.id } })
 
+  if (shouldReopen) {
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'update',
+      entityType: 'SupportTicket',
+      entityId: updated.id,
+      meta: { status: 'open', source: 'customer_message' },
+    })
+  }
+
 	res.status(201).json(toApiSupportMessage(updated.messages[0]))
 	})
 
-	// Support Chat (customer) - simplified endpoints for chat widget
-	app.get('/api/support/chat', async (req, res) => {
-	  const user = await requireUser(req, res)
-	  if (!user) return
+		// Support Chat (customer) - simplified endpoints for chat widget
+		app.get('/api/support/chat', async (req, res) => {
+		  const user = await requireUser(req, res)
+		  if (!user) return
 
-	  const ticket = await prisma.supportTicket.findFirst({
-	    where: { userId: user.id, status: 'open' },
-	    orderBy: { updatedAt: 'desc' },
-	    include: { messages: { orderBy: { createdAt: 'asc' } }, _count: { select: { messages: true } } },
-	  })
+		  const ticket = await prisma.supportTicket.findFirst({
+		    where: { userId: user.id, status: 'open' },
+		    orderBy: { updatedAt: 'desc' },
+		    include: { messages: { orderBy: { createdAt: 'asc' } }, _count: { select: { messages: true } } },
+		  })
 
-	  if (!ticket) return res.json({ ticket: null, messages: [] })
+		  if (!ticket) return res.json({ ticket: null, messages: [] })
 
-	  res.json({
-	    ticket: toApiSupportTicket({ ...ticket, messages: ticket.messages.slice(-1) }),
-	    messages: ticket.messages.map(toApiSupportMessage),
-	  })
-	})
+		  res.json({
+		    ticket: toApiSupportTicket({ ...ticket, messages: ticket.messages.slice(-1) }),
+		    messages: ticket.messages.map(toApiSupportMessage),
+		  })
+		})
 
-	app.post('/api/support/chat/messages', async (req, res) => {
-	  const user = await requireUser(req, res)
-	  if (!user) return
+		app.post('/api/support/chat/open', async (req, res) => {
+		  const user = await requireUser(req, res)
+		  if (!user) return
 
-	  const parsed = supportMessageCreateSchema.safeParse(req.body)
+		  const existing = await prisma.supportTicket.findFirst({
+		    where: { userId: user.id, status: 'open' },
+		    orderBy: { updatedAt: 'desc' },
+		  })
+
+		  if (existing) return res.json({ ok: true, ticket_id: existing.id, created_ticket: false })
+
+		  const created = await prisma.supportTicket.create({
+		    data: {
+		      userId: user.id,
+		      customerName: user.fullName ?? null,
+		      customerEmail: user.email ?? null,
+		      subject: 'Chat / Suporte',
+		      status: 'open',
+		    },
+		  })
+
+		  await writeAuditLog({
+		    actorId: user.id,
+		    action: 'create',
+		    entityType: 'SupportTicket',
+		    entityId: created.id,
+		    meta: { subject: created.subject, source: 'chat_widget_open' },
+		  })
+
+		  res.json({ ok: true, ticket_id: created.id, created_ticket: true })
+		})
+
+		app.post('/api/support/chat/messages', async (req, res) => {
+		  const user = await requireUser(req, res)
+		  if (!user) return
+
+		  const parsed = supportMessageCreateSchema.safeParse(req.body)
 	  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
 	  let ticket = await prisma.supportTicket.findFirst({
@@ -1494,6 +1539,33 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 	  })
 
 	  res.status(201).json({ ticket_id: updated.id, created_ticket: createdTicket, message: toApiSupportMessage(updated.messages[0]) })
+	})
+
+	app.post('/api/support/chat/close', async (req, res) => {
+	  const user = await requireUser(req, res)
+	  if (!user) return
+
+	  const ticket = await prisma.supportTicket.findFirst({
+	    where: { userId: user.id, status: 'open' },
+	    orderBy: { updatedAt: 'desc' },
+	  })
+
+	  if (!ticket) return res.json({ ok: true, closed: false })
+
+	  const updated = await prisma.supportTicket.update({
+	    where: { id: ticket.id },
+	    data: { status: 'closed' },
+	  })
+
+	  await writeAuditLog({
+	    actorId: user.id,
+	    action: 'update',
+	    entityType: 'SupportTicket',
+	    entityId: updated.id,
+	    meta: { status: 'closed', source: 'chat_widget' },
+	  })
+
+	  res.json({ ok: true, closed: true, ticket_id: updated.id })
 	})
 
 	// Notifications (customer)

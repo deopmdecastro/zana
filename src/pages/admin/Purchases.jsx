@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
@@ -70,6 +71,22 @@ export default function AdminPurchases() {
   const productOptions = useMemo(() => {
     return [...products].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''));
   }, [products]);
+
+  const supplierSelectOptions = useMemo(() => {
+    return (Array.isArray(suppliers) ? suppliers : [])
+      .slice()
+      .sort((a, b) => String(a?.name ?? '').localeCompare(String(b?.name ?? '')))
+      .map((s) => ({ value: s.id, label: s.name }));
+  }, [suppliers]);
+
+  const supplierPickerOptions = useMemo(() => {
+    return [{ value: 'none', label: 'Selecionar...' }, ...supplierSelectOptions];
+  }, [supplierSelectOptions]);
+
+  const productPickerOptions = useMemo(() => {
+    const opts = (Array.isArray(productOptions) ? productOptions : []).map((p) => ({ value: p.id, label: p.name }));
+    return [{ value: 'none', label: '-' }, ...opts];
+  }, [productOptions]);
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Purchase.create(data),
@@ -638,27 +655,39 @@ export default function AdminPurchases() {
             <DialogTitle className="font-heading text-xl">{editing ? 'Editar' : 'Nova'} compra</DialogTitle>
 	          </DialogHeader>
 
-		          <div className="space-y-4">
+	            <div className="space-y-4">
 		            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 	              <div>
 	                <Label className="font-body text-xs">Fornecedor</Label>
-	                <Select
-                  value={form.supplier_id ?? 'none'}
-                  onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v === 'none' ? null : v }))}
-                  disabled={isLocked}
-                >
-                  <SelectTrigger className="rounded-none mt-1">
-                    <SelectValue placeholder="Selecionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">-</SelectItem>
-                    {suppliers.map((s) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        {s.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {suppliers.length > 10 ? (
+                    <SearchableSelect
+                      value={form.supplier_id ?? 'none'}
+                      onChange={(v) => setForm((p) => ({ ...p, supplier_id: v === 'none' ? null : v }))}
+                      options={supplierPickerOptions}
+                      placeholder="Selecionar..."
+                      searchPlaceholder="Pesquisar fornecedor..."
+                      className="mt-1"
+                      disabled={isLocked}
+                    />
+                  ) : (
+                    <Select
+                      value={form.supplier_id ?? 'none'}
+                      onValueChange={(v) => setForm((p) => ({ ...p, supplier_id: v === 'none' ? null : v }))}
+                      disabled={isLocked}
+                    >
+                      <SelectTrigger className="rounded-none mt-1">
+                        <SelectValue placeholder="Selecionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">-</SelectItem>
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
               </div>
               <div>
                 <Label className="font-body text-xs">Referência</Label>
@@ -699,32 +728,53 @@ export default function AdminPurchases() {
                   <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                     <div className="md:col-span-2">
                       <Label className="font-body text-xs">Produto (opcional)</Label>
-	                      <Select
-	                        value={it.product_id ?? 'none'}
-	                        onValueChange={(v) => {
-	                          const productId = v === 'none' ? null : v;
-	                          const product = productOptions.find((p) => p.id === productId) ?? null;
-	                          const nextImage = product ? getPrimaryImage(product.images) : '';
-	                          updateItem(idx, {
-	                            product_id: productId,
-	                            product_name: product?.name ?? it.product_name,
-	                            product_image: nextImage ?? it.product_image,
-	                          });
-	                        }}
-	                        disabled={isLocked}
-	                      >
-                        <SelectTrigger className="rounded-none mt-1">
-                          <SelectValue placeholder="-" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">-</SelectItem>
-                          {productOptions.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      {productOptions.length > 10 ? (
+                        <SearchableSelect
+                          value={it.product_id ?? 'none'}
+                          onChange={(v) => {
+                            const productId = v === 'none' ? null : v;
+                            const product = productOptions.find((p) => p.id === productId) ?? null;
+                            const nextImage = product ? getPrimaryImage(product.images) : '';
+                            updateItem(idx, {
+                              product_id: productId,
+                              product_name: product?.name ?? it.product_name,
+                              product_image: nextImage ?? it.product_image,
+                            });
+                          }}
+                          options={productPickerOptions}
+                          placeholder="-"
+                          searchPlaceholder="Pesquisar produto..."
+                          className="mt-1"
+                          disabled={isLocked}
+                        />
+                      ) : (
+                        <Select
+                          value={it.product_id ?? 'none'}
+                          onValueChange={(v) => {
+                            const productId = v === 'none' ? null : v;
+                            const product = productOptions.find((p) => p.id === productId) ?? null;
+                            const nextImage = product ? getPrimaryImage(product.images) : '';
+                            updateItem(idx, {
+                              product_id: productId,
+                              product_name: product?.name ?? it.product_name,
+                              product_image: nextImage ?? it.product_image,
+                            });
+                          }}
+                          disabled={isLocked}
+                        >
+                          <SelectTrigger className="rounded-none mt-1">
+                            <SelectValue placeholder="-" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">-</SelectItem>
+                            {productOptions.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                     </div>
 	                    <div className="md:col-span-2">
 	                      <Label className="font-body text-xs">Nome do item</Label>
@@ -840,24 +890,41 @@ export default function AdminPurchases() {
 			                    <div className="grid grid-cols-1 md:grid-cols-6 gap-3 mt-3">
 			                      <div className="md:col-span-3">
 			                        <Label className="font-body text-xs">Fornecedor *</Label>
-			                        <Select
-			                          value={it.supplier_id ?? 'none'}
-			                          onValueChange={(v) =>
-			                            setFixupItems((p) => p.map((x, i) => (i === idx ? { ...x, supplier_id: v === 'none' ? null : v } : x)))
-			                          }
-			                        >
-			                          <SelectTrigger className="rounded-none mt-1">
-			                            <SelectValue placeholder="Selecionar" />
-			                          </SelectTrigger>
-			                          <SelectContent>
-			                            <SelectItem value="none">Selecionar...</SelectItem>
-			                            {suppliers.map((s) => (
-			                              <SelectItem key={s.id} value={s.id}>
-			                                {s.name}
-			                              </SelectItem>
-			                            ))}
-			                          </SelectContent>
-			                        </Select>
+                              {suppliers.length > 10 ? (
+                                <SearchableSelect
+                                  value={it.supplier_id ?? 'none'}
+                                  onChange={(v) =>
+                                    setFixupItems((p) =>
+                                      p.map((x, i) => (i === idx ? { ...x, supplier_id: v === 'none' ? null : v } : x)),
+                                    )
+                                  }
+                                  options={supplierPickerOptions}
+                                  placeholder="Selecionar..."
+                                  searchPlaceholder="Pesquisar fornecedor..."
+                                  className="mt-1"
+                                />
+                              ) : (
+                                <Select
+                                  value={it.supplier_id ?? 'none'}
+                                  onValueChange={(v) =>
+                                    setFixupItems((p) =>
+                                      p.map((x, i) => (i === idx ? { ...x, supplier_id: v === 'none' ? null : v } : x)),
+                                    )
+                                  }
+                                >
+                                  <SelectTrigger className="rounded-none mt-1">
+                                    <SelectValue placeholder="Selecionar" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="none">Selecionar...</SelectItem>
+                                    {suppliers.map((s) => (
+                                      <SelectItem key={s.id} value={s.id}>
+                                        {s.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              )}
 			                      </div>
                         <div className="md:col-span-3">
                           <Label className="font-body text-xs">Estado</Label>
@@ -999,19 +1066,30 @@ export default function AdminPurchases() {
 		            </div>
 		            <div>
 		              <Label className="font-body text-xs">Fornecedor *</Label>
-		              <Select value={supplierPromptSupplierId} onValueChange={setSupplierPromptSupplierId}>
-		                <SelectTrigger className="rounded-none mt-1">
-		                  <SelectValue placeholder="Selecionar" />
-		                </SelectTrigger>
-		                <SelectContent>
-		                  <SelectItem value="none">Selecionar...</SelectItem>
-		                  {suppliers.map((s) => (
-		                    <SelectItem key={s.id} value={s.id}>
-		                      {s.name}
-		                    </SelectItem>
-		                  ))}
-		                </SelectContent>
-		              </Select>
+                  {suppliers.length > 10 ? (
+                    <SearchableSelect
+                      value={supplierPromptSupplierId}
+                      onChange={setSupplierPromptSupplierId}
+                      options={supplierPickerOptions}
+                      placeholder="Selecionar..."
+                      searchPlaceholder="Pesquisar fornecedor..."
+                      className="mt-1"
+                    />
+                  ) : (
+                    <Select value={supplierPromptSupplierId} onValueChange={setSupplierPromptSupplierId}>
+                      <SelectTrigger className="rounded-none mt-1">
+                        <SelectValue placeholder="Selecionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecionar...</SelectItem>
+                        {suppliers.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
 		            </div>
 		            <div className="flex items-center justify-end gap-2">
 		              <Button

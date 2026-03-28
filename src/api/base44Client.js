@@ -414,26 +414,38 @@ export const base44 = {
 	        update: async (id, patch) => authedJsonRequest(`/api/admin/support/tickets/${id}`, { method: 'PATCH', body: patch }),
 	      },
 	    },
-	    blogComments: {
-	      list: async ({ approved = 'false', post_id, limit = 500 } = {}) => {
-	        const params = new URLSearchParams();
-	        if (approved) params.set('approved', String(approved));
-	        if (post_id) params.set('post_id', String(post_id));
-	        if (limit) params.set('limit', String(limit));
-	        return authedJsonRequest(`/api/admin/blog-comments?${params.toString()}`);
-	      },
-	      get: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`),
-	      reply: async (id, message) =>
-	        authedJsonRequest(`/api/admin/blog-comments/${id}/replies`, { method: 'POST', body: { message } }),
-	      approve: async (id, is_approved) =>
-	        authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'PATCH', body: { is_approved } }),
-	      delete: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'DELETE' }),
-	    },
-		    content: {
-		      about: {
-		        get: async () => authedJsonRequest('/api/admin/content/about'),
-		        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
+		    blogComments: {
+		      list: async ({ approved = 'false', post_id, limit = 500 } = {}) => {
+		        const params = new URLSearchParams();
+		        if (approved) params.set('approved', String(approved));
+		        if (post_id) params.set('post_id', String(post_id));
+		        if (limit) params.set('limit', String(limit));
+		        return authedJsonRequest(`/api/admin/blog-comments?${params.toString()}`);
 		      },
+		      get: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`),
+		      reply: async (id, message) =>
+		        authedJsonRequest(`/api/admin/blog-comments/${id}/replies`, { method: 'POST', body: { message } }),
+		      approve: async (id, is_approved) =>
+		        authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'PATCH', body: { is_approved } }),
+		      delete: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'DELETE' }),
+		    },
+        reviews: {
+          list: async ({ product_id, approved = 'all', limit = 200 } = {}) => {
+            const params = new URLSearchParams();
+            if (product_id) params.set('product_id', String(product_id));
+            if (approved) params.set('approved', String(approved));
+            if (limit) params.set('limit', String(limit));
+            return authedJsonRequest(`/api/admin/reviews?${params.toString()}`);
+          },
+          approve: async (id, is_approved) =>
+            authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'PATCH', body: { is_approved } }),
+          delete: async (id) => authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
+        },
+			    content: {
+			      about: {
+			        get: async () => authedJsonRequest('/api/admin/content/about'),
+			        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
+			      },
 	      landing: {
 	        get: async () => authedJsonRequest('/api/admin/content/landing'),
 	        update: async (data) => authedJsonRequest('/api/admin/content/landing', { method: 'PATCH', body: data }),
@@ -495,37 +507,28 @@ export const base44 = {
 		    },
 		    chat: {
 		      get: async () => authedJsonRequest('/api/support/chat'),
+		      open: async () => authedJsonRequest('/api/support/chat/open', { method: 'POST' }),
 		      send: async (message) => authedJsonRequest('/api/support/chat/messages', { method: 'POST', body: { message } }),
+		      close: async () => authedJsonRequest('/api/support/chat/close', { method: 'POST' }),
 		    },
 		  },
 		  faq: {
 		    list: async () => jsonRequest('/api/faq'),
 		  },
-  instagram: {
-    list: async (limit = 30) => {
-      const params = new URLSearchParams();
-      if (limit) params.set('limit', String(limit));
-      return jsonRequest(`/api/instagram?${params.toString()}`);
-    },
-    analytics: {
-      summary: async (days = 30) => {
-        const params = new URLSearchParams();
-        if (days) params.set('days', String(days));
-        return authedJsonRequest(`/api/admin/analytics/summary?${params.toString()}`);
-      },
-    },
-    reviews: {
-      list: async ({ product_id, approved = 'all', limit = 200 } = {}) => {
-        const params = new URLSearchParams();
-        if (product_id) params.set('product_id', String(product_id));
-        if (approved) params.set('approved', String(approved));
-        if (limit) params.set('limit', String(limit));
-        return authedJsonRequest(`/api/admin/reviews?${params.toString()}`);
-      },
-      approve: async (id, is_approved) => authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'PATCH', body: { is_approved } }),
-      delete: async (id) => authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
-    },
-  },
+	  instagram: {
+	    list: async (limit = 30) => {
+	      const params = new URLSearchParams();
+	      if (limit) params.set('limit', String(limit));
+	      return jsonRequest(`/api/instagram?${params.toString()}`);
+	    },
+	    analytics: {
+	      summary: async (days = 30) => {
+	        const params = new URLSearchParams();
+	        if (days) params.set('days', String(days));
+	        return authedJsonRequest(`/api/admin/analytics/summary?${params.toString()}`);
+	      },
+	    },
+	  },
   analytics: {
     pageview: async ({ path, referrer } = {}) => jsonRequest('/api/analytics/pageview', { method: 'POST', body: { path, referrer } }),
     productView: async ({ product_id } = {}) => jsonRequest('/api/analytics/product-view', { method: 'POST', body: { product_id } }),

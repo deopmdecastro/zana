@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -117,6 +118,10 @@ export default function AdminOrders() {
 
   const shippingCfg = useMemo(() => normalizeShippingMethods(shippingData?.content ?? null), [shippingData?.content]);
   const shippingMethods = shippingCfg.methods;
+
+  const shippingMethodOptions = useMemo(() => {
+    return (shippingMethods ?? []).map((m) => ({ value: m.id, label: m.label }));
+  }, [shippingMethods]);
 
   const byProductId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
 
@@ -531,25 +536,36 @@ export default function AdminOrders() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="font-body text-xs">Método de envio</Label>
-                <Select
-                  value={saleForm.shipping_method_id || shippingCfg.defaultId || ''}
-                  onValueChange={(v) => setSaleForm((p) => ({ ...p, shipping_method_id: v }))}
-                >
-                  <SelectTrigger className="rounded-none mt-1">
-                    <SelectValue placeholder="Selecionar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {shippingMethods.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+	            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+	              <div>
+	                <Label className="font-body text-xs">Método de envio</Label>
+                  {shippingMethods.length > 10 ? (
+                    <SearchableSelect
+                      value={saleForm.shipping_method_id || shippingCfg.defaultId || ''}
+                      onChange={(v) => setSaleForm((p) => ({ ...p, shipping_method_id: v }))}
+                      options={shippingMethodOptions}
+                      placeholder="Selecionar..."
+                      searchPlaceholder="Pesquisar método..."
+                      className="mt-1"
+                    />
+                  ) : (
+                    <Select
+                      value={saleForm.shipping_method_id || shippingCfg.defaultId || ''}
+                      onValueChange={(v) => setSaleForm((p) => ({ ...p, shipping_method_id: v }))}
+                    >
+                      <SelectTrigger className="rounded-none mt-1">
+                        <SelectValue placeholder="Selecionar" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shippingMethods.map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+	              </div>
               <div>
                 <Label className="font-body text-xs">Pagamento</Label>
                 <Select value={saleForm.payment_method} onValueChange={(v) => setSaleForm((p) => ({ ...p, payment_method: v }))}>

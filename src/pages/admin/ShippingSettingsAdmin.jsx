@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import SearchableSelect from '@/components/ui/searchable-select';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { Plus, Trash2 } from 'lucide-react';
 
@@ -52,6 +53,12 @@ export default function ShippingSettingsAdmin() {
   const [form, setForm] = useState(initial);
 
   useEffect(() => setForm(initial), [initial]);
+
+  const defaultMethodOptions = useMemo(() => {
+    return (form.methods ?? [])
+      .filter((m) => m.id && m.label)
+      .map((m) => ({ value: m.id, label: m.label }));
+  }, [form.methods]);
 
   const saveMutation = useMutation({
     mutationFn: (payload) => base44.admin.content.shipping.update(payload),
@@ -126,20 +133,31 @@ export default function ShippingSettingsAdmin() {
                 <div className="font-body text-xs text-muted-foreground mt-1">Este método aparece selecionado no checkout.</div>
               </div>
               <div className="w-full sm:w-72">
-                <Select value={form.default_method_id ?? ''} onValueChange={(v) => setForm((p) => ({ ...p, default_method_id: v }))}>
-                  <SelectTrigger className="rounded-none">
-                    <SelectValue placeholder="Escolher..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(form.methods ?? [])
-                      .filter((m) => m.id && m.label)
-                      .map((m) => (
-                        <SelectItem key={m.id} value={m.id}>
-                          {m.label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
+                {defaultMethodOptions.length > 10 ? (
+                  <SearchableSelect
+                    value={form.default_method_id ?? ''}
+                    onChange={(v) => setForm((p) => ({ ...p, default_method_id: v }))}
+                    options={defaultMethodOptions}
+                    placeholder="Escolher..."
+                    searchPlaceholder="Pesquisar método..."
+                    className="rounded-none"
+                  />
+                ) : (
+                  <Select value={form.default_method_id ?? ''} onValueChange={(v) => setForm((p) => ({ ...p, default_method_id: v }))}>
+                    <SelectTrigger className="rounded-none">
+                      <SelectValue placeholder="Escolher..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(form.methods ?? [])
+                        .filter((m) => m.id && m.label)
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.label}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </div>
@@ -231,4 +249,3 @@ export default function ShippingSettingsAdmin() {
     </div>
   );
 }
-

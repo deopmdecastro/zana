@@ -331,7 +331,7 @@ export default function ProductDetail() {
             <Button onClick={submitReview} className="mt-4 rounded-none font-body text-sm tracking-wider">
               Enviar
             </Button>
-            <p className="font-body text-xs text-muted-foreground mt-2">As avaliações são publicadas após aprovação do admin.</p>
+            <p className="font-body text-xs text-muted-foreground mt-2">Obrigado pelo seu feedback.</p>
           </div>
         </div>
 

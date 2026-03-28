@@ -47,7 +47,7 @@ export default function BlogPostPage() {
     mutationFn: (payload) => base44.blog.comments.create(postId, payload),
     onSuccess: () => {
       setCommentForm((p) => ({ ...p, content: '' }));
-      toast.success('Comentário enviado para aprovação.');
+      toast.success('Comentário enviado (aguarda aprovação).');
       queryClient.invalidateQueries({ queryKey: ['blog-comments', postId] });
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar o comentário.')),
@@ -102,7 +102,7 @@ export default function BlogPostPage() {
 
       <div className="mt-12 pt-10 border-t border-border">
         <h2 className="font-heading text-2xl mb-2">Comentários</h2>
-        <p className="font-body text-sm text-muted-foreground mb-6">Os comentários ficam visíveis após aprovação.</p>
+        <p className="font-body text-sm text-muted-foreground mb-6">Partilhe a sua opinião.</p>
 
         <div className="space-y-4">
           <div className="bg-card border border-border p-4 rounded-lg">

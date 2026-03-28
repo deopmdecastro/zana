@@ -113,12 +113,7 @@ export default function Support() {
       <div className="bg-primary py-12 md:py-16 px-4">
         <div className="max-w-5xl mx-auto">
           <p className="font-body text-xs tracking-[0.3em] uppercase text-primary-foreground/60 mb-2">Ajuda</p>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <h1 className="font-heading text-4xl md:text-6xl text-primary-foreground font-light">Suporte</h1>
-            <Button onClick={() => setDialogOpen(true)} className="rounded-none font-body text-sm tracking-wider">
-              Abrir pedido
-            </Button>
-          </div>
+          <h1 className="font-heading text-4xl md:text-6xl text-primary-foreground font-light">Suporte</h1>
           <p className="font-body text-sm text-primary-foreground/70 mt-3 max-w-2xl">
             Acompanhe as suas mensagens com a equipa Zana num só lugar.
           </p>
