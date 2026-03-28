@@ -35,8 +35,29 @@ model User {
   supportTickets      SupportTicket[]
   blogComments        BlogComment[]
   faqQuestions        FaqQuestion[]
+  newsletterSubscribers NewsletterSubscriber[] @relation("NewsletterSubscriberUser")
 
   @@index([createdAt])
+}
+
+model NewsletterSubscriber {
+  id               String   @id @default(cuid())
+  userId           String?
+  email            String
+  name             String?
+  status           String   @default("subscribed") // subscribed | unsubscribed
+  unsubscribeToken String
+  subscribedAt     DateTime @default(now())
+  unsubscribedAt   DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user             User?    @relation("NewsletterSubscriberUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([email])
+  @@index([status])
+  @@index([createdAt])
+  @@index([unsubscribeToken])
 }
 
 model PasswordResetToken {

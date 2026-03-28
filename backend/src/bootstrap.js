@@ -314,6 +314,28 @@ const ddl = [
 	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_userId_idx" ON "FaqQuestion" ("userId");`,
 	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_faqItemId_idx" ON "FaqQuestion" ("faqItemId");`,
 
+	  `
+	  CREATE TABLE IF NOT EXISTS "NewsletterSubscriber" (
+	    "id" TEXT PRIMARY KEY,
+	    "userId" TEXT,
+	    "email" TEXT NOT NULL,
+	    "name" TEXT,
+	    "status" TEXT NOT NULL DEFAULT 'subscribed',
+	    "unsubscribeToken" TEXT NOT NULL,
+	    "subscribedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "unsubscribedAt" TIMESTAMPTZ,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    CONSTRAINT "NewsletterSubscriber_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL
+	  );
+	  `,
+	  `ALTER TABLE IF EXISTS "NewsletterSubscriber" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
+	  `CREATE UNIQUE INDEX IF NOT EXISTS "NewsletterSubscriber_email_uq" ON "NewsletterSubscriber" ("email");`,
+	  `CREATE INDEX IF NOT EXISTS "NewsletterSubscriber_status_idx" ON "NewsletterSubscriber" ("status");`,
+	  `CREATE INDEX IF NOT EXISTS "NewsletterSubscriber_createdAt_idx" ON "NewsletterSubscriber" ("createdAt");`,
+	  `CREATE INDEX IF NOT EXISTS "NewsletterSubscriber_unsubscribeToken_idx" ON "NewsletterSubscriber" ("unsubscribeToken");`,
+	  `CREATE INDEX IF NOT EXISTS "NewsletterSubscriber_userId_idx" ON "NewsletterSubscriber" ("userId");`,
+
 		  `
 		  CREATE TABLE IF NOT EXISTS "InstagramPost" (
 		    "id" TEXT PRIMARY KEY,

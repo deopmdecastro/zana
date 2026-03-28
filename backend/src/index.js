@@ -60,6 +60,136 @@ async function sendPasswordResetEmail({ to, resetUrl }) {
   return true
 }
 
+function isSmtpConfigured() {
+  return Boolean(smtpHost && smtpFrom)
+}
+
+function renderTemplate(template, vars) {
+  const source = template === null || template === undefined ? '' : String(template)
+  return source.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_m, key) => {
+    const value = vars?.[key]
+    if (value === null || value === undefined) return ''
+    return String(value)
+  })
+}
+
+function buildFromHeader(fromName) {
+  const name = fromName === null || fromName === undefined ? '' : String(fromName).trim()
+  if (!name) return smtpFrom
+  const base = String(smtpFrom ?? '').trim()
+  if (!base) return smtpFrom
+  if (base.includes('<')) return base
+  return `${name} <${base}>`
+}
+
+async function sendTemplatedEmail({ to, subject, text, html, fromName }) {
+  const transport = getMailTransport()
+  if (!transport) return false
+  await transport.sendMail({
+    from: buildFromHeader(fromName),
+    to,
+    subject: subject ?? '',
+    text: text ?? undefined,
+    html: html ?? undefined,
+  })
+  return true
+}
+
+const defaultEmailContent = {
+  from_name: 'Zana',
+  welcome: {
+    enabled: true,
+    subject: 'Bem-vindo(a) à Zana, {{first_name}}!',
+    html:
+      '<p>Olá {{full_name}},</p><p>Obrigado por criar conta na Zana.</p><p>Pode entrar aqui: <a href="{{app_url}}/conta">{{app_url}}/conta</a></p>',
+    text: 'Olá {{full_name}},\n\nObrigado por criar conta na Zana.\n\nPode entrar aqui: {{app_url}}/conta',
+  },
+  order: {
+    enabled: true,
+    subject: 'Recebemos a sua encomenda {{order_id}}',
+    html:
+      '<p>Olá {{customer_name}},</p><p>Recebemos a sua encomenda <strong>{{order_id}}</strong>.</p><p>Total: {{total}}</p><p>Acompanhe em: <a href="{{app_url}}/conta">{{app_url}}/conta</a></p>',
+    text:
+      'Olá {{customer_name}},\n\nRecebemos a sua encomenda {{order_id}}.\nTotal: {{total}}\n\nAcompanhe em: {{app_url}}/conta',
+  },
+  campaign: {
+    enabled: true,
+    subject: 'Novidades Zana',
+    html:
+      '<p>Olá {{name}},</p><p>{{content}}</p><p style="font-size:12px;color:#666">Se não quiser receber mais emails, pode cancelar aqui: <a href="{{unsubscribe_url}}">{{unsubscribe_url}}</a></p>',
+    text:
+      'Olá {{name}},\n\n{{content}}\n\nPara cancelar: {{unsubscribe_url}}',
+  },
+}
+
+async function getEmailContent() {
+  const record = await prisma.siteContent.findUnique({ where: { key: 'email' } })
+  const value = record?.value ?? null
+  if (!value || typeof value !== 'object') return { content: defaultEmailContent, updatedAt: null }
+  return {
+    content: {
+      ...defaultEmailContent,
+      ...value,
+      welcome: { ...defaultEmailContent.welcome, ...(value.welcome ?? {}) },
+      order: { ...defaultEmailContent.order, ...(value.order ?? {}) },
+      campaign: { ...defaultEmailContent.campaign, ...(value.campaign ?? {}) },
+    },
+    updatedAt: record.updatedAt,
+  }
+}
+
+function normalizeEmail(value) {
+  return String(value ?? '').trim().toLowerCase()
+}
+
+function guessFirstName(fullNameOrEmail) {
+  const raw = String(fullNameOrEmail ?? '').trim()
+  if (!raw) return ''
+  const cleaned = raw.includes('@') ? raw.split('@')[0] : raw
+  return cleaned.split(/\s+/).filter(Boolean)[0] ?? cleaned
+}
+
+async function upsertNewsletterSubscriber({ email, name, userId, status }) {
+  const safeEmail = normalizeEmail(email)
+  const safeName = name === undefined ? null : name === null ? null : String(name).trim() || null
+  const safeStatus = status === 'unsubscribed' ? 'unsubscribed' : 'subscribed'
+  const id = crypto.randomUUID()
+  const unsubscribeToken = crypto.randomUUID().replaceAll('-', '') + crypto.randomUUID().replaceAll('-', '')
+
+  const rows = await prisma.$queryRaw`
+    INSERT INTO "NewsletterSubscriber" ("id","userId","email","name","status","unsubscribeToken","subscribedAt","unsubscribedAt","createdAt","updatedAt")
+    VALUES (${id}, ${userId ?? null}, ${safeEmail}, ${safeName}, ${safeStatus}, ${unsubscribeToken}, NOW(), ${safeStatus === 'unsubscribed' ? new Date() : null}, NOW(), NOW())
+    ON CONFLICT ("email") DO UPDATE SET
+      "userId" = COALESCE(EXCLUDED."userId", "NewsletterSubscriber"."userId"),
+      "name" = COALESCE(EXCLUDED."name", "NewsletterSubscriber"."name"),
+      "status" = EXCLUDED."status",
+      "subscribedAt" = CASE WHEN EXCLUDED."status" = 'subscribed' THEN NOW() ELSE "NewsletterSubscriber"."subscribedAt" END,
+      "unsubscribedAt" = CASE WHEN EXCLUDED."status" = 'unsubscribed' THEN NOW() ELSE NULL END,
+      "updatedAt" = NOW()
+    RETURNING "id","userId","email","name","status","unsubscribeToken","subscribedAt","unsubscribedAt","createdAt","updatedAt";
+  `
+  return Array.isArray(rows) ? rows[0] : null
+}
+
+function subscriberToApi(s) {
+  return {
+    id: s.id,
+    user_id: s.userId ?? null,
+    email: s.email,
+    name: s.name ?? null,
+    status: s.status,
+    subscribed_date: s.subscribedAt,
+    unsubscribed_date: s.unsubscribedAt ?? null,
+    created_date: s.createdAt,
+    updated_date: s.updatedAt,
+  }
+}
+
+function buildUnsubscribeUrl(unsubscribeToken) {
+  const token = String(unsubscribeToken ?? '').trim()
+  return `${appBaseUrl}/newsletter/unsubscribe?token=${encodeURIComponent(token)}`
+}
+
 const app = express()
 app.disable('x-powered-by')
 app.use(cors({ origin: corsOrigin }))
@@ -396,6 +526,40 @@ const supportTicketCreateSchema = z
 const supportMessageCreateSchema = z
   .object({
     message: z.string().min(1).max(5000),
+  })
+  .passthrough()
+
+const newsletterSubscribeSchema = z
+  .object({
+    email: z.string().email().max(320),
+    name: z.string().max(120).optional().nullable(),
+  })
+  .passthrough()
+
+const emailTemplateSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    subject: z.string().max(500).optional().nullable(),
+    html: z.string().max(200000).optional().nullable(),
+    text: z.string().max(200000).optional().nullable(),
+  })
+  .passthrough()
+
+const emailContentSchema = z
+  .object({
+    from_name: z.string().max(120).optional().nullable(),
+    welcome: emailTemplateSchema.optional(),
+    order: emailTemplateSchema.optional(),
+    campaign: emailTemplateSchema.optional(),
+  })
+  .passthrough()
+
+const newsletterCampaignSendSchema = z
+  .object({
+    audience: z.enum(['subscribers', 'customers', 'all']).optional(),
+    subject: z.string().min(1).max(500),
+    content: z.string().min(1).max(200000),
+    test_email: z.string().email().max(320).optional().nullable(),
   })
   .passthrough()
 
@@ -936,6 +1100,30 @@ app.post('/api/auth/register', async (req, res) => {
         passwordHash: hashHex,
       },
     })
+
+    // Welcome email (best-effort).
+    void (async () => {
+      try {
+        if (!isSmtpConfigured()) return
+        const { content } = await getEmailContent()
+        if (content?.welcome?.enabled === false) return
+
+        const fullName = created.fullName ?? created.email
+        const vars = {
+          full_name: fullName,
+          first_name: guessFirstName(fullName),
+          email: created.email,
+          app_url: appBaseUrl,
+        }
+        const subject = renderTemplate(content.welcome.subject, vars)
+        const html = renderTemplate(content.welcome.html, vars)
+        const text = renderTemplate(content.welcome.text, vars)
+        await sendTemplatedEmail({ to: created.email, subject, html, text, fromName: content.from_name })
+      } catch (err) {
+        console.error('welcome email failed', err)
+      }
+    })()
+
     res.status(201).json({ user: pickPublicUser(created) })
   } catch (e) {
     // Prisma unique violation
@@ -1004,6 +1192,19 @@ app.patch('/api/users/me', async (req, res) => {
     where: { id: user.id },
     data,
   })
+
+  if (parsed.data.newsletter_opt_in !== undefined) {
+    try {
+      await upsertNewsletterSubscriber({
+        email: updated.email,
+        name: updated.fullName ?? null,
+        userId: updated.id,
+        status: updated.newsletterOptIn ? 'subscribed' : 'unsubscribed',
+      })
+    } catch (err) {
+      console.error('newsletter sync failed', err)
+    }
+  }
 
   res.json({ user: pickPublicUser(updated) })
 })
@@ -1338,6 +1539,55 @@ app.get('/api/content/payments', async (req, res) => {
 app.get('/api/content/shipping', async (req, res) => {
   const record = await prisma.siteContent.findUnique({ where: { key: 'shipping' } })
   res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+// Newsletter (public)
+app.post('/api/newsletter/subscribe', async (req, res) => {
+  const parsed = newsletterSubscribeSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const token = getBearerToken(req)
+  const payload = token ? verifyToken(token) : null
+  const userId = typeof payload?.sub === 'string' ? payload.sub : null
+
+  const email = normalizeEmail(parsed.data.email)
+  const name = parsed.data.name ?? null
+
+  const created = await upsertNewsletterSubscriber({ email, name, userId, status: 'subscribed' })
+
+  await writeAuditLog({
+    actorId: userId,
+    action: 'create',
+    entityType: 'NewsletterSubscriber',
+    entityId: created?.id ?? null,
+    meta: { status: 'subscribed' },
+  })
+
+  res.status(201).json({ ok: true, subscriber: created ? subscriberToApi(created) : null })
+})
+
+app.get('/api/newsletter/unsubscribe', async (req, res) => {
+  const token = String(req.query.token ?? '').trim()
+  if (!token) return res.status(400).json({ error: 'invalid_token' })
+
+  const rows = await prisma.$queryRaw`
+    UPDATE "NewsletterSubscriber"
+    SET "status" = 'unsubscribed', "unsubscribedAt" = NOW(), "updatedAt" = NOW()
+    WHERE "unsubscribeToken" = ${token}
+    RETURNING "id","userId","email","name","status","unsubscribeToken","subscribedAt","unsubscribedAt","createdAt","updatedAt";
+  `
+  const updated = Array.isArray(rows) ? rows[0] : null
+  if (!updated) return res.status(404).json({ error: 'not_found' })
+
+  await writeAuditLog({
+    actorId: updated.userId ?? null,
+    action: 'update',
+    entityType: 'NewsletterSubscriber',
+    entityId: updated.id,
+    meta: { status: 'unsubscribed' },
+  })
+
+  res.json({ ok: true })
 })
 
 app.get('/api/faq', async (req, res) => {
@@ -1756,6 +2006,30 @@ app.post('/api/orders', async (req, res) => {
 
   await writeAuditLog({ action: 'create', entityType: 'Order', entityId: created.id, meta: { source: 'checkout' } })
 
+  // Order email (best-effort).
+  void (async () => {
+    try {
+      if (!isSmtpConfigured()) return
+      const { content } = await getEmailContent()
+      if (content?.order?.enabled === false) return
+
+      const customerName = created.customerName ?? created.customerEmail
+      const vars = {
+        customer_name: customerName,
+        first_name: guessFirstName(customerName),
+        order_id: created.id,
+        total: `${created.total?.toString?.() ?? String(created.total)}€`,
+        app_url: appBaseUrl,
+      }
+      const subject = renderTemplate(content.order.subject, vars)
+      const html = renderTemplate(content.order.html, vars)
+      const text = renderTemplate(content.order.text, vars)
+      await sendTemplatedEmail({ to: created.customerEmail, subject, html, text, fromName: content.from_name })
+    } catch (err) {
+      console.error('order email failed', err)
+    }
+  })()
+
   res.status(201).json(toApiOrder(created))
 })
 
@@ -1905,6 +2179,20 @@ app.patch('/api/admin/users/:id', async (req, res) => {
   }
 
   const updated = await prisma.user.update({ where: { id: req.params.id }, data })
+
+  if (parsed.data.newsletter_opt_in !== undefined) {
+    try {
+      await upsertNewsletterSubscriber({
+        email: updated.email,
+        name: updated.fullName ?? null,
+        userId: updated.id,
+        status: updated.newsletterOptIn ? 'subscribed' : 'unsubscribed',
+      })
+    } catch (err) {
+      console.error('newsletter sync failed', err)
+    }
+  }
+
   await writeAuditLog({
     actorId: admin.id,
     action: 'update',
@@ -2372,6 +2660,162 @@ app.patch('/api/admin/content/shipping', async (req, res) => {
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'shipping', meta: { keys: Object.keys(value ?? {}) } })
   res.json({ content: record.value, updated_date: record.updatedAt })
+})
+
+// Marketing / Email templates
+app.get('/api/admin/marketing/email', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const { content, updatedAt } = await getEmailContent()
+  res.json({ content, updated_date: updatedAt, smtp_configured: isSmtpConfigured() })
+})
+
+app.patch('/api/admin/marketing/email', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = emailContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const value = parsed.data
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'email' },
+    create: { key: 'email', value },
+    update: { value },
+  })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'update',
+    entityType: 'SiteContent',
+    entityId: 'email',
+    meta: { keys: Object.keys(value ?? {}) },
+  })
+
+  const { content } = await getEmailContent()
+  res.json({ content, updated_date: record.updatedAt, smtp_configured: isSmtpConfigured() })
+})
+
+// Newsletter (admin)
+app.get('/api/admin/newsletter/subscribers', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const status = String(req.query.status ?? 'subscribed')
+  const limit = parseLimit(req.query.limit, 500)
+
+  const conditions = []
+  const values = []
+  const add = (sql, value) => {
+    values.push(value)
+    conditions.push(sql.replace('?', `$${values.length}`))
+  }
+
+  if (status === 'subscribed') conditions.push(`s."status" = 'subscribed'`)
+  if (status === 'unsubscribed') conditions.push(`s."status" = 'unsubscribed'`)
+  const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+
+  const sql = `
+    SELECT s."id", s."userId", s."email", s."name", s."status", s."unsubscribeToken", s."subscribedAt", s."unsubscribedAt", s."createdAt", s."updatedAt"
+    FROM "NewsletterSubscriber" s
+    ${whereSql}
+    ORDER BY s."createdAt" DESC
+    LIMIT ${Number(limit)}
+  `
+  const rows = await prisma.$queryRawUnsafe(sql, ...values)
+  res.json((Array.isArray(rows) ? rows : []).map(subscriberToApi))
+})
+
+app.post('/api/admin/newsletter/send', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  if (!isSmtpConfigured()) return res.status(400).json({ error: 'smtp_not_configured' })
+
+  const parsed = newsletterCampaignSendSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const audience = parsed.data.audience ?? 'all'
+  const subjectRaw = parsed.data.subject
+  const contentRaw = parsed.data.content
+  const testEmail = parsed.data.test_email ? normalizeEmail(parsed.data.test_email) : null
+
+  const { content: emailContent } = await getEmailContent()
+  if (emailContent?.campaign?.enabled === false) return res.status(400).json({ error: 'campaign_disabled' })
+
+  const recipients = []
+
+  if (testEmail) {
+    recipients.push({ email: testEmail, name: testEmail, userId: null })
+  } else {
+    if (audience === 'subscribers' || audience === 'all') {
+      const subs = await prisma.$queryRaw`
+        SELECT "email","name","userId"
+        FROM "NewsletterSubscriber"
+        WHERE "status" = 'subscribed'
+        ORDER BY "createdAt" DESC
+        LIMIT 5000;
+      `
+      for (const s of Array.isArray(subs) ? subs : []) {
+        recipients.push({ email: s.email, name: s.name ?? s.email, userId: s.userId ?? null })
+      }
+    }
+
+    if (audience === 'customers' || audience === 'all') {
+      const users = await prisma.user.findMany({
+        where: { newsletterOptIn: true },
+        take: 5000,
+        orderBy: { createdAt: 'desc' },
+      })
+      for (const u of users) {
+        recipients.push({ email: normalizeEmail(u.email), name: u.fullName ?? u.email, userId: u.id })
+      }
+    }
+  }
+
+  const byEmail = new Map()
+  for (const r of recipients) {
+    const e = normalizeEmail(r.email)
+    if (!e) continue
+    if (!byEmail.has(e)) byEmail.set(e, { ...r, email: e })
+  }
+  const uniqueRecipients = Array.from(byEmail.values())
+
+  let sent = 0
+  let failed = 0
+
+  for (const r of uniqueRecipients) {
+    try {
+      const sub = await upsertNewsletterSubscriber({ email: r.email, name: r.name ?? null, userId: r.userId, status: 'subscribed' })
+      const unsubscribeUrl = buildUnsubscribeUrl(sub?.unsubscribeToken ?? '')
+      const vars = {
+        name: r.name ?? r.email,
+        email: r.email,
+        app_url: appBaseUrl,
+        unsubscribe_url: unsubscribeUrl,
+        content: contentRaw,
+      }
+      const subject = renderTemplate(subjectRaw, vars)
+      const html = renderTemplate(emailContent.campaign.html, vars)
+      const text = renderTemplate(emailContent.campaign.text, vars)
+      await sendTemplatedEmail({ to: r.email, subject, html, text, fromName: emailContent.from_name })
+      sent += 1
+    } catch (err) {
+      failed += 1
+      console.error('newsletter send failed', r.email, err)
+    }
+  }
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'create',
+    entityType: 'NewsletterCampaign',
+    entityId: null,
+    meta: { audience, total: uniqueRecipients.length, sent, failed, test_email: testEmail },
+  })
+
+  res.json({ ok: true, total: uniqueRecipients.length, sent, failed, test_email: testEmail })
 })
 
 // FAQ

@@ -451,6 +451,23 @@ export const base44 = {
           },
           update: async (id, patch) => authedJsonRequest(`/api/admin/faq/questions/${id}`, { method: 'PATCH', body: patch }),
         },
+        marketing: {
+          email: {
+            get: async () => authedJsonRequest('/api/admin/marketing/email'),
+            update: async (data) => authedJsonRequest('/api/admin/marketing/email', { method: 'PATCH', body: data }),
+          },
+        },
+        newsletter: {
+          subscribers: {
+            list: async ({ status = 'subscribed', limit = 500 } = {}) => {
+              const params = new URLSearchParams();
+              if (status) params.set('status', String(status));
+              if (limit) params.set('limit', String(limit));
+              return authedJsonRequest(`/api/admin/newsletter/subscribers?${params.toString()}`);
+            },
+          },
+          send: async (data) => authedJsonRequest('/api/admin/newsletter/send', { method: 'POST', body: data }),
+        },
 			    content: {
 			      about: {
 			        get: async () => authedJsonRequest('/api/admin/content/about'),
@@ -484,6 +501,10 @@ export const base44 = {
 		    payments: async () => jsonRequest('/api/content/payments'),
         shipping: async () => jsonRequest('/api/content/shipping'),
 		  },
+      newsletter: {
+        subscribe: async (data) => jsonRequest('/api/newsletter/subscribe', { method: 'POST', body: data, token: getToken() }),
+        unsubscribe: async (token) => jsonRequest(`/api/newsletter/unsubscribe?token=${encodeURIComponent(String(token ?? ''))}`),
+      },
 	  blog: {
 	    comments: {
 	      list: async (postId, limit = 200) => {

@@ -41,9 +41,10 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 		const Contact = lazy(() => import('@/pages/Contact'));
 		const PrivacyPolicy = lazy(() => import('@/pages/PrivacyPolicy'));
 		const CookiesPolicy = lazy(() => import('@/pages/CookiesPolicy'));
-		const Terms = lazy(() => import('@/pages/Terms'));
-		const WishlistPage = lazy(() => import('@/pages/Wishlist'));
-		const Account = lazy(() => import('@/pages/Account'));
+			const Terms = lazy(() => import('@/pages/Terms'));
+      const NewsletterUnsubscribe = lazy(() => import('@/pages/NewsletterUnsubscribe'));
+			const WishlistPage = lazy(() => import('@/pages/Wishlist'));
+			const Account = lazy(() => import('@/pages/Account'));
 
 	// Admin
 	const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
@@ -66,8 +67,9 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 		const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
 		const BlogCommentsAdmin = lazy(() => import('@/pages/admin/BlogCommentsAdmin'));
 		const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
-		const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
-		const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
+			const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
+			const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
+      const MarketingAdmin = lazy(() => import('@/pages/admin/MarketingAdmin'));
 
 const FAQPage = lazy(() => import('@/pages/FAQ'));
 
@@ -111,6 +113,7 @@ const AuthenticatedApp = () => {
 	        <Route path="/politica-privacidade" element={<PrivacyPolicy />} />
 	        <Route path="/cookies" element={<CookiesPolicy />} />
 	        <Route path="/termos" element={<Terms />} />
+          <Route path="/newsletter/unsubscribe" element={<NewsletterUnsubscribe />} />
 		        <Route path="/faq" element={<FAQPage />} />
 		        <Route path="/favoritos" element={<WishlistPage />} />
 	        <Route path="/conta" element={<Account />} />
@@ -139,6 +142,7 @@ const AuthenticatedApp = () => {
 		          <Route path="sobre" element={<AboutAdmin />} />
 		          <Route path="instagram" element={<InstagramAdmin />} />
 		          <Route path="faq" element={<FAQAdmin />} />
+              <Route path="marketing" element={<MarketingAdmin />} />
 		        </Route>
 		        <Route path="/admin/definicoes" element={<SettingsLayout />}>
 		          <Route index element={<Navigate to="pagamentos" replace />} />

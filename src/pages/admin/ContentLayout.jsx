@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { BookOpen, FileText, HelpCircle, Instagram, LayoutTemplate, MessageSquare } from 'lucide-react';
+import { BookOpen, FileText, HelpCircle, Instagram, LayoutTemplate, MessageSquare, Megaphone } from 'lucide-react';
 
 const tabs = [
   { to: 'landing', label: 'Landing', icon: LayoutTemplate },
@@ -9,6 +9,7 @@ const tabs = [
   { to: 'sobre', label: 'Sobre Nós', icon: FileText },
   { to: 'instagram', label: 'Instagram', icon: Instagram },
   { to: 'faq', label: 'FAQ', icon: HelpCircle },
+  { to: 'marketing', label: 'Marketing', icon: Megaphone },
 ];
 
 export default function ContentLayout() {
@@ -45,4 +46,3 @@ export default function ContentLayout() {
     </div>
   );
 }
-
