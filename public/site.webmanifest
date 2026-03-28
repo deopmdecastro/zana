@@ -1,8 +1,11 @@
 {
   "name": "Zana Acessórios",
   "short_name": "Zana",
+  "description": "Loja online de bijuterias e acessórios elegantes para a mulher moderna.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#f8f5f2",
   "theme_color": "#782641",
   "icons": [
