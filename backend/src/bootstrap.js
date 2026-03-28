@@ -78,6 +78,7 @@ const ddl = [
     "colors" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "images" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "stock" INTEGER NOT NULL DEFAULT 0,
+    "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE,
     "isFeatured" BOOLEAN NOT NULL DEFAULT FALSE,
     "isNew" BOOLEAN NOT NULL DEFAULT FALSE,
     "isBestseller" BOOLEAN NOT NULL DEFAULT FALSE,
@@ -99,6 +100,11 @@ const ddl = [
     "shippingCity" TEXT,
     "shippingPostalCode" TEXT,
     "shippingCountry" TEXT NOT NULL DEFAULT 'Portugal',
+    "shippingMethodId" TEXT,
+    "shippingMethodLabel" TEXT,
+    "trackingCode" TEXT,
+    "trackingUrl" TEXT,
+    "trackingCarrier" TEXT,
     "subtotal" NUMERIC(12,2),
     "shippingCost" NUMERIC(12,2) NOT NULL DEFAULT 0,
     "total" NUMERIC(12,2) NOT NULL,
@@ -111,6 +117,13 @@ const ddl = [
   `,
   `CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "Order" ("status");`,
   `CREATE INDEX IF NOT EXISTS "Order_customerEmail_idx" ON "Order" ("customerEmail");`,
+
+  `ALTER TABLE IF EXISTS "Product" ADD COLUMN IF NOT EXISTS "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE;`,
+  `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "shippingMethodId" TEXT;`,
+  `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "shippingMethodLabel" TEXT;`,
+  `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "trackingCode" TEXT;`,
+  `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "trackingUrl" TEXT;`,
+  `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "trackingCarrier" TEXT;`,
 
   `
   CREATE TABLE IF NOT EXISTS "OrderItem" (

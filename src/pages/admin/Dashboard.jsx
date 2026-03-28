@@ -3,7 +3,15 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Package, ShoppingCart, Euro, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+
+const STATUS_META = {
+  pending: { label: 'Pendente', color: 'hsl(var(--chart-3))' },
+  confirmed: { label: 'Confirmada', color: 'hsl(var(--chart-1))' },
+  processing: { label: 'Preparação', color: 'hsl(var(--chart-2))' },
+  shipped: { label: 'Enviada', color: 'hsl(var(--chart-4))' },
+  delivered: { label: 'Entregue', color: 'hsl(var(--chart-5))' },
+};
 
 export default function Dashboard() {
   const { data: products = [] } = useQuery({
@@ -17,13 +25,14 @@ export default function Dashboard() {
   });
 
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
-  const pendingOrders = orders.filter(o => o.status === 'pending').length;
-  const activeProducts = products.filter(p => p.status === 'active').length;
+  const pendingOrders = orders.filter((o) => o.status === 'pending').length;
+  const activeProducts = products.filter((p) => p.status === 'active').length;
 
-  // Revenue by status
-  const statusData = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'].map(status => ({
-    name: status === 'pending' ? 'Pendente' : status === 'confirmed' ? 'Confirmada' : status === 'processing' ? 'Preparação' : status === 'shipped' ? 'Enviada' : 'Entregue',
-    value: orders.filter(o => o.status === status).length,
+  const statusData = ['pending', 'confirmed', 'processing', 'shipped', 'delivered'].map((status) => ({
+    key: status,
+    name: STATUS_META[status]?.label ?? status,
+    value: orders.filter((o) => o.status === status).length,
+    fill: STATUS_META[status]?.color ?? 'hsl(var(--chart-1))',
   }));
 
   const stats = [
@@ -38,8 +47,8 @@ export default function Dashboard() {
       <h1 className="font-heading text-3xl mb-6">Dashboard</h1>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat, i) => (
-          <Card key={i}>
+        {stats.map((stat) => (
+          <Card key={stat.title}>
             <CardContent className="p-5">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-body text-xs text-muted-foreground">{stat.title}</span>
@@ -51,7 +60,6 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Orders Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="font-heading text-xl">Encomendas por Estado</CardTitle>
@@ -63,14 +71,17 @@ export default function Dashboard() {
                 <XAxis dataKey="name" className="font-body text-xs" />
                 <YAxis className="font-body text-xs" />
                 <Tooltip />
-                <Bar dataKey="value" fill="hsl(340, 52%, 31%)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                  {statusData.map((entry) => (
+                    <Cell key={entry.key} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </CardContent>
       </Card>
 
-      {/* Recent Orders */}
       <Card className="mt-6">
         <CardHeader>
           <CardTitle className="font-heading text-xl">Últimas Encomendas</CardTitle>
@@ -80,7 +91,7 @@ export default function Dashboard() {
             <p className="font-body text-sm text-muted-foreground text-center py-6">Sem encomendas ainda</p>
           ) : (
             <div className="space-y-3">
-              {orders.slice(0, 5).map(order => (
+              {orders.slice(0, 5).map((order) => (
                 <div key={order.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
                   <div>
                     <p className="font-body text-sm font-medium">{order.customer_name}</p>
@@ -96,3 +107,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

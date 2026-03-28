@@ -18,7 +18,7 @@ import ImageUpload from '@/components/uploads/ImageUpload';
 const emptyProduct = {
   name: '', description: '', price: '', original_price: '', category: 'colares',
   material: 'dourado', colors: [], images: [], stock: 0, is_featured: false,
-  is_new: false, is_bestseller: false, status: 'active'
+  free_shipping: false, is_new: false, is_bestseller: false, status: 'active'
 };
 
 export default function AdminProducts() {
@@ -225,6 +225,10 @@ export default function AdminProducts() {
               </div>
             </div>
             <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Switch checked={form.free_shipping} onCheckedChange={(v) => setForm({ ...form, free_shipping: v })} />
+                <Label className="font-body text-xs">Entrega grátis</Label>
+              </div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_featured} onCheckedChange={(v) => setForm({ ...form, is_featured: v })} />
                 <Label className="font-body text-xs">Destaque</Label>

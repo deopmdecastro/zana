@@ -1,8 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { CreditCard } from 'lucide-react';
+import { CreditCard, Truck } from 'lucide-react';
 
-const tabs = [{ to: 'pagamentos', label: 'Pagamentos', icon: CreditCard }];
+const tabs = [
+  { to: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
+  { to: 'envios', label: 'Envios', icon: Truck },
+];
 
 export default function SettingsLayout() {
   return (
@@ -36,4 +39,3 @@ export default function SettingsLayout() {
     </div>
   );
 }
-

@@ -17,6 +17,7 @@ const normalizeItem = (product, quantity = 1, color = '') => ({
   product_id: product.id,
   product_name: product.name,
   product_image: getPrimaryImage(product.images) || '',
+  free_shipping: Boolean(product.free_shipping),
   price: Number(product.price) || 0,
   quantity: Number(quantity) || 1,
   color: color || '',
@@ -31,6 +32,7 @@ export const CartProvider = ({ children }) => {
       ...it,
       product_image: typeof it?.product_image === 'string' ? it.product_image.trim() : '',
       product_name: typeof it?.product_name === 'string' ? it.product_name.trim() : it?.product_name,
+      free_shipping: Boolean(it?.free_shipping),
     }));
   });
 

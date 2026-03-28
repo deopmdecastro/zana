@@ -44,7 +44,10 @@ const navSections = [
   },
   {
     label: 'Definições',
-    items: [{ to: '/admin/definicoes/pagamentos', icon: CreditCard, label: 'Pagamentos' }],
+    items: [
+      { to: '/admin/definicoes/pagamentos', icon: CreditCard, label: 'Pagamentos' },
+      { to: '/admin/definicoes/envios', icon: Truck, label: 'Envios' },
+    ],
   },
   {
     label: 'Operação',

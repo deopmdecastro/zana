@@ -217,12 +217,13 @@ const productPayloadSchema = z
       .nullable(),
     colors: z.array(z.string()).optional(),
     images: z.array(z.string()).optional(),
-    stock: z.union([z.number(), z.string()]).optional().nullable(),
-    is_featured: z.boolean().optional(),
-    is_new: z.boolean().optional(),
-    is_bestseller: z.boolean().optional(),
-    status: z.enum(['active', 'inactive', 'out_of_stock']).optional(),
-  })
+	    stock: z.union([z.number(), z.string()]).optional().nullable(),
+	    free_shipping: z.boolean().optional(),
+	    is_featured: z.boolean().optional(),
+	    is_new: z.boolean().optional(),
+	    is_bestseller: z.boolean().optional(),
+	    status: z.enum(['active', 'inactive', 'out_of_stock']).optional(),
+	  })
   .passthrough()
 
 const orderItemPayloadSchema = z.object({
@@ -239,13 +240,15 @@ const orderPayloadSchema = z
     customer_name: z.string().min(1).max(200),
     customer_email: z.string().email().max(320),
     customer_phone: z.string().optional().nullable(),
-    shipping_address: z.string().optional().nullable(),
-    shipping_city: z.string().optional().nullable(),
-    shipping_postal_code: z.string().optional().nullable(),
-    shipping_country: z.string().optional().nullable(),
-    subtotal: z.union([z.number(), z.string()]).optional().nullable(),
-    shipping_cost: z.union([z.number(), z.string()]).optional().nullable(),
-    total: z.union([z.number(), z.string()]),
+	    shipping_address: z.string().optional().nullable(),
+	    shipping_city: z.string().optional().nullable(),
+	    shipping_postal_code: z.string().optional().nullable(),
+	    shipping_country: z.string().optional().nullable(),
+	    shipping_method_id: z.string().optional().nullable(),
+	    shipping_method_label: z.string().optional().nullable(),
+	    subtotal: z.union([z.number(), z.string()]).optional().nullable(),
+	    shipping_cost: z.union([z.number(), z.string()]).optional().nullable(),
+	    total: z.union([z.number(), z.string()]),
     status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).optional(),
     payment_method: z.enum(['mbway', 'transferencia', 'multibanco', 'paypal']).optional().nullable(),
     notes: z.string().optional().nullable(),
@@ -257,6 +260,9 @@ const adminOrderUpdateSchema = z
   .object({
     status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).optional(),
     notes: z.string().optional().nullable(),
+    tracking_code: z.string().optional().nullable(),
+    tracking_url: z.string().optional().nullable(),
+    tracking_carrier: z.string().optional().nullable(),
   })
   .passthrough()
 
@@ -324,6 +330,25 @@ const searchEventSchema = z
 
 // Any JSON object payload (unknown keys allowed).
 const aboutContentSchema = z.object({}).catchall(z.any())
+
+const shippingMethodContentSchema = z
+  .object({
+    id: z.string().min(1).max(60),
+    label: z.string().min(1).max(80),
+    enabled: z.boolean().optional(),
+    price: z.union([z.number(), z.string()]).optional().nullable(),
+    free_over: z.union([z.number(), z.string()]).optional().nullable(),
+    description: z.string().optional().nullable(),
+    eta: z.string().optional().nullable(),
+  })
+  .passthrough()
+
+const shippingContentSchema = z
+  .object({
+    default_method_id: z.string().optional().nullable(),
+    methods: z.array(shippingMethodContentSchema).optional(),
+  })
+  .passthrough()
 
 const faqPayloadSchema = z
   .object({
@@ -520,6 +545,7 @@ function toApiProduct(p) {
     colors: Array.isArray(p.colors) ? p.colors : [],
     images: Array.isArray(p.images) ? p.images : [],
     stock: p.stock ?? 0,
+    free_shipping: Boolean(p.freeShipping),
     is_featured: Boolean(p.isFeatured),
     is_new: Boolean(p.isNew),
     is_bestseller: Boolean(p.isBestseller),
@@ -539,6 +565,11 @@ function toApiOrder(o) {
     shipping_city: o.shippingCity ?? null,
     shipping_postal_code: o.shippingPostalCode ?? null,
     shipping_country: o.shippingCountry ?? null,
+    shipping_method_id: o.shippingMethodId ?? null,
+    shipping_method_label: o.shippingMethodLabel ?? null,
+    tracking_code: o.trackingCode ?? null,
+    tracking_url: o.trackingUrl ?? null,
+    tracking_carrier: o.trackingCarrier ?? null,
     subtotal: o.subtotal === null || o.subtotal === undefined ? null : decimalToNumber(o.subtotal),
     shipping_cost: decimalToNumber(o.shippingCost) ?? 0,
     total: decimalToNumber(o.total) ?? 0,
@@ -945,6 +976,10 @@ app.get('/api/orders/my', async (req, res) => {
       created_at: o.createdAt,
       total: o.total?.toString?.() ?? String(o.total),
       status: o.status,
+      shipping_method_label: o.shippingMethodLabel ?? null,
+      tracking_code: o.trackingCode ?? null,
+      tracking_url: o.trackingUrl ?? null,
+      tracking_carrier: o.trackingCarrier ?? null,
       items: o.items.map((it) => ({
         product_name: it.productName,
         product_image: it.productImage ?? null,
@@ -1251,6 +1286,11 @@ app.get('/api/content/payments', async (req, res) => {
   res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
 })
 
+app.get('/api/content/shipping', async (req, res) => {
+  const record = await prisma.siteContent.findUnique({ where: { key: 'shipping' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
 app.get('/api/faq', async (req, res) => {
   const items = await prisma.faqItem.findMany({
     where: { isActive: true },
@@ -1461,6 +1501,8 @@ app.post('/api/orders', async (req, res) => {
       shippingCity: data.shipping_city ?? null,
       shippingPostalCode: data.shipping_postal_code ?? null,
       shippingCountry: data.shipping_country ?? undefined,
+      shippingMethodId: data.shipping_method_id ?? null,
+      shippingMethodLabel: data.shipping_method_label ?? null,
       subtotal: data.subtotal === undefined || data.subtotal === null ? undefined : String(data.subtotal),
       shippingCost:
         data.shipping_cost === undefined || data.shipping_cost === null ? undefined : String(data.shipping_cost),
@@ -1671,13 +1713,14 @@ app.post('/api/admin/products', async (req, res) => {
       category: data.category,
       material: data.material ?? null,
       colors: data.colors ?? [],
-      images: data.images ?? [],
-      stock:
-        data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
-      isFeatured: data.is_featured ?? undefined,
-      isNew: data.is_new ?? undefined,
-      isBestseller: data.is_bestseller ?? undefined,
-      status: data.status ?? undefined,
+	      images: data.images ?? [],
+	      stock:
+	        data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
+	      freeShipping: data.free_shipping ?? undefined,
+	      isFeatured: data.is_featured ?? undefined,
+	      isNew: data.is_new ?? undefined,
+	      isBestseller: data.is_bestseller ?? undefined,
+	      status: data.status ?? undefined,
     },
   })
 
@@ -1704,13 +1747,14 @@ app.patch('/api/admin/products/:id', async (req, res) => {
           data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
         category: data.category,
         material: data.material === undefined ? undefined : data.material,
-        colors: data.colors,
-        images: data.images,
-        stock: data.stock === undefined ? undefined : data.stock === null ? null : Number.parseInt(String(data.stock), 10) || 0,
-        isFeatured: data.is_featured,
-        isNew: data.is_new,
-        isBestseller: data.is_bestseller,
-        status: data.status,
+	        colors: data.colors,
+	        images: data.images,
+	        stock: data.stock === undefined ? undefined : data.stock === null ? null : Number.parseInt(String(data.stock), 10) || 0,
+	        freeShipping: data.free_shipping,
+	        isFeatured: data.is_featured,
+	        isNew: data.is_new,
+	        isBestseller: data.is_bestseller,
+	        status: data.status,
       },
     })
     await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Product', entityId: updated.id, meta: req.body })
@@ -1743,6 +1787,81 @@ app.get('/api/admin/orders', async (req, res) => {
     take: parseLimit(req.query.limit, 500),
   })
   res.json(orders.map(toApiOrder))
+})
+
+app.post('/api/admin/orders', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = orderPayloadSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const data = parsed.data
+  const status = data.status ?? 'pending'
+
+  const created = await prisma.order.create({
+    data: {
+      customerName: data.customer_name,
+      customerEmail: data.customer_email.trim().toLowerCase(),
+      customerPhone: data.customer_phone ?? null,
+      shippingAddress: data.shipping_address ?? null,
+      shippingCity: data.shipping_city ?? null,
+      shippingPostalCode: data.shipping_postal_code ?? null,
+      shippingCountry: data.shipping_country ?? undefined,
+      shippingMethodId: data.shipping_method_id ?? null,
+      shippingMethodLabel: data.shipping_method_label ?? null,
+      subtotal: data.subtotal === undefined || data.subtotal === null ? undefined : String(data.subtotal),
+      shippingCost:
+        data.shipping_cost === undefined || data.shipping_cost === null ? undefined : String(data.shipping_cost),
+      total: String(data.total),
+      status,
+      paymentMethod: data.payment_method ?? null,
+      notes: data.notes ?? null,
+      items: {
+        create: data.items.map((it) => ({
+          productId: it.product_id ?? null,
+          productName: it.product_name,
+          productImage: it.product_image ?? null,
+          price: String(it.price),
+          quantity: it.quantity,
+          color: it.color ?? null,
+        })),
+      },
+    },
+    include: { items: true },
+  })
+
+  const shouldApplyInventory = status !== 'pending' && status !== 'cancelled'
+  if (shouldApplyInventory) {
+    const applied = await applyOrderToInventory({ orderId: created.id, actorId: admin.id, status })
+    if (!applied.ok) {
+      try {
+        await prisma.order.delete({ where: { id: created.id } })
+      } catch {
+        // best-effort cleanup
+      }
+      return res.status(applied.error === 'insufficient_stock' ? 409 : 500).json({ error: applied.error })
+    }
+    if (!applied.already_applied) {
+      await writeAuditLog({
+        actorId: admin.id,
+        action: 'update',
+        entityType: 'Inventory',
+        entityId: created.id,
+        meta: { source: 'order_admin_create', order_id: created.id, order_status: status },
+      })
+    }
+  }
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'create',
+    entityType: 'Order',
+    entityId: created.id,
+    meta: { source: 'admin', status },
+  })
+
+  res.status(201).json(toApiOrder(created))
 })
 
 app.patch('/api/admin/orders/:id', async (req, res) => {
@@ -1782,6 +1901,9 @@ app.patch('/api/admin/orders/:id', async (req, res) => {
       data: {
         status: nextStatus,
         notes: parsed.data.notes === undefined ? undefined : parsed.data.notes,
+        trackingCode: parsed.data.tracking_code === undefined ? undefined : parsed.data.tracking_code,
+        trackingUrl: parsed.data.tracking_url === undefined ? undefined : parsed.data.tracking_url,
+        trackingCarrier: parsed.data.tracking_carrier === undefined ? undefined : parsed.data.tracking_carrier,
       },
       include: { items: true },
     })
@@ -1796,6 +1918,9 @@ app.patch('/api/admin/orders/:id', async (req, res) => {
         previous_status: existing.status,
         status: nextStatus,
         customer_email: updated.customerEmail,
+        tracking_code: parsed.data.tracking_code ?? null,
+        tracking_url: parsed.data.tracking_url ?? null,
+        tracking_carrier: parsed.data.tracking_carrier ?? null,
       },
     })
     res.json(toApiOrder(updated))
@@ -1975,6 +2100,33 @@ app.patch('/api/admin/content/payments', async (req, res) => {
   })
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'payments', meta: { keys: Object.keys(value ?? {}) } })
+  res.json({ content: record.value, updated_date: record.updatedAt })
+})
+
+// Content (Shipping)
+app.get('/api/admin/content/shipping', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'shipping' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+app.patch('/api/admin/content/shipping', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = shippingContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const value = parsed.data
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'shipping' },
+    create: { key: 'shipping', value },
+    update: { value },
+  })
+
+  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'shipping', meta: { keys: Object.keys(value ?? {}) } })
   res.json({ content: record.value, updated_date: record.updatedAt })
 })
 

@@ -327,11 +327,31 @@ export default function Account() {
                     <p className="font-body text-sm font-semibold">
                       {Number.isFinite(totalNumber) ? totalNumber.toFixed(2) : order.total} €
                     </p>
+                    {order.shipping_method_label ? (
+                      <p className="font-body text-xs text-muted-foreground mt-1">Envio: {order.shipping_method_label}</p>
+                    ) : null}
                   </div>
                   <Badge className={statusColors[order.status] || 'bg-secondary'}>
                     {statusLabels[order.status] || order.status}
                   </Badge>
                 </div>
+
+                {order.tracking_url || order.tracking_code ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-secondary/20 border border-border rounded-md p-3">
+                    <div className="min-w-0">
+                      <div className="font-body text-xs text-muted-foreground">Rastreamento</div>
+                      <div className="font-body text-sm font-medium truncate">
+                        {order.tracking_carrier ? `${order.tracking_carrier} · ` : ''}
+                        {order.tracking_code ? order.tracking_code : 'Link disponível'}
+                      </div>
+                    </div>
+                    {order.tracking_url ? (
+                      <a href={order.tracking_url} target="_blank" rel="noreferrer" className="font-body text-xs text-primary hover:underline">
+                        Ver rastreamento
+                      </a>
+                    ) : null}
+                  </div>
+                ) : null}
                 <Separator className="my-3" />
                 <div className="flex flex-wrap gap-2">
                   {order.items?.map((item, i) => (

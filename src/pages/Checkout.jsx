@@ -15,6 +15,12 @@ import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
 import { useAuth } from '@/lib/AuthContext';
 
+const DEFAULT_SHIPPING_METHODS = [
+  { id: 'standard', label: 'Standard', price: 4.99, free_over: 50, enabled: true, description: 'Entrega em 2–4 dias úteis.' },
+  { id: 'express', label: 'Expresso', price: 7.99, free_over: null, enabled: false, description: 'Entrega em 1–2 dias úteis.' },
+  { id: 'pickup', label: 'Levantamento', price: 0, free_over: null, enabled: false, description: 'Levante a encomenda num ponto combinado.' },
+];
+
 const METHOD_META = [
   { value: 'mbway', label: 'MB WAY' },
   { value: 'transferencia', label: 'Transferência Bancária' },
@@ -26,6 +32,30 @@ function getEnabledMethods(payments) {
   const methods = payments?.methods && typeof payments.methods === 'object' ? payments.methods : {};
   const enabled = METHOD_META.filter((m) => methods?.[m.value]?.enabled !== false);
   return enabled.length ? enabled : METHOD_META;
+}
+
+function normalizeShippingMethods(shipping) {
+  const content = shipping && typeof shipping === 'object' ? shipping : {};
+  const methods = Array.isArray(content.methods) ? content.methods : [];
+
+  const mapped = methods.map((m) => ({
+    id: String(m?.id ?? '').trim(),
+    label: String(m?.label ?? '').trim(),
+    enabled: m?.enabled !== false,
+    price: m?.price === null || m?.price === undefined ? null : Number(m.price),
+    free_over: m?.free_over === null || m?.free_over === undefined ? null : Number(m.free_over),
+    description: m?.description ? String(m.description) : '',
+  }));
+
+  const effective = mapped.length ? mapped : DEFAULT_SHIPPING_METHODS;
+  const enabled = effective.filter((m) => m.id && m.label && m.enabled !== false);
+  const defaultId = content.default_method_id ? String(content.default_method_id) : null;
+  const fallbackId = enabled[0]?.id ?? 'standard';
+
+  return {
+    methods: enabled.length ? enabled : DEFAULT_SHIPPING_METHODS.filter((m) => m.enabled !== false),
+    defaultId: defaultId || fallbackId,
+  };
 }
 
 export default function Checkout() {
@@ -40,9 +70,18 @@ export default function Checkout() {
     staleTime: 60_000,
   });
 
+  const { data: shippingData } = useQuery({
+    queryKey: ['content-shipping'],
+    queryFn: () => base44.content.shipping(),
+    staleTime: 60_000,
+  });
+
   const payments = paymentsData?.content ?? null;
+  const shippingContent = shippingData?.content ?? null;
 
   const paymentOptions = useMemo(() => getEnabledMethods(payments), [payments]);
+  const shippingCfg = useMemo(() => normalizeShippingMethods(shippingContent), [shippingContent]);
+  const shippingMethods = shippingCfg.methods;
 
   const [form, setForm] = useState({
     customer_name: '',
@@ -51,6 +90,7 @@ export default function Checkout() {
     shipping_address: '',
     shipping_city: '',
     shipping_postal_code: '',
+    shipping_method_id: 'standard',
     payment_method: 'mbway',
     notes: '',
   });
@@ -73,10 +113,30 @@ export default function Checkout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentOptions.map((o) => o.value).join('|')]);
 
+  useEffect(() => {
+    if (!shippingMethods?.length) return;
+    const current = form.shipping_method_id;
+    if (shippingMethods.some((m) => m.id === current)) return;
+    setForm((p) => ({ ...p, shipping_method_id: shippingCfg.defaultId }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shippingMethods.map((m) => m.id).join('|')]);
+
   const selectedPaymentCfg =
     payments?.methods && typeof payments.methods === 'object' ? payments.methods?.[form.payment_method] ?? null : null;
 
-  const shipping = subtotal >= 50 ? 0 : 4.99;
+  const selectedShipping = useMemo(() => {
+    return shippingMethods.find((m) => m.id === form.shipping_method_id) ?? shippingMethods[0] ?? null;
+  }, [shippingMethods, form.shipping_method_id]);
+
+  const shipping = useMemo(() => {
+    const allFree = (items ?? []).length > 0 && (items ?? []).every((i) => !!i.free_shipping);
+    if (allFree) return 0;
+    const price = Number(selectedShipping?.price ?? 0) || 0;
+    const freeOver = selectedShipping?.free_over === null || selectedShipping?.free_over === undefined ? null : Number(selectedShipping.free_over);
+    if (freeOver && subtotal >= freeOver) return 0;
+    return price;
+  }, [items, selectedShipping, subtotal]);
+
   const total = subtotal + shipping;
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
@@ -99,6 +159,8 @@ export default function Checkout() {
       await toastApiPromise(
         base44.entities.Order.create({
           ...form,
+          shipping_method_id: selectedShipping?.id ?? form.shipping_method_id ?? null,
+          shipping_method_label: selectedShipping?.label ?? null,
           items: items.map((i) => ({
             product_id: i.product_id,
             product_name: i.product_name,
@@ -218,9 +280,9 @@ export default function Checkout() {
               </div>
             </div>
 
-            <div className="bg-card p-6 rounded-lg border border-border">
-              <h2 className="font-heading text-xl mb-4">Morada de Envio</h2>
-              <div className="space-y-4">
+	            <div className="bg-card p-6 rounded-lg border border-border">
+	              <h2 className="font-heading text-xl mb-4">Morada de Envio</h2>
+	              <div className="space-y-4">
                 <div>
                   <Label className="font-body text-xs">Morada *</Label>
                   <Input value={form.shipping_address} onChange={(e) => handleChange('shipping_address', e.target.value)} className="rounded-none mt-1" />
@@ -239,11 +301,50 @@ export default function Checkout() {
                   <Label className="font-body text-xs">Notas</Label>
                   <Textarea value={form.notes} onChange={(e) => handleChange('notes', e.target.value)} className="rounded-none mt-1" rows={3} />
                 </div>
-              </div>
-            </div>
+	              </div>
+	            </div>
 
-            <div className="bg-card p-6 rounded-lg border border-border">
-              <h2 className="font-heading text-xl mb-4">Pagamento</h2>
+	            <div className="bg-card p-6 rounded-lg border border-border">
+	              <h2 className="font-heading text-xl mb-4">Método de envio</h2>
+	              <RadioGroup
+	                value={form.shipping_method_id}
+	                onValueChange={(v) => handleChange('shipping_method_id', v)}
+	                className="space-y-3"
+	              >
+	                {shippingMethods.map((m) => {
+	                  const price = Number(m.price ?? 0) || 0;
+	                  const freeOver = m.free_over === null || m.free_over === undefined ? null : Number(m.free_over);
+	                  return (
+	                    <div key={m.id} className="flex items-start gap-3 p-3 border border-border rounded-sm hover:bg-secondary/30">
+	                      <RadioGroupItem value={m.id} id={`ship-${m.id}`} className="mt-1" />
+	                      <div className="flex-1 min-w-0">
+	                        <Label htmlFor={`ship-${m.id}`} className="font-body text-sm cursor-pointer flex items-center justify-between gap-3">
+	                          <span className="font-medium">{m.label}</span>
+	                          <span className="text-muted-foreground text-xs">
+	                            {shipping === 0 && selectedShipping?.id === m.id
+	                              ? 'Grátis'
+	                              : price === 0
+	                                ? 'Grátis'
+	                                : `${price.toFixed(2)} €`}
+	                          </span>
+	                        </Label>
+	                        {m.description ? (
+	                          <div className="font-body text-[11px] text-muted-foreground mt-1">{m.description}</div>
+	                        ) : null}
+	                        {freeOver ? (
+	                          <div className="font-body text-[11px] text-muted-foreground mt-1">
+	                            Grátis a partir de {freeOver.toFixed(2)} €
+	                          </div>
+	                        ) : null}
+	                      </div>
+	                    </div>
+	                  );
+	                })}
+	              </RadioGroup>
+	            </div>
+	
+	            <div className="bg-card p-6 rounded-lg border border-border">
+	              <h2 className="font-heading text-xl mb-4">Pagamento</h2>
               <RadioGroup value={form.payment_method} onValueChange={(v) => handleChange('payment_method', v)} className="space-y-3">
                 {paymentOptions.map((opt) => (
                   <div key={opt.value} className="flex items-center gap-3 p-3 border border-border rounded-sm hover:bg-secondary/30">

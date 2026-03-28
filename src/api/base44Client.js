@@ -383,18 +383,28 @@ export const base44 = {
       },
     },
   },
-	  admin: {
-	    logs: {
-	      list: async (limit = 200) => {
-	        const params = new URLSearchParams();
-	        if (limit) params.set('limit', String(limit));
-	        return authedJsonRequest(`/api/admin/logs?${params.toString()}`);
-	      },
-	    },
-	    support: {
-	      tickets: {
-	        list: async (limit = 500) => {
-	          const params = new URLSearchParams();
+		  admin: {
+		    logs: {
+		      list: async (limit = 200) => {
+		        const params = new URLSearchParams();
+		        if (limit) params.set('limit', String(limit));
+		        return authedJsonRequest(`/api/admin/logs?${params.toString()}`);
+		      },
+		    },
+        orders: {
+          create: async (data) => authedJsonRequest('/api/admin/orders', { method: 'POST', body: data }),
+        },
+		    analytics: {
+		      summary: async (days = 30) => {
+		        const params = new URLSearchParams();
+		        if (days) params.set('days', String(days));
+		        return authedJsonRequest(`/api/admin/analytics/summary?${params.toString()}`);
+		      },
+		    },
+		    support: {
+		      tickets: {
+		        list: async (limit = 500) => {
+		          const params = new URLSearchParams();
 	          if (limit) params.set('limit', String(limit));
 	          return authedJsonRequest(`/api/admin/support/tickets?${params.toString()}`);
 	        },
@@ -419,20 +429,24 @@ export const base44 = {
 	        authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'PATCH', body: { is_approved } }),
 	      delete: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'DELETE' }),
 	    },
-	    content: {
-	      about: {
-	        get: async () => authedJsonRequest('/api/admin/content/about'),
-	        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
+		    content: {
+		      about: {
+		        get: async () => authedJsonRequest('/api/admin/content/about'),
+		        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
+		      },
+	      landing: {
+	        get: async () => authedJsonRequest('/api/admin/content/landing'),
+	        update: async (data) => authedJsonRequest('/api/admin/content/landing', { method: 'PATCH', body: data }),
 	      },
-      landing: {
-        get: async () => authedJsonRequest('/api/admin/content/landing'),
-        update: async (data) => authedJsonRequest('/api/admin/content/landing', { method: 'PATCH', body: data }),
-      },
-      payments: {
-        get: async () => authedJsonRequest('/api/admin/content/payments'),
-        update: async (data) => authedJsonRequest('/api/admin/content/payments', { method: 'PATCH', body: data }),
-      },
-    },
+	      payments: {
+	        get: async () => authedJsonRequest('/api/admin/content/payments'),
+	        update: async (data) => authedJsonRequest('/api/admin/content/payments', { method: 'PATCH', body: data }),
+	      },
+        shipping: {
+          get: async () => authedJsonRequest('/api/admin/content/shipping'),
+          update: async (data) => authedJsonRequest('/api/admin/content/shipping', { method: 'PATCH', body: data }),
+        },
+	    },
     inventory: {
       list: async (limit = 500) => {
         const params = new URLSearchParams();
@@ -442,11 +456,12 @@ export const base44 = {
       adjust: async (data) => authedJsonRequest('/api/admin/inventory/adjust', { method: 'POST', body: data }),
     },
   },
-	  content: {
-	    about: async () => jsonRequest('/api/content/about'),
-	    landing: async () => jsonRequest('/api/content/landing'),
-	    payments: async () => jsonRequest('/api/content/payments'),
-	  },
+		  content: {
+		    about: async () => jsonRequest('/api/content/about'),
+		    landing: async () => jsonRequest('/api/content/landing'),
+		    payments: async () => jsonRequest('/api/content/payments'),
+        shipping: async () => jsonRequest('/api/content/shipping'),
+		  },
 	  blog: {
 	    comments: {
 	      list: async (postId, limit = 200) => {
