@@ -20,6 +20,7 @@ const SUPPORT_SUGGESTIONS = [
 ];
 
 let supportChatApiSupported = null;
+let supportChatApiLastCheckedAt = 0;
 try {
   if (typeof window !== 'undefined' && window?.localStorage?.getItem) {
     const saved = window.localStorage.getItem('zana_supportChatApiSupported');
@@ -29,11 +30,18 @@ try {
 } catch {}
 function markSupportChatApiSupported(next) {
   supportChatApiSupported = typeof next === 'boolean' ? next : null;
+  supportChatApiLastCheckedAt = Date.now();
   try {
     if (typeof window === 'undefined' || !window?.localStorage) return;
     if (supportChatApiSupported === null) window.localStorage.removeItem('zana_supportChatApiSupported');
     else window.localStorage.setItem('zana_supportChatApiSupported', supportChatApiSupported ? 'true' : 'false');
   } catch {}
+}
+
+function shouldTrySupportChatApi() {
+  if (supportChatApiSupported !== false) return true;
+  // Backend may have been updated since we cached 404; retry occasionally.
+  return Date.now() - supportChatApiLastCheckedAt > 120_000;
 }
 
 function formatWhen(value) {
@@ -45,7 +53,7 @@ function formatWhen(value) {
 }
 
 async function fetchSupportChatThread() {
-  if (supportChatApiSupported === false) {
+  if (!shouldTrySupportChatApi()) {
     const tickets = await base44.support.tickets.list(50);
     const openTicket = (Array.isArray(tickets) ? tickets : []).find((t) => String(t?.status ?? '') !== 'closed');
     if (!openTicket?.id) return { ticket: null, messages: [] };
@@ -106,14 +114,11 @@ export default function SupportChatWidget() {
 
   const sendMutation = useMutation({
     mutationFn: async (message) => {
-      if (supportChatApiSupported === false) {
-        const ticketId = data?.ticket?.id;
-        if (ticketId) {
-          const msg = await base44.support.tickets.addMessage(ticketId, message);
-          return { ticket_id: ticketId, created_ticket: false, message: msg };
-        }
-        const created = await base44.support.tickets.create({ subject: 'Chat / Suporte', message });
-        return { ticket_id: created?.ticket?.id ?? null, created_ticket: true, message: null };
+      const ticketId = data?.ticket?.id;
+      if (!shouldTrySupportChatApi()) {
+        if (!ticketId) throw new Error('support_not_open');
+        const msg = await base44.support.tickets.addMessage(ticketId, message);
+        return { ticket_id: ticketId, created_ticket: false, message: msg };
       }
       try {
         const result = await base44.support.chat.send(message);
@@ -123,13 +128,9 @@ export default function SupportChatWidget() {
         if (err?.status !== 404) throw err;
         markSupportChatApiSupported(false);
 
-        const ticketId = data?.ticket?.id;
-        if (ticketId) {
-          const msg = await base44.support.tickets.addMessage(ticketId, message);
-          return { ticket_id: ticketId, created_ticket: false, message: msg };
-        }
-        const created = await base44.support.tickets.create({ subject: 'Chat / Suporte', message });
-        return { ticket_id: created?.ticket?.id ?? null, created_ticket: true, message: null };
+        if (!ticketId) throw new Error('support_not_open');
+        const msg = await base44.support.tickets.addMessage(ticketId, message);
+        return { ticket_id: ticketId, created_ticket: false, message: msg };
       }
     },
     onSuccess: async () => {
@@ -142,10 +143,6 @@ export default function SupportChatWidget() {
 
   const openMutation = useMutation({
     mutationFn: async () => {
-      if (supportChatApiSupported === false) {
-        // Older backend: ticket is created on first message.
-        return { ok: true, ticket_id: null, created_ticket: false };
-      }
       try {
         const result = await base44.support.chat.open();
         markSupportChatApiSupported(true);
@@ -153,8 +150,12 @@ export default function SupportChatWidget() {
       } catch (err) {
         if (err?.status !== 404) throw err;
         markSupportChatApiSupported(false);
-        // Older backend without /api/support/chat/open; ticket will be created on first message.
-        return { ok: true, ticket_id: null, created_ticket: false };
+        // Older backend without /api/support/chat/open.
+        const created = await base44.support.tickets.create({
+          subject: 'Chat / Suporte',
+          message: 'Iniciei um pedido de suporte pelo chat.',
+        });
+        return { ok: true, ticket_id: created?.ticket?.id ?? null, created_ticket: true };
       }
     },
     onSuccess: async () => {
@@ -167,7 +168,6 @@ export default function SupportChatWidget() {
 
   const closeMutation = useMutation({
     mutationFn: async () => {
-      if (supportChatApiSupported === false) return { ok: true };
       try {
         const result = await base44.support.chat.close();
         markSupportChatApiSupported(true);
@@ -206,6 +206,10 @@ export default function SupportChatWidget() {
       toast.error('Inicie sessão para enviar mensagem.');
       return;
     }
+    if (!hasTicket) {
+      toast.error('Clique em "Abrir suporte" para iniciar um novo chat.');
+      return;
+    }
     sendMutation.mutate(msg);
   };
 
@@ -225,6 +229,11 @@ export default function SupportChatWidget() {
     if (value === 'outro') {
       setShowOther(true);
       window.setTimeout(() => inputRef.current?.focus?.(), 0);
+      return;
+    }
+
+    if (!hasTicket) {
+      toast.error('Clique em "Abrir suporte" para iniciar um novo chat.');
       return;
     }
 
@@ -309,13 +318,21 @@ export default function SupportChatWidget() {
                       </div>
                     </div>
 
+                    {!hasTicket ? (
+                      <div className="border border-border rounded-lg p-3 bg-background">
+                        <div className="font-body text-sm text-muted-foreground">
+                          Suporte encerrado. Para iniciar um novo pedido, clique em <span className="font-medium">Abrir suporte</span>.
+                        </div>
+                      </div>
+                    ) : null}
+
                     <div className="grid grid-cols-2 gap-2">
                       {SUPPORT_SUGGESTIONS.filter((s) => s.value !== 'outro').map((s) => (
                         <Button
                           key={s.value}
                           variant="outline"
                           className="rounded-md font-body text-xs justify-start"
-                          disabled={sendMutation.isPending}
+                          disabled={sendMutation.isPending || !hasTicket}
                           onClick={() => handleSuggestion(s.value)}
                         >
                           {s.label}
@@ -324,7 +341,7 @@ export default function SupportChatWidget() {
                       <Button
                         variant="outline"
                         className="rounded-md font-body text-xs justify-start col-span-2"
-                        disabled={sendMutation.isPending}
+                        disabled={sendMutation.isPending || !hasTicket}
                         onClick={() => handleSuggestion('outro')}
                       >
                         Outro (escrever dúvida)
@@ -366,6 +383,7 @@ export default function SupportChatWidget() {
                     onChange={(e) => setDraft(e.target.value)}
                     className="rounded-md min-h-[44px] max-h-[120px]"
                     placeholder="Escreva a sua mensagem…"
+                    disabled={!user || !hasTicket}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -376,7 +394,7 @@ export default function SupportChatWidget() {
                   <Button
                     className="rounded-md h-11 w-11 p-0 shrink-0"
                     onClick={handleSend}
-                    disabled={sendMutation.isPending}
+                    disabled={sendMutation.isPending || !user || !hasTicket}
                     aria-label="Enviar"
                     title="Enviar"
                   >
