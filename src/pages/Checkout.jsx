@@ -13,6 +13,7 @@ import { useCart } from '@/lib/CartContext';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
+import { useAuth } from '@/lib/AuthContext';
 
 const METHOD_META = [
   { value: 'mbway', label: 'MB WAY' },
@@ -29,6 +30,7 @@ function getEnabledMethods(payments) {
 
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart();
+  const { user } = useAuth();
   const [step, setStep] = useState('form');
   const [submitting, setSubmitting] = useState(false);
 
@@ -52,6 +54,16 @@ export default function Checkout() {
     payment_method: 'mbway',
     notes: '',
   });
+
+  useEffect(() => {
+    if (!user) return;
+    setForm((prev) => ({
+      ...prev,
+      customer_email: prev.customer_email || user.email || '',
+      customer_name: prev.customer_name || user.full_name || '',
+      customer_phone: prev.customer_phone || user.phone || '',
+    }));
+  }, [user]);
 
   useEffect(() => {
     if (!paymentOptions?.length) return;
@@ -288,4 +300,3 @@ export default function Checkout() {
     </div>
   );
 }
-

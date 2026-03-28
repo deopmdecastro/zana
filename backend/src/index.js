@@ -932,8 +932,9 @@ app.get('/api/orders/my', async (req, res) => {
   const user = await requireUser(req, res)
   if (!user) return
 
+  const email = String(user.email ?? '').trim().toLowerCase()
   const orders = await prisma.order.findMany({
-    where: { customerEmail: user.email },
+    where: { customerEmail: email },
     orderBy: { createdAt: 'desc' },
     include: { items: true },
   })
@@ -1376,10 +1377,10 @@ app.get('/api/notifications', async (req, res) => {
     include: { ticket: true },
   })
 
-  const blogReplies = await prisma.blogCommentReply.findMany({
-    where: {
-      authorType: 'admin',
-      comment: {
+	  const blogReplies = await prisma.blogCommentReply.findMany({
+	    where: {
+	      authorType: 'admin',
+	      comment: {
         OR: [
           { userId: user.id },
           ...(userEmail ? [{ userId: null, authorEmail: userEmail }] : []),
@@ -1388,10 +1389,22 @@ app.get('/api/notifications', async (req, res) => {
     },
     orderBy: { createdAt: 'desc' },
     take: 20,
-    include: { comment: { include: { post: true } } },
-  })
+	    include: { comment: { include: { post: true } } },
+	  })
 
-  const items = [
+	  const orderStatusLogs = userEmail
+	    ? await prisma.auditLog.findMany({
+	        where: {
+	          entityType: 'Order',
+	          action: 'update',
+	          meta: { path: ['customer_email'], equals: userEmail },
+	        },
+	        orderBy: { createdAt: 'desc' },
+	        take: 20,
+	      })
+	    : []
+	
+	  const items = [
     ...supportMessages.map((m) => ({
       id: `support:${m.id}`,
       type: 'support',
@@ -1405,12 +1418,31 @@ app.get('/api/notifications', async (req, res) => {
       type: 'blog_comment_reply',
       title: `Resposta ao seu comentário${r.comment?.post?.title ? ` em “${r.comment.post.title}”` : ''}`,
       text: r.message,
-      link: r.comment?.post?.id ? `/blog/${r.comment.post.id}` : '/blog',
-      created_date: r.createdAt,
-    })),
-  ]
-    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
-    .slice(0, 20)
+	      link: r.comment?.post?.id ? `/blog/${r.comment.post.id}` : '/blog',
+	      created_date: r.createdAt,
+	    })),
+	    ...orderStatusLogs.map((l) => {
+	      const status = typeof l.meta?.status === 'string' ? l.meta.status : null
+	      const prev = typeof l.meta?.previous_status === 'string' ? l.meta.previous_status : null
+	      const orderId = l.entityId ?? null
+	      const title = 'Estado da encomenda atualizado'
+	      const inner = status
+	        ? prev
+	          ? `Estado: ${prev} → ${status}`
+	          : `Novo estado: ${status}`
+	        : 'A sua encomenda foi atualizada.'
+	      return {
+	        id: `order:${l.id}`,
+	        type: 'order_status',
+	        title,
+	        text: orderId ? `Encomenda ${orderId}: ${inner}` : inner,
+	        link: '/conta',
+	        created_date: l.createdAt,
+	      }
+	    }),
+	  ]
+	    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+	    .slice(0, 20)
 
   res.json(items)
 })
@@ -1721,15 +1753,51 @@ app.patch('/api/admin/orders/:id', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
   try {
+    const existing = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } })
+    if (!existing) return res.status(404).json({ error: 'not_found' })
+
+    const nextStatus = parsed.data.status ?? existing.status
+
+    const shouldApplyInventory =
+      existing.status === 'pending' && ['confirmed', 'processing', 'shipped', 'delivered'].includes(nextStatus)
+
+    if (shouldApplyInventory) {
+      const applied = await applyOrderToInventory({ orderId: existing.id, actorId: admin.id, status: nextStatus })
+      if (!applied.ok) {
+        return res.status(applied.error === 'insufficient_stock' ? 409 : 500).json({ error: applied.error })
+      }
+      if (!applied.already_applied) {
+        await writeAuditLog({
+          actorId: admin.id,
+          action: 'update',
+          entityType: 'Inventory',
+          entityId: existing.id,
+          meta: { source: 'order_confirmed', order_id: existing.id },
+        })
+      }
+    }
+
     const updated = await prisma.order.update({
       where: { id: req.params.id },
       data: {
-        status: parsed.data.status,
+        status: nextStatus,
         notes: parsed.data.notes === undefined ? undefined : parsed.data.notes,
       },
       include: { items: true },
     })
-    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Order', entityId: updated.id, meta: req.body })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'update',
+      entityType: 'Order',
+      entityId: updated.id,
+      meta: {
+        ...req.body,
+        previous_status: existing.status,
+        status: nextStatus,
+        customer_email: updated.customerEmail,
+      },
+    })
     res.json(toApiOrder(updated))
   } catch {
     res.status(404).json({ error: 'not_found' })
@@ -2341,6 +2409,81 @@ async function applyPurchaseToInventory({ purchaseId, actorId } = {}) {
   return { ok: true }
 }
 
+async function applyOrderToInventory({ orderId, actorId, status } = {}) {
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { items: true },
+  })
+  if (!order) return { ok: false, error: 'not_found' }
+
+  const alreadyApplied = await prisma.inventoryMovement.findFirst({
+    where: { type: 'order', meta: { path: ['order_id'], equals: order.id } },
+    select: { id: true },
+  })
+  if (alreadyApplied) return { ok: true, already_applied: true }
+
+  const items = order.items ?? []
+  const productIds = Array.from(new Set(items.map((it) => it.productId).filter(Boolean)))
+  if (productIds.length === 0) return { ok: true }
+
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } } })
+  const byId = new Map(products.map((p) => [p.id, p]))
+
+  for (const it of items) {
+    if (!it.productId) continue
+    const p = byId.get(it.productId)
+    if (!p) continue
+    if (p.stock - it.quantity < 0) {
+      return { ok: false, error: 'insufficient_stock' }
+    }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const it of items) {
+        if (!it.productId) continue
+        const p = await tx.product.findUnique({ where: { id: it.productId } })
+        if (!p) continue
+
+        const nextStock = p.stock - it.quantity
+        if (nextStock < 0) {
+          throw Object.assign(new Error('insufficient_stock'), { code: 'INSUFFICIENT_STOCK' })
+        }
+
+        await tx.product.update({
+          where: { id: p.id },
+          data: { stock: nextStock },
+        })
+
+        try {
+          await tx.inventoryMovement.create({
+            data: {
+              productId: p.id,
+              type: 'order',
+              quantityChange: -it.quantity,
+              unitCost: null,
+              actorId: actorId ?? null,
+              meta: {
+                order_id: order.id,
+                order_status: status ?? order.status,
+                order_item_id: it.id,
+                customer_email: order.customerEmail,
+              },
+            },
+          })
+        } catch (err) {
+          console.error('inventory movement create failed (order)', err)
+        }
+      }
+    })
+  } catch (err) {
+    if (err?.code === 'INSUFFICIENT_STOCK') return { ok: false, error: 'insufficient_stock' }
+    throw err
+  }
+
+  return { ok: true }
+}
+
 async function sanitizePurchaseInput({ supplierId, items } = {}) {
   const cleanSupplierId = supplierId ? String(supplierId) : null
 
@@ -2589,35 +2732,35 @@ app.get('/api/admin/analytics/summary', async (req, res) => {
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 
   const [topCustomers, byCountry, topViewed, topSearched, topSold, largestOrders, visitsByHour] = await Promise.all([
-    prisma.order.groupBy({
-      by: ['customerEmail'],
-      where: { createdAt: { gte: since } },
-      _count: { _all: true },
-      _sum: { total: true },
-      orderBy: [{ _sum: { total: 'desc' } }],
-      take: 8,
-    }),
-    prisma.order.groupBy({
-      by: ['shippingCountry'],
-      where: { createdAt: { gte: since } },
-      _count: { _all: true },
-      orderBy: [{ _count: { _all: 'desc' } }],
-      take: 10,
-    }),
-    prisma.productView.groupBy({
-      by: ['productId'],
-      where: { createdAt: { gte: since } },
-      _count: { _all: true },
-      orderBy: [{ _count: { _all: 'desc' } }],
-      take: 8,
-    }),
-    prisma.searchEvent.groupBy({
-      by: ['queryNormalized'],
-      where: { createdAt: { gte: since } },
-      _count: { _all: true },
-      orderBy: [{ _count: { _all: 'desc' } }],
-      take: 10,
-    }),
+	    prisma.order.groupBy({
+	      by: ['customerEmail'],
+	      where: { createdAt: { gte: since } },
+	      _count: { id: true },
+	      _sum: { total: true },
+	      orderBy: [{ _sum: { total: 'desc' } }],
+	      take: 8,
+	    }),
+	    prisma.order.groupBy({
+	      by: ['shippingCountry'],
+	      where: { createdAt: { gte: since } },
+	      _count: { id: true },
+	      orderBy: [{ _count: { id: 'desc' } }],
+	      take: 10,
+	    }),
+	    prisma.productView.groupBy({
+	      by: ['productId'],
+	      where: { createdAt: { gte: since } },
+	      _count: { id: true },
+	      orderBy: [{ _count: { id: 'desc' } }],
+	      take: 8,
+	    }),
+	    prisma.searchEvent.groupBy({
+	      by: ['queryNormalized'],
+	      where: { createdAt: { gte: since } },
+	      _count: { id: true },
+	      orderBy: [{ _count: { id: 'desc' } }],
+	      take: 10,
+	    }),
     prisma.orderItem.groupBy({
       by: ['productId', 'productName'],
       where: { order: { createdAt: { gte: since } } },
@@ -2649,19 +2792,19 @@ app.get('/api/admin/analytics/summary', async (req, res) => {
   res.json({
     since,
     days,
-    top_customers: topCustomers.map((c) => ({
-      email: c.customerEmail,
-      orders: c._count._all,
-      total: c._sum.total === null || c._sum.total === undefined ? 0 : decimalToNumber(c._sum.total) ?? 0,
-    })),
-    orders_by_country: byCountry.map((c) => ({ country: c.shippingCountry ?? '—', orders: c._count._all })),
-    visits_by_hour: (visitsByHour ?? []).map((r) => ({ hour: r.hour, count: r.count })),
-    top_viewed_products: topViewed.map((r) => ({
-      product_id: r.productId,
-      product_name: productById.get(r.productId)?.name ?? r.productId,
-      views: r._count._all,
-    })),
-    top_searches: topSearched.map((r) => ({ query: r.queryNormalized, count: r._count._all })),
+	    top_customers: topCustomers.map((c) => ({
+	      email: c.customerEmail,
+	      orders: c._count.id,
+	      total: c._sum.total === null || c._sum.total === undefined ? 0 : decimalToNumber(c._sum.total) ?? 0,
+	    })),
+	    orders_by_country: byCountry.map((c) => ({ country: c.shippingCountry ?? '—', orders: c._count.id })),
+	    visits_by_hour: (visitsByHour ?? []).map((r) => ({ hour: r.hour, count: r.count })),
+	    top_viewed_products: topViewed.map((r) => ({
+	      product_id: r.productId,
+	      product_name: productById.get(r.productId)?.name ?? r.productId,
+	      views: r._count.id,
+	    })),
+	    top_searches: topSearched.map((r) => ({ query: r.queryNormalized, count: r._count.id })),
     top_sold_products: topSold.map((r) => ({
       product_id: r.productId ?? null,
       product_name: r.productName,

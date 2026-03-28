@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, MessageCircle, PackageCheck } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
@@ -23,8 +23,25 @@ const statusLabel = {
   cancelled: 'Cancelada',
 };
 
+const READ_STORAGE_KEY = 'zana_notifications_read';
+
 export default function StoreNotificationBell() {
   const { user } = useAuth();
+  const [readIds, setReadIds] = useState(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const raw = window.localStorage.getItem(READ_STORAGE_KEY);
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.localStorage.setItem(READ_STORAGE_KEY, JSON.stringify(readIds));
+  }, [readIds]);
 
   const { data: orders = [] } = useQuery({
     enabled: !!user,
@@ -42,13 +59,28 @@ export default function StoreNotificationBell() {
     refetchInterval: 30_000,
   });
 
+  const unreadNotifications = useMemo(() => {
+    const ids = new Set(readIds);
+    return (notifications ?? []).filter((n) => n?.id && !ids.has(n.id));
+  }, [notifications, readIds]);
+
   const activeOrdersCount = useMemo(() => {
     return (orders ?? []).filter((o) => !['delivered', 'cancelled'].includes(o.status)).length;
   }, [orders]);
 
-  const notificationsCount = Array.isArray(notifications) ? notifications.length : 0;
+  const notificationsCount = Array.isArray(unreadNotifications) ? unreadNotifications.length : 0;
   const totalCount = activeOrdersCount + notificationsCount;
   const badge = totalCount > 9 ? '9+' : String(totalCount);
+
+  const markAllRead = () => {
+    const ids = (notifications ?? []).map((n) => n?.id).filter(Boolean);
+    setReadIds((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+
+  const markRead = (id) => {
+    if (!id) return;
+    setReadIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
 
   return (
     <DropdownMenu>
@@ -77,9 +109,16 @@ export default function StoreNotificationBell() {
           <>
             {notificationsCount > 0 ? (
               <>
-                {notifications.slice(0, 4).map((n) => (
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="flex items-center justify-between">
+                  <span className="font-body text-xs text-muted-foreground">Novas mensagens</span>
+                  <Button variant="ghost" size="sm" className="h-7 rounded-none font-body text-xs" onClick={markAllRead}>
+                    Marcar tudo lido
+                  </Button>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                {unreadNotifications.slice(0, 6).map((n) => (
                   <DropdownMenuItem key={n.id} asChild className="cursor-pointer">
-                    <Link to={n.link ?? '/'} className="flex items-start gap-3">
+                    <Link to={n.link ?? '/'} className="flex items-start gap-3" onClick={() => markRead(n.id)}>
                       <div className="mt-0.5 text-muted-foreground">
                         <MessageCircle className="w-4 h-4" />
                       </div>

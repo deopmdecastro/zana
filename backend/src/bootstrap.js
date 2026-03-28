@@ -73,15 +73,15 @@ const ddl = [
     "description" TEXT,
     "price" NUMERIC(12,2) NOT NULL,
     "originalPrice" NUMERIC(12,2),
-    "category" TEXT NOT NULL,
-    "material" TEXT,
+    "category" "ProductCategory" NOT NULL,
+    "material" "ProductMaterial",
     "colors" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "images" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
     "stock" INTEGER NOT NULL DEFAULT 0,
     "isFeatured" BOOLEAN NOT NULL DEFAULT FALSE,
     "isNew" BOOLEAN NOT NULL DEFAULT FALSE,
     "isBestseller" BOOLEAN NOT NULL DEFAULT FALSE,
-    "status" TEXT NOT NULL DEFAULT 'active',
+    "status" "ProductStatus" NOT NULL DEFAULT 'active',
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -102,8 +102,8 @@ const ddl = [
     "subtotal" NUMERIC(12,2),
     "shippingCost" NUMERIC(12,2) NOT NULL DEFAULT 0,
     "total" NUMERIC(12,2) NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'pending',
-    "paymentMethod" TEXT,
+    "status" "OrderStatus" NOT NULL DEFAULT 'pending',
+    "paymentMethod" "PaymentMethod",
     "notes" TEXT,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -200,18 +200,18 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "SearchEvent_userId_idx" ON "SearchEvent" ("userId");`,
 
 	  `
-	  CREATE TABLE IF NOT EXISTS "BlogPost" (
-	    "id" TEXT PRIMARY KEY,
-	    "title" TEXT NOT NULL,
-	    "content" TEXT NOT NULL,
-	    "excerpt" TEXT,
-	    "imageUrl" TEXT,
-	    "category" TEXT,
-	    "status" TEXT NOT NULL DEFAULT 'draft',
-	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-	  );
-	  `,
+		  CREATE TABLE IF NOT EXISTS "BlogPost" (
+		    "id" TEXT PRIMARY KEY,
+		    "title" TEXT NOT NULL,
+		    "content" TEXT NOT NULL,
+		    "excerpt" TEXT,
+		    "imageUrl" TEXT,
+		    "category" "BlogCategory",
+		    "status" "BlogStatus" NOT NULL DEFAULT 'draft',
+		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		  );
+		  `,
 	  `CREATE INDEX IF NOT EXISTS "BlogPost_status_idx" ON "BlogPost" ("status");`,
 	  `CREATE INDEX IF NOT EXISTS "BlogPost_category_idx" ON "BlogPost" ("category");`,
 
@@ -236,16 +236,16 @@ const ddl = [
 		  `CREATE INDEX IF NOT EXISTS "BlogComment_createdAt_idx" ON "BlogComment" ("createdAt");`,
 
 		  `
-		  CREATE TABLE IF NOT EXISTS "BlogCommentReply" (
-		    "id" TEXT PRIMARY KEY,
-		    "commentId" TEXT NOT NULL,
-		    "authorType" TEXT NOT NULL,
-		    "authorId" TEXT,
-		    "message" TEXT NOT NULL,
-		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-		    CONSTRAINT "BlogCommentReply_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "BlogComment"("id") ON DELETE CASCADE
-		  );
-		  `,
+			  CREATE TABLE IF NOT EXISTS "BlogCommentReply" (
+			    "id" TEXT PRIMARY KEY,
+			    "commentId" TEXT NOT NULL,
+			    "authorType" "BlogCommentReplyAuthorType" NOT NULL,
+			    "authorId" TEXT,
+			    "message" TEXT NOT NULL,
+			    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			    CONSTRAINT "BlogCommentReply_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "BlogComment"("id") ON DELETE CASCADE
+			  );
+			  `,
 		  `CREATE INDEX IF NOT EXISTS "BlogCommentReply_commentId_idx" ON "BlogCommentReply" ("commentId");`,
 		  `CREATE INDEX IF NOT EXISTS "BlogCommentReply_createdAt_idx" ON "BlogCommentReply" ("createdAt");`,
 
@@ -292,33 +292,33 @@ const ddl = [
 	  `ALTER TABLE IF EXISTS "InstagramPost" ADD COLUMN IF NOT EXISTS "coverUrl" TEXT;`,
 
 	  `
-	  CREATE TABLE IF NOT EXISTS "SupportTicket" (
-	    "id" TEXT PRIMARY KEY,
-	    "userId" TEXT,
-	    "customerName" TEXT,
-	    "customerEmail" TEXT,
-	    "subject" TEXT NOT NULL,
-	    "status" TEXT NOT NULL DEFAULT 'open',
-	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	    CONSTRAINT "SupportTicket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL
-	  );
-	  `,
+		  CREATE TABLE IF NOT EXISTS "SupportTicket" (
+		    "id" TEXT PRIMARY KEY,
+		    "userId" TEXT,
+		    "customerName" TEXT,
+		    "customerEmail" TEXT,
+		    "subject" TEXT NOT NULL,
+		    "status" "SupportTicketStatus" NOT NULL DEFAULT 'open',
+		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    CONSTRAINT "SupportTicket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL
+		  );
+		  `,
 	  `CREATE INDEX IF NOT EXISTS "SupportTicket_userId_idx" ON "SupportTicket" ("userId");`,
 	  `CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx" ON "SupportTicket" ("status");`,
 	  `CREATE INDEX IF NOT EXISTS "SupportTicket_updatedAt_idx" ON "SupportTicket" ("updatedAt");`,
 
 	  `
-	  CREATE TABLE IF NOT EXISTS "SupportMessage" (
-	    "id" TEXT PRIMARY KEY,
-	    "ticketId" TEXT NOT NULL,
-	    "authorType" TEXT NOT NULL,
-	    "authorId" TEXT,
-	    "message" TEXT NOT NULL,
-	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-	    CONSTRAINT "SupportMessage_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE
-	  );
-	  `,
+		  CREATE TABLE IF NOT EXISTS "SupportMessage" (
+		    "id" TEXT PRIMARY KEY,
+		    "ticketId" TEXT NOT NULL,
+		    "authorType" "SupportMessageAuthorType" NOT NULL,
+		    "authorId" TEXT,
+		    "message" TEXT NOT NULL,
+		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    CONSTRAINT "SupportMessage_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE
+		  );
+		  `,
 	  `CREATE INDEX IF NOT EXISTS "SupportMessage_ticketId_idx" ON "SupportMessage" ("ticketId");`,
 	  `CREATE INDEX IF NOT EXISTS "SupportMessage_createdAt_idx" ON "SupportMessage" ("createdAt");`,
 
@@ -342,7 +342,7 @@ const ddl = [
     "id" TEXT PRIMARY KEY,
     "supplierId" TEXT,
     "reference" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'draft',
+    "status" "PurchaseStatus" NOT NULL DEFAULT 'draft',
     "purchasedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "notes" TEXT,
     "total" NUMERIC(12,2),
@@ -375,7 +375,7 @@ const ddl = [
   CREATE TABLE IF NOT EXISTS "InventoryMovement" (
     "id" TEXT PRIMARY KEY,
     "productId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
+    "type" "InventoryMovementType" NOT NULL,
     "quantityChange" INTEGER NOT NULL,
     "unitCost" NUMERIC(12,2),
     "purchaseId" TEXT,
@@ -407,6 +407,30 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog" ("createdAt");`,
   `CREATE INDEX IF NOT EXISTS "AuditLog_entityType_idx" ON "AuditLog" ("entityType");`,
   `CREATE INDEX IF NOT EXISTS "AuditLog_actorId_idx" ON "AuditLog" ("actorId");`,
+
+  // Migrate older local DBs (TEXT columns) to proper enum types used by Prisma.
+  `ALTER TABLE IF EXISTS "Product" ALTER COLUMN "category" TYPE "ProductCategory" USING ("category"::"ProductCategory");`,
+  `ALTER TABLE IF EXISTS "Product" ALTER COLUMN "material" TYPE "ProductMaterial" USING ("material"::"ProductMaterial");`,
+  `ALTER TABLE IF EXISTS "Product" ALTER COLUMN "status" DROP DEFAULT;`,
+  `ALTER TABLE IF EXISTS "Product" ALTER COLUMN "status" TYPE "ProductStatus" USING ("status"::"ProductStatus");`,
+  `ALTER TABLE IF EXISTS "Product" ALTER COLUMN "status" SET DEFAULT 'active'::"ProductStatus";`,
+  `ALTER TABLE IF EXISTS "Order" ALTER COLUMN "status" DROP DEFAULT;`,
+  `ALTER TABLE IF EXISTS "Order" ALTER COLUMN "status" TYPE "OrderStatus" USING ("status"::"OrderStatus");`,
+  `ALTER TABLE IF EXISTS "Order" ALTER COLUMN "status" SET DEFAULT 'pending'::"OrderStatus";`,
+  `ALTER TABLE IF EXISTS "Order" ALTER COLUMN "paymentMethod" TYPE "PaymentMethod" USING ("paymentMethod"::"PaymentMethod");`,
+  `ALTER TABLE IF EXISTS "BlogPost" ALTER COLUMN "category" TYPE "BlogCategory" USING ("category"::"BlogCategory");`,
+  `ALTER TABLE IF EXISTS "BlogPost" ALTER COLUMN "status" DROP DEFAULT;`,
+  `ALTER TABLE IF EXISTS "BlogPost" ALTER COLUMN "status" TYPE "BlogStatus" USING ("status"::"BlogStatus");`,
+  `ALTER TABLE IF EXISTS "BlogPost" ALTER COLUMN "status" SET DEFAULT 'draft'::"BlogStatus";`,
+  `ALTER TABLE IF EXISTS "BlogCommentReply" ALTER COLUMN "authorType" TYPE "BlogCommentReplyAuthorType" USING ("authorType"::"BlogCommentReplyAuthorType");`,
+  `ALTER TABLE IF EXISTS "SupportTicket" ALTER COLUMN "status" DROP DEFAULT;`,
+  `ALTER TABLE IF EXISTS "SupportTicket" ALTER COLUMN "status" TYPE "SupportTicketStatus" USING ("status"::"SupportTicketStatus");`,
+  `ALTER TABLE IF EXISTS "SupportTicket" ALTER COLUMN "status" SET DEFAULT 'open'::"SupportTicketStatus";`,
+  `ALTER TABLE IF EXISTS "SupportMessage" ALTER COLUMN "authorType" TYPE "SupportMessageAuthorType" USING ("authorType"::"SupportMessageAuthorType");`,
+  `ALTER TABLE IF EXISTS "Purchase" ALTER COLUMN "status" DROP DEFAULT;`,
+  `ALTER TABLE IF EXISTS "Purchase" ALTER COLUMN "status" TYPE "PurchaseStatus" USING ("status"::"PurchaseStatus");`,
+  `ALTER TABLE IF EXISTS "Purchase" ALTER COLUMN "status" SET DEFAULT 'draft'::"PurchaseStatus";`,
+  `ALTER TABLE IF EXISTS "InventoryMovement" ALTER COLUMN "type" TYPE "InventoryMovementType" USING ("type"::"InventoryMovementType");`,
 ]
 
 export async function ensureSchema() {

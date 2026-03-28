@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { getPrimaryImage } from '@/lib/images';
 
 const CartContext = createContext(null);
 
@@ -15,7 +16,7 @@ const safeParse = (raw) => {
 const normalizeItem = (product, quantity = 1, color = '') => ({
   product_id: product.id,
   product_name: product.name,
-  product_image: product.images?.[0] || '',
+  product_image: getPrimaryImage(product.images) || '',
   price: Number(product.price) || 0,
   quantity: Number(quantity) || 1,
   color: color || '',
@@ -25,7 +26,12 @@ export const CartProvider = ({ children }) => {
   const [items, setItems] = useState(() => {
     if (typeof window === 'undefined') return [];
     const stored = safeParse(window.localStorage.getItem(STORAGE_KEY) || '');
-    return Array.isArray(stored) ? stored : [];
+    if (!Array.isArray(stored)) return [];
+    return stored.map((it) => ({
+      ...it,
+      product_image: typeof it?.product_image === 'string' ? it.product_image.trim() : '',
+      product_name: typeof it?.product_name === 'string' ? it.product_name.trim() : it?.product_name,
+    }));
   });
 
   useEffect(() => {
