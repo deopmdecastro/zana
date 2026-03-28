@@ -2,17 +2,21 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ShoppingBag, Heart, Search, Menu, X, User } from 'lucide-react';
 import { useCart } from '@/lib/CartContext';
+import { useAuth } from '@/lib/AuthContext';
 import zanaLogo from '@/img/zana_logo_primary.svg';
+import StoreNotificationBell from '@/components/notifications/StoreNotificationBell';
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { itemCount } = useCart();
+  const { user } = useAuth();
 
   const links = [
     { to: '/', label: 'Início' },
     { to: '/catalogo', label: 'Catálogo' },
     { to: '/sobre', label: 'Sobre Nós' },
     { to: '/blog', label: 'Blog' },
+    { to: '/faq', label: 'FAQ' },
     { to: '/contacto', label: 'Contacto' },
   ];
 
@@ -50,6 +54,12 @@ export default function Navbar() {
 
           {/* Actions */}
           <div className="flex items-center gap-3">
+            {user?.is_admin && (
+              <Link to="/admin" className="hidden md:block px-3 py-1.5 border border-border text-xs font-body hover:border-primary hover:text-primary transition-colors">
+                Admin
+              </Link>
+            )}
+            <StoreNotificationBell />
             <Link to="/catalogo" className="p-2 hover:text-primary transition-colors">
               <Search className="w-4 h-4" />
             </Link>

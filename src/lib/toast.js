@@ -8,10 +8,15 @@ export function getErrorMessage(err, fallback = 'Ocorreu um erro.') {
 }
 
 export function toastApiPromise(promise, { loading, success, error } = {}) {
-  return toast.promise(promise, {
+  const wrapped = Promise.resolve(promise);
+  toast.promise(wrapped, {
     loading: loading ?? 'A processar...',
     success: success ?? 'Concluído com sucesso.',
-    error: (err) => (typeof error === 'function' ? error(err) : (error ?? getErrorMessage(err, 'Não foi possível concluir.'))),
+    error: (err) =>
+      typeof error === 'function'
+        ? error(err)
+        : error ?? getErrorMessage(err, 'Não foi possível concluir.'),
   });
+  return wrapped;
 }
 

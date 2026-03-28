@@ -1,19 +1,11 @@
 import React, { useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Instagram, Play } from 'lucide-react';
 import zIcon from '@/img/Z.svg';
+import { base44 } from '@/api/base44Client';
 
 const instagramHandle = 'zana.acessorios_';
 const instagramUrl = `https://www.instagram.com/${instagramHandle}/`;
-
-// Cole aqui os links dos posts/reels que quer mostrar (3–8 fica ótimo).
-// Ex:
-// 'https://www.instagram.com/p/XXXXXXXXXXX/',
-// 'https://www.instagram.com/reel/YYYYYYYYYYY/',
-const instagramPostUrls = [
-  'https://www.instagram.com/reel/DRU8bfQjQnH/',
-  'https://www.instagram.com/reel/DQG505GjL4N/',
-  'https://www.instagram.com/reel/DPgw10SDBX8/',
-];
 
 function parseInstagramUrl(url) {
   try {
@@ -30,20 +22,21 @@ function parseInstagramUrl(url) {
 }
 
 export default function InstagramSection() {
-  const embeds = useMemo(
+  const { data: posts = [] } = useQuery({
+    queryKey: ['instagram'],
+    queryFn: () => base44.instagram.list(12),
+  });
+
+  const cards = useMemo(
     () =>
-      instagramPostUrls
-        .map((url) => {
-          const info = parseInstagramUrl(url);
+      (posts ?? [])
+        .map((p) => {
+          const info = parseInstagramUrl(p.url);
           if (!info) return null;
-          return {
-            url,
-            type: info.type,
-            shortcode: info.shortcode,
-          };
+          return { ...p, type: info.type };
         })
         .filter(Boolean),
-    [],
+    [posts],
   );
 
   return (
@@ -54,12 +47,7 @@ export default function InstagramSection() {
             <h2 className="font-heading text-3xl md:text-4xl text-foreground mb-2">Instagram</h2>
             <p className="font-body text-sm text-muted-foreground">
               Siga-nos em{' '}
-              <a
-                href={instagramUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline"
-              >
+              <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                 @{instagramHandle}
               </a>{' '}
               para ver novidades, bastidores e inspirações.
@@ -77,29 +65,27 @@ export default function InstagramSection() {
           </a>
         </div>
 
-        {embeds.length === 0 ? (
+        {cards.length === 0 ? (
           <div className="bg-card border border-border p-6">
             <p className="font-body text-sm text-muted-foreground">
-              Para mostrar o feed com embed, cole os links dos posts/reels em{' '}
-              <span className="font-mono text-[13px]">src/components/home/InstagramSection.jsx</span>{' '}
-              (array <span className="font-mono text-[13px]">instagramPostUrls</span>).
+              Ainda não há links configurados. O admin pode adicionar em <span className="font-mono text-[13px]">/admin/conteudo/instagram</span>.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {embeds.map((embed) => (
+            {cards.map((card) => (
               <a
-                key={embed.url}
-                href={embed.url}
+                key={card.id}
+                href={card.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group block bg-card border border-border overflow-hidden hover:border-primary/40 transition-colors"
-                aria-label={`Abrir no Instagram (${embed.type})`}
+                aria-label="Abrir no Instagram"
               >
-                <div className={`relative ${embed.type === 'reel' ? 'aspect-[9/16]' : 'aspect-square'} bg-secondary/30`}>
+                <div className={`relative ${card.type === 'reel' ? 'aspect-[9/16]' : 'aspect-square'} bg-secondary/30`}>
                   <img src={zIcon} alt="" className="absolute inset-0 m-auto w-16 opacity-[0.10]" />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
-                  {embed.type === 'reel' && (
+                  {card.type === 'reel' && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-14 h-14 rounded-full bg-white/90 text-primary flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                         <Play className="w-6 h-6 translate-x-0.5" />
@@ -114,11 +100,13 @@ export default function InstagramSection() {
                     <span className="font-body text-xs text-white/90">Abrir</span>
                   </div>
                 </div>
-                <div className="p-4 flex items-center justify-between gap-3">
+                <div className="p-4 space-y-1">
                   <span className="font-body text-sm text-foreground/80 group-hover:text-primary transition-colors">
-                    {embed.type === 'reel' ? 'Reel' : 'Post'}
+                    {card.type === 'reel' ? 'Reel' : 'Post'}
                   </span>
-                  <span className="text-sm font-body text-primary group-hover:underline">Ver no Instagram</span>
+                  {card.caption ? (
+                    <p className="font-body text-xs text-muted-foreground">{card.caption}</p>
+                  ) : null}
                 </div>
               </a>
             ))}

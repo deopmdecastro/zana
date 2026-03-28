@@ -7,9 +7,11 @@ import { useCart } from '@/lib/CartContext';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
+import { getPrimaryImage } from '@/lib/images';
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
+  const primaryImage = getPrimaryImage(product?.images);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -52,9 +54,9 @@ export default function ProductCard({ product }) {
     >
       <Link to={`/produto/${product.id}`} className="group block">
         <div className="relative overflow-hidden rounded-lg bg-secondary/50 aspect-square mb-3">
-          {product.images?.[0] ? (
+          {primaryImage ? (
             <img
-              src={product.images[0]}
+              src={primaryImage}
               alt={product.name}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             />

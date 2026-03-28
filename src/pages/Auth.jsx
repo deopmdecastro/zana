@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from '@/lib/AuthContext';
 
 const getAuthErrorMessage = (err, mode) => {
   const code = err?.data?.error ?? err?.message;
@@ -28,6 +29,7 @@ const getAuthErrorMessage = (err, mode) => {
 export default function Auth() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { setAuthUser } = useAuth();
   const [isLogin, setIsLogin] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [resetMode, setResetMode] = useState(false);
@@ -57,13 +59,18 @@ export default function Auth() {
     setErrorMessage('');
   }, [resetMode, resetStep]);
 
-  const loginMutation = useMutation({
-    mutationFn: (data) => base44.auth.login(data),
-    onSuccess: () => {
-      setErrorMessage('');
-      queryClient.invalidateQueries({ queryKey: ['me'] });
-      toast.success('Bem-vindo(a) de volta!');
-      navigate('/conta', { replace: true });
+	  const loginMutation = useMutation({
+	    mutationFn: (data) => base44.auth.login(data),
+	    onSuccess: (loggedUser) => {
+	      setErrorMessage('');
+	      setAuthUser(loggedUser);
+	      queryClient.invalidateQueries({ queryKey: ['me'] });
+	      toast.success('Bem-vindo(a) de volta!');
+	      if (loggedUser?.is_admin) {
+	        navigate('/admin', { replace: true });
+	      } else {
+        navigate('/conta', { replace: true });
+      }
     },
     onError: (err) => {
       const msg = getAuthErrorMessage(err, 'login');

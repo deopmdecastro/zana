@@ -9,13 +9,17 @@ export const AuthProvider = ({ children }) => {
   const [authError] = useState(null);
   const [user, setUser] = useState(null);
 
+  const setAuthUser = (nextUser) => {
+    setUser(nextUser ?? null);
+  };
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setIsLoadingAuth(true);
       try {
         const me = await base44.auth.me();
-        if (!cancelled) setUser(me ?? null);
+        if (!cancelled) setAuthUser(me);
       } finally {
         if (!cancelled) setIsLoadingAuth(false);
       }
@@ -29,7 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     base44.auth.logout();
-    setUser(null);
+    setAuthUser(null);
   };
 
   const navigateToLogin = () => {
@@ -45,6 +49,7 @@ export const AuthProvider = ({ children }) => {
     isLoadingPublicSettings,
     authError,
     appPublicSettings: {},
+    setAuthUser,
     logout,
     navigateToLogin,
     checkAppState,

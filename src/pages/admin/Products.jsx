@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
+import { getPrimaryImage, normalizeImages } from '@/lib/images';
 
 const emptyProduct = {
   name: '', description: '', price: '', original_price: '', category: 'colares',
@@ -34,19 +35,19 @@ export default function AdminProducts() {
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.Product.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); setDialogOpen(false); toast.success('Produto criado'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); setDialogOpen(false); toast.success('Produto criado'); },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível criar o produto.')),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Product.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); setDialogOpen(false); toast.success('Produto atualizado'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); setDialogOpen(false); toast.success('Produto atualizado'); },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível atualizar o produto.')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Product.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); toast.success('Produto removido'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); toast.success('Produto removido'); },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover o produto.')),
   });
 
@@ -54,7 +55,7 @@ export default function AdminProducts() {
   const openEdit = (p) => { setEditing(p); setForm({ ...p, price: p.price || '', original_price: p.original_price || '', stock: p.stock || 0 }); setDialogOpen(true); };
 
   const handleSubmit = () => {
-    const data = { ...form, price: parseFloat(form.price) || 0, original_price: form.original_price ? parseFloat(form.original_price) : undefined, stock: parseInt(form.stock) || 0 };
+    const data = { ...form, images: normalizeImages(form.images), price: parseFloat(form.price) || 0, original_price: form.original_price ? parseFloat(form.original_price) : undefined, stock: parseInt(form.stock) || 0 };
     if (!data.name) { toast.error('Nome é obrigatório'); return; }
     if (editing) { updateMutation.mutate({ id: editing.id, data }); }
     else { createMutation.mutate(data); }
@@ -73,8 +74,13 @@ export default function AdminProducts() {
   };
 
   const addImageUrl = () => {
-    if (imageInput.trim()) {
-      setForm(prev => ({ ...prev, images: [...(prev.images || []), imageInput.trim()] }));
+    const value = imageInput.trim();
+    if (value) {
+      if (/^[a-zA-Z]:\\/.test(value) || value.startsWith('file:') || value.startsWith('\\\\')) {
+        toast.error('Caminho local não funciona no browser. Use "Escolher ficheiro" para enviar a imagem.');
+        return;
+      }
+      setForm(prev => ({ ...prev, images: [...(prev.images || []), value] }));
       setImageInput('');
     }
   };
@@ -112,7 +118,7 @@ export default function AdminProducts() {
                 <td className="p-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
-                      {p.images?.[0] ? <img src={p.images[0]} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-auto mt-2.5 text-muted-foreground/30" />}
+                      {getPrimaryImage(p.images) ? <img src={getPrimaryImage(p.images)} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-auto mt-2.5 text-muted-foreground/30" />}
                     </div>
                     <span className="font-body text-sm font-medium">{p.name}</span>
                   </div>

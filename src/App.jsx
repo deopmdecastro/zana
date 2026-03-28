@@ -11,6 +11,7 @@ import PageLoader from '@/components/ui/page-loader';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import { CartProvider } from '@/lib/CartContext';
+import RequireAdmin from '@/lib/RequireAdmin';
 
 const queryClientInstance = new QueryClient({
   defaultOptions: {
@@ -46,6 +47,17 @@ const AdminProducts = lazy(() => import('@/pages/admin/Products'));
 const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
 const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
 const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
+const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
+const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
+const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
+const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
+const AdminSuppliers = lazy(() => import('@/pages/admin/Suppliers'));
+const AdminPurchases = lazy(() => import('@/pages/admin/Purchases'));
+const AdminInventory = lazy(() => import('@/pages/admin/Inventory'));
+const AdminReports = lazy(() => import('@/pages/admin/Reports'));
+const AdminReviews = lazy(() => import('@/pages/admin/ReviewsAdmin'));
+
+const FAQPage = lazy(() => import('@/pages/FAQ'));
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -83,17 +95,33 @@ const AuthenticatedApp = () => {
         <Route path="/blog" element={<Blog />} />
         <Route path="/blog/:id" element={<BlogPostPage />} />
         <Route path="/contacto" element={<Contact />} />
+        <Route path="/faq" element={<FAQPage />} />
         <Route path="/favoritos" element={<WishlistPage />} />
         <Route path="/conta" element={<Account />} />
       </Route>
 
       {/* Admin Layout */}
-      <Route element={<AdminLayout />}>
+      <Route
+        element={(
+          <RequireAdmin>
+            <AdminLayout />
+          </RequireAdmin>
+        )}
+      >
         <Route path="/admin" element={<Dashboard />} />
         <Route path="/admin/produtos" element={<AdminProducts />} />
         <Route path="/admin/encomendas" element={<AdminOrders />} />
         <Route path="/admin/clientes" element={<AdminCustomers />} />
         <Route path="/admin/blog" element={<BlogAdmin />} />
+        <Route path="/admin/logs" element={<AdminLogs />} />
+        <Route path="/admin/conteudo/sobre" element={<AboutAdmin />} />
+        <Route path="/admin/conteudo/instagram" element={<InstagramAdmin />} />
+        <Route path="/admin/conteudo/faq" element={<FAQAdmin />} />
+        <Route path="/admin/fornecedores" element={<AdminSuppliers />} />
+        <Route path="/admin/compras" element={<AdminPurchases />} />
+        <Route path="/admin/inventario" element={<AdminInventory />} />
+        <Route path="/admin/relatorios" element={<AdminReports />} />
+        <Route path="/admin/avaliacoes" element={<AdminReviews />} />
       </Route>
 
       <Route path="*" element={<PageNotFound />} />

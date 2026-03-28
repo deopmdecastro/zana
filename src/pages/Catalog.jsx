@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/products/ProductCard';
+import { trackSearch } from '@/lib/analytics';
 
 const categories = [
   { value: 'all', label: 'Todas' },
@@ -70,6 +71,13 @@ export default function Catalog() {
   }, [products, search, category, material, sortBy]);
 
   const activeFilterCount = [category !== 'all', material !== 'all', search].filter(Boolean).length;
+
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      if (search) trackSearch(search);
+    }, 600);
+    return () => clearTimeout(handle);
+  }, [search]);
 
   const clearFilters = () => {
     setSearch('');

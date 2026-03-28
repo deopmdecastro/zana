@@ -10,6 +10,7 @@ datasource db {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  isAdmin      Boolean  @default(false)
   fullName     String?
   phone        String?
 
@@ -28,6 +29,9 @@ model User {
   updatedAt    DateTime @updatedAt
 
   passwordResetTokens PasswordResetToken[]
+  wishlistItems       WishlistItem[]
+  auditLogs           AuditLog[]      @relation("AuditActor")
+  inventoryMovements  InventoryMovement[] @relation("InventoryActor")
 
   @@index([createdAt])
 }
@@ -91,6 +95,9 @@ model Product {
 
   reviews       Review[]
   orderItems    OrderItem[]
+  purchaseItems PurchaseItem[]
+  inventoryMovements InventoryMovement[]
+  productViews  ProductView[]
 
   @@index([category])
   @@index([status])
@@ -159,22 +166,65 @@ model Review {
   rating     Int
   comment    String?
   authorName String?
+  isApproved Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+  @@index([isApproved])
 }
 
 model WishlistItem {
   id           String   @id @default(cuid())
+  userId       String?
   productId    String
   productName  String?
   productImage String?
   productPrice Decimal? @db.Decimal(12, 2)
   createdAt    DateTime @default(now())
 
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([productId])
+  @@index([userId])
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  path      String
+  referrer  String?
+  userId    String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([path])
+  @@index([userId])
+}
+
+model ProductView {
+  id        String   @id @default(cuid())
+  productId String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([productId])
+}
+
+model SearchEvent {
+  id             String   @id @default(cuid())
+  query          String
+  queryNormalized String
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([queryNormalized])
+  @@index([userId])
 }
 
 enum BlogCategory {
@@ -187,6 +237,125 @@ enum BlogCategory {
 enum BlogStatus {
   draft
   published
+}
+
+model SiteContent {
+  key       String   @id
+  value     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model FaqItem {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  order     Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([order])
+  @@index([createdAt])
+}
+
+model InstagramPost {
+  id        String   @id @default(cuid())
+  url       String
+  caption   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  purchases Purchase[]
+
+  @@index([createdAt])
+  @@index([name])
+}
+
+enum PurchaseStatus {
+  draft
+  received
+  cancelled
+}
+
+model Purchase {
+  id          String         @id @default(cuid())
+  supplierId  String?
+  reference   String?
+  status      PurchaseStatus @default(draft)
+  purchasedAt DateTime       @default(now())
+  notes       String?
+  total       Decimal?       @db.Decimal(12, 2)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  supplier    Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  items       PurchaseItem[]
+  movements   InventoryMovement[]
+
+  @@index([createdAt])
+  @@index([purchasedAt])
+  @@index([status])
+  @@index([supplierId])
+}
+
+model PurchaseItem {
+  id          String   @id @default(cuid())
+  purchaseId  String
+  productId   String?
+  productName String
+  unitCost    Decimal  @db.Decimal(12, 2)
+  quantity    Int
+
+  purchase  Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+enum InventoryMovementType {
+  purchase
+  manual
+  order
+}
+
+model InventoryMovement {
+  id             String                @id @default(cuid())
+  productId      String
+  type           InventoryMovementType
+  quantityChange Int
+  unitCost       Decimal?              @db.Decimal(12, 2)
+  purchaseId     String?
+  actorId        String?
+  meta           Json?
+  createdAt      DateTime              @default(now())
+
+  product        Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
+  purchase       Purchase?             @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  actor          User?                 @relation("InventoryActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([productId])
+  @@index([type])
+  @@index([purchaseId])
+  @@index([actorId])
 }
 
 model BlogPost {
@@ -202,4 +371,20 @@ model BlogPost {
 
   @@index([status])
   @@index([category])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  entityType String
+  entityId   String?
+  meta       Json?
+  createdAt  DateTime @default(now())
+
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([entityType])
+  @@index([actorId])
 }
