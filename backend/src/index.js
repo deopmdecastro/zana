@@ -950,6 +950,16 @@ app.get('/api/content/about', async (req, res) => {
   res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
 })
 
+app.get('/api/content/landing', async (req, res) => {
+  const record = await prisma.siteContent.findUnique({ where: { key: 'landing' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+app.get('/api/content/payments', async (req, res) => {
+  const record = await prisma.siteContent.findUnique({ where: { key: 'payments' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
 app.get('/api/faq', async (req, res) => {
   const items = await prisma.faqItem.findMany({
     where: { isActive: true },
@@ -1411,6 +1421,58 @@ app.patch('/api/admin/content/about', async (req, res) => {
   res.json({ content: record.value, updated_date: record.updatedAt })
 })
 
+app.get('/api/admin/content/landing', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'landing' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+app.patch('/api/admin/content/landing', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = aboutContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const value = parsed.data
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'landing' },
+    create: { key: 'landing', value },
+    update: { value },
+  })
+
+  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'landing', meta: { keys: Object.keys(value ?? {}) } })
+  res.json({ content: record.value, updated_date: record.updatedAt })
+})
+
+app.get('/api/admin/content/payments', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'payments' } })
+  res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+app.patch('/api/admin/content/payments', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = aboutContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const value = parsed.data
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'payments' },
+    create: { key: 'payments', value },
+    update: { value },
+  })
+
+  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'payments', meta: { keys: Object.keys(value ?? {}) } })
+  res.json({ content: record.value, updated_date: record.updatedAt })
+})
+
 // FAQ
 app.get('/api/admin/faq', async (req, res) => {
   const admin = await requireAdmin(req, res)
@@ -1658,6 +1720,45 @@ async function applyPurchaseToInventory({ purchaseId, actorId } = {}) {
   return { ok: true }
 }
 
+async function sanitizePurchaseInput({ supplierId, items } = {}) {
+  const cleanSupplierId = supplierId ? String(supplierId) : null
+
+  let supplierExists = null
+  if (cleanSupplierId) {
+    supplierExists = await prisma.supplier.findUnique({ where: { id: cleanSupplierId } })
+  }
+
+  const productIds = Array.from(
+    new Set(
+      (items ?? [])
+        .map((it) => (it?.product_id ? String(it.product_id) : null))
+        .filter(Boolean),
+    ),
+  )
+
+  const products = productIds.length ? await prisma.product.findMany({ where: { id: { in: productIds } } }) : []
+  const productSet = new Set(products.map((p) => p.id))
+
+  const sanitizedItems = (items ?? []).map((it) => {
+    const productId = it?.product_id ? String(it.product_id) : null
+    const unitCostNumber = Number(it?.unit_cost)
+    const unitCost = Number.isFinite(unitCostNumber) ? unitCostNumber : 0
+    const quantityNumber = Number.parseInt(String(it?.quantity ?? 0), 10)
+    const quantity = Number.isFinite(quantityNumber) ? quantityNumber : 0
+    return {
+      productId: productId && productSet.has(productId) ? productId : null,
+      productName: String(it?.product_name ?? '').trim(),
+      unitCost,
+      quantity,
+    }
+  })
+
+  return {
+    supplierId: supplierExists ? cleanSupplierId : null,
+    items: sanitizedItems,
+  }
+}
+
 app.get('/api/admin/purchases', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
@@ -1679,29 +1780,38 @@ app.post('/api/admin/purchases', async (req, res) => {
 
   const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : new Date()
   const status = parsed.data.status ?? 'draft'
-  const items = parsed.data.items
 
-  const total = items.reduce((sum, it) => sum + Number(it.unit_cost) * it.quantity, 0)
+  const sanitized = await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id, items: parsed.data.items })
+  const items = sanitized.items.filter((it) => it.productName && it.quantity > 0)
+  if (items.length === 0) return res.status(400).json({ error: 'invalid_items' })
 
-  const created = await prisma.purchase.create({
-    data: {
-      supplierId: parsed.data.supplier_id ?? null,
-      reference: parsed.data.reference ?? null,
-      status,
-      purchasedAt,
-      notes: parsed.data.notes ?? null,
-      total: String(total),
-      items: {
-        create: items.map((it) => ({
-          productId: it.product_id ?? null,
-          productName: it.product_name,
-          unitCost: String(it.unit_cost),
-          quantity: it.quantity,
-        })),
+  const total = items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0)
+
+  let created
+  try {
+    created = await prisma.purchase.create({
+      data: {
+        supplierId: sanitized.supplierId,
+        reference: parsed.data.reference ?? null,
+        status,
+        purchasedAt,
+        notes: parsed.data.notes ?? null,
+        total: String(total),
+        items: {
+          create: items.map((it) => ({
+            productId: it.productId,
+            productName: it.productName,
+            unitCost: String(it.unitCost),
+            quantity: it.quantity,
+          })),
+        },
       },
-    },
-    include: { supplier: true, items: true },
-  })
+      include: { supplier: true, items: true },
+    })
+  } catch (err) {
+    console.error('purchase create failed', err)
+    return res.status(500).json({ error: 'purchase_create_failed' })
+  }
 
   await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'Purchase', entityId: created.id })
 
@@ -1733,31 +1843,41 @@ app.patch('/api/admin/purchases/:id', async (req, res) => {
   const nextStatus = parsed.data.status ?? existing.status
   const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : undefined
 
+  const sanitized = parsed.data.items
+    ? await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id ?? existing.supplierId, items: parsed.data.items })
+    : null
+
   const updated = await prisma.$transaction(async (tx) => {
     if (existing.status !== 'received' && parsed.data.items) {
-      await tx.purchaseItem.deleteMany({ where: { purchaseId: existing.id } })
-      await tx.purchaseItem.createMany({
-        data: parsed.data.items.map((it) => ({
+      const cleanItems = (sanitized?.items ?? [])
+        .filter((it) => it.productName && it.quantity > 0)
+        .map((it) => ({
           id: crypto.randomUUID(),
           purchaseId: existing.id,
-          productId: it.product_id ?? null,
-          productName: it.product_name,
-          unitCost: String(it.unit_cost),
+          productId: it.productId,
+          productName: it.productName,
+          unitCost: String(it.unitCost),
           quantity: it.quantity,
-        })),
-      })
+        }))
+
+      if (cleanItems.length === 0) {
+        throw Object.assign(new Error('invalid_items'), { code: 'INVALID_ITEMS' })
+      }
+
+      await tx.purchaseItem.deleteMany({ where: { purchaseId: existing.id } })
+      await tx.purchaseItem.createMany({ data: cleanItems })
     }
 
-    const items = parsed.data.items ?? existing.items.map((it) => ({
-      unit_cost: it.unitCost,
-      quantity: it.quantity,
-    }))
-    const total = items.reduce((sum, it) => sum + Number(it.unit_cost) * Number(it.quantity), 0)
+    const itemsForTotal = parsed.data.items
+      ? (sanitized?.items ?? [])
+      : existing.items.map((it) => ({ unitCost: Number(it.unitCost), quantity: it.quantity }))
+
+    const total = itemsForTotal.reduce((sum, it) => sum + (Number(it.unitCost) || 0) * (Number(it.quantity) || 0), 0)
 
     return tx.purchase.update({
       where: { id: existing.id },
       data: {
-        supplierId: parsed.data.supplier_id === undefined ? undefined : parsed.data.supplier_id,
+        supplierId: parsed.data.supplier_id === undefined ? undefined : (sanitized?.supplierId ?? null),
         reference: parsed.data.reference === undefined ? undefined : parsed.data.reference,
         status: nextStatus,
         purchasedAt: purchasedAt ?? undefined,
@@ -1766,7 +1886,14 @@ app.patch('/api/admin/purchases/:id', async (req, res) => {
       },
       include: { supplier: true, items: true },
     })
+  }).catch((err) => {
+    if (err?.code === 'INVALID_ITEMS') {
+      return null
+    }
+    throw err
   })
+
+  if (!updated) return res.status(400).json({ error: 'invalid_items' })
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Purchase', entityId: updated.id, meta: { patch: req.body } })
 

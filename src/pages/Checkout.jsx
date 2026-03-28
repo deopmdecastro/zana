@@ -1,5 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { CheckCircle, ShoppingBag } from 'lucide-react';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -10,12 +13,35 @@ import { useCart } from '@/lib/CartContext';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
-import { CheckCircle, ShoppingBag } from 'lucide-react';
+
+const METHOD_META = [
+  { value: 'mbway', label: 'MB WAY' },
+  { value: 'transferencia', label: 'Transferência Bancária' },
+  { value: 'multibanco', label: 'Multibanco' },
+  { value: 'paypal', label: 'PayPal' },
+];
+
+function getEnabledMethods(payments) {
+  const methods = payments?.methods && typeof payments.methods === 'object' ? payments.methods : {};
+  const enabled = METHOD_META.filter((m) => methods?.[m.value]?.enabled !== false);
+  return enabled.length ? enabled : METHOD_META;
+}
 
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart();
   const [step, setStep] = useState('form');
   const [submitting, setSubmitting] = useState(false);
+
+  const { data: paymentsData } = useQuery({
+    queryKey: ['content-payments'],
+    queryFn: () => base44.content.payments(),
+    staleTime: 60_000,
+  });
+
+  const payments = paymentsData?.content ?? null;
+
+  const paymentOptions = useMemo(() => getEnabledMethods(payments), [payments]);
+
   const [form, setForm] = useState({
     customer_name: '',
     customer_email: '',
@@ -27,23 +53,41 @@ export default function Checkout() {
     notes: '',
   });
 
+  useEffect(() => {
+    if (!paymentOptions?.length) return;
+    const current = form.payment_method;
+    if (paymentOptions.some((o) => o.value === current)) return;
+    setForm((p) => ({ ...p, payment_method: paymentOptions[0].value }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOptions.map((o) => o.value).join('|')]);
+
+  const selectedPaymentCfg =
+    payments?.methods && typeof payments.methods === 'object' ? payments.methods?.[form.payment_method] ?? null : null;
+
   const shipping = subtotal >= 50 ? 0 : 4.99;
   const total = subtotal + shipping;
 
-  const handleChange = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+  const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.customer_name || !form.customer_email || !form.shipping_address || !form.shipping_city || !form.shipping_postal_code) {
+    if (
+      !form.customer_name ||
+      !form.customer_email ||
+      !form.shipping_address ||
+      !form.shipping_city ||
+      !form.shipping_postal_code
+    ) {
       toast.error('Preencha todos os campos obrigatórios');
       return;
     }
+
     setSubmitting(true);
     try {
       await toastApiPromise(
         base44.entities.Order.create({
           ...form,
-          items: items.map(i => ({
+          items: items.map((i) => ({
             product_id: i.product_id,
             product_name: i.product_name,
             product_image: i.product_image,
@@ -96,6 +140,47 @@ export default function Checkout() {
     );
   }
 
+  const renderPaymentDetails = () => {
+    const cfg = selectedPaymentCfg;
+    const notes = String(payments?.general_notes ?? '').trim();
+    const instructions = String(cfg?.instructions ?? '').trim();
+
+    const pairs = [];
+    if (form.payment_method === 'mbway' && cfg?.phone) pairs.push(['Número', cfg.phone]);
+    if (form.payment_method === 'transferencia') {
+      if (cfg?.iban) pairs.push(['IBAN', cfg.iban]);
+      if (cfg?.holder) pairs.push(['Titular', cfg.holder]);
+      if (cfg?.bank) pairs.push(['Banco', cfg.bank]);
+    }
+    if (form.payment_method === 'multibanco') {
+      if (cfg?.entity) pairs.push(['Entidade', cfg.entity]);
+      if (cfg?.reference) pairs.push(['Referência', cfg.reference]);
+    }
+    if (form.payment_method === 'paypal' && cfg?.email) pairs.push(['Email', cfg.email]);
+
+    if (!notes && !instructions && pairs.length === 0) return null;
+
+    return (
+      <div className="mt-4 border border-border rounded-md p-4 bg-secondary/20">
+        <div className="font-body text-xs tracking-wider uppercase text-muted-foreground mb-2">Informação de pagamento</div>
+        {notes ? <p className="font-body text-sm text-muted-foreground whitespace-pre-line mb-3">{notes}</p> : null}
+        {pairs.length ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3">
+            {pairs.map(([k, v]) => (
+              <div key={k} className="text-sm">
+                <span className="font-body text-xs text-muted-foreground">{k}:</span>{' '}
+                <span className="font-body text-sm">{String(v)}</span>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {instructions ? (
+          <p className="font-body text-sm whitespace-pre-line">{instructions}</p>
+        ) : null}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
       <h1 className="font-heading text-3xl md:text-4xl mb-8">Checkout</h1>
@@ -103,7 +188,6 @@ export default function Checkout() {
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            {/* Personal Info */}
             <div className="bg-card p-6 rounded-lg border border-border">
               <h2 className="font-heading text-xl mb-4">Dados Pessoais</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -115,14 +199,13 @@ export default function Checkout() {
                   <Label className="font-body text-xs">Email *</Label>
                   <Input type="email" value={form.customer_email} onChange={(e) => handleChange('customer_email', e.target.value)} className="rounded-none mt-1" />
                 </div>
-                <div className="md:col-span-2">
+                <div>
                   <Label className="font-body text-xs">Telefone</Label>
                   <Input value={form.customer_phone} onChange={(e) => handleChange('customer_phone', e.target.value)} className="rounded-none mt-1" />
                 </div>
               </div>
             </div>
 
-            {/* Shipping */}
             <div className="bg-card p-6 rounded-lg border border-border">
               <h2 className="font-heading text-xl mb-4">Morada de Envio</h2>
               <div className="space-y-4">
@@ -147,33 +230,30 @@ export default function Checkout() {
               </div>
             </div>
 
-            {/* Payment */}
             <div className="bg-card p-6 rounded-lg border border-border">
               <h2 className="font-heading text-xl mb-4">Pagamento</h2>
               <RadioGroup value={form.payment_method} onValueChange={(v) => handleChange('payment_method', v)} className="space-y-3">
-                {[
-                  { value: 'mbway', label: 'MB WAY' },
-                  { value: 'transferencia', label: 'Transferência Bancária' },
-                  { value: 'multibanco', label: 'Multibanco' },
-                  { value: 'paypal', label: 'PayPal' },
-                ].map(opt => (
+                {paymentOptions.map((opt) => (
                   <div key={opt.value} className="flex items-center gap-3 p-3 border border-border rounded-sm hover:bg-secondary/30">
                     <RadioGroupItem value={opt.value} id={opt.value} />
-                    <Label htmlFor={opt.value} className="font-body text-sm cursor-pointer flex-1">{opt.label}</Label>
+                    <Label htmlFor={opt.value} className="font-body text-sm cursor-pointer flex-1">
+                      {opt.label}
+                    </Label>
                   </div>
                 ))}
               </RadioGroup>
+
+              {renderPaymentDetails()}
             </div>
           </div>
 
-          {/* Order Summary */}
           <div className="bg-card p-6 rounded-lg border border-border h-fit sticky top-24">
             <h2 className="font-heading text-xl mb-4">Resumo do Pedido</h2>
             <div className="space-y-3 mb-4">
-              {items.map(item => (
+              {items.map((item) => (
                 <div key={`${item.product_id}-${item.color}`} className="flex gap-3">
                   <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
-                    {item.product_image && <img src={item.product_image} alt="" className="w-full h-full object-cover" />}
+                    {item.product_image ? <img src={item.product_image} alt="" className="w-full h-full object-cover" /> : null}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-body text-xs font-medium truncate">{item.product_name}</p>
@@ -185,10 +265,19 @@ export default function Checkout() {
             </div>
             <Separator className="my-4" />
             <div className="space-y-2 font-body text-sm">
-              <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{subtotal.toFixed(2)} €</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Envio</span><span>{shipping === 0 ? 'Grátis' : `${shipping.toFixed(2)} €`}</span></div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{subtotal.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Envio</span>
+                <span>{shipping === 0 ? 'Grátis' : `${shipping.toFixed(2)} €`}</span>
+              </div>
               <Separator />
-              <div className="flex justify-between font-semibold text-base"><span>Total</span><span>{total.toFixed(2)} €</span></div>
+              <div className="flex justify-between font-semibold text-base">
+                <span>Total</span>
+                <span>{total.toFixed(2)} €</span>
+              </div>
             </div>
             <Button type="submit" disabled={submitting} className="w-full rounded-none py-6 font-body text-sm tracking-wider mt-6">
               {submitting ? 'A processar...' : 'Confirmar Encomenda'}
@@ -199,3 +288,4 @@ export default function Checkout() {
     </div>
   );
 }
+

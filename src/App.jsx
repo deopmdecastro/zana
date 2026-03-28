@@ -2,7 +2,7 @@ import React, { Suspense, lazy } from 'react';
 // import { Toaster } from '@/components/ui/toaster'
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query'
 // import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import zanaLogo from '@/img/zana_logo.svg';
 
@@ -41,21 +41,25 @@ const Contact = lazy(() => import('@/pages/Contact'));
 const WishlistPage = lazy(() => import('@/pages/Wishlist'));
 const Account = lazy(() => import('@/pages/Account'));
 
-// Admin
-const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
-const AdminProducts = lazy(() => import('@/pages/admin/Products'));
-const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
-const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
-const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
-const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
-const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
-const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
-const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
-const AdminSuppliers = lazy(() => import('@/pages/admin/Suppliers'));
-const AdminPurchases = lazy(() => import('@/pages/admin/Purchases'));
-const AdminInventory = lazy(() => import('@/pages/admin/Inventory'));
-const AdminReports = lazy(() => import('@/pages/admin/Reports'));
-const AdminReviews = lazy(() => import('@/pages/admin/ReviewsAdmin'));
+	// Admin
+	const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
+	const AdminProducts = lazy(() => import('@/pages/admin/Products'));
+	const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
+	const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
+	const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
+	const AdminSuppliers = lazy(() => import('@/pages/admin/Suppliers'));
+	const AdminPurchases = lazy(() => import('@/pages/admin/Purchases'));
+	const AdminInventory = lazy(() => import('@/pages/admin/Inventory'));
+	const AdminReports = lazy(() => import('@/pages/admin/Reports'));
+	const AdminReviews = lazy(() => import('@/pages/admin/ReviewsAdmin'));
+	const ContentLayout = lazy(() => import('@/pages/admin/ContentLayout'));
+	const SettingsLayout = lazy(() => import('@/pages/admin/SettingsLayout'));
+	const LandingAdmin = lazy(() => import('@/pages/admin/LandingAdmin'));
+	const PaymentSettingsAdmin = lazy(() => import('@/pages/admin/PaymentSettingsAdmin'));
+	const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
+	const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
+	const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
+	const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
 
 const FAQPage = lazy(() => import('@/pages/FAQ'));
 
@@ -101,28 +105,37 @@ const AuthenticatedApp = () => {
       </Route>
 
       {/* Admin Layout */}
-      <Route
-        element={(
-          <RequireAdmin>
-            <AdminLayout />
-          </RequireAdmin>
-        )}
-      >
-        <Route path="/admin" element={<Dashboard />} />
-        <Route path="/admin/produtos" element={<AdminProducts />} />
-        <Route path="/admin/encomendas" element={<AdminOrders />} />
-        <Route path="/admin/clientes" element={<AdminCustomers />} />
-        <Route path="/admin/blog" element={<BlogAdmin />} />
-        <Route path="/admin/logs" element={<AdminLogs />} />
-        <Route path="/admin/conteudo/sobre" element={<AboutAdmin />} />
-        <Route path="/admin/conteudo/instagram" element={<InstagramAdmin />} />
-        <Route path="/admin/conteudo/faq" element={<FAQAdmin />} />
-        <Route path="/admin/fornecedores" element={<AdminSuppliers />} />
-        <Route path="/admin/compras" element={<AdminPurchases />} />
-        <Route path="/admin/inventario" element={<AdminInventory />} />
-        <Route path="/admin/relatorios" element={<AdminReports />} />
-        <Route path="/admin/avaliacoes" element={<AdminReviews />} />
-      </Route>
+	      <Route
+	        element={(
+	          <RequireAdmin>
+	            <AdminLayout />
+	          </RequireAdmin>
+	        )}
+	      >
+	        <Route path="/admin" element={<Dashboard />} />
+	        <Route path="/admin/produtos" element={<AdminProducts />} />
+	        <Route path="/admin/encomendas" element={<AdminOrders />} />
+	        <Route path="/admin/clientes" element={<AdminCustomers />} />
+	        <Route path="/admin/logs" element={<AdminLogs />} />
+	        <Route path="/admin/blog" element={<Navigate to="/admin/conteudo/blog" replace />} />
+	        <Route path="/admin/conteudo" element={<ContentLayout />}>
+	          <Route index element={<Navigate to="landing" replace />} />
+	          <Route path="landing" element={<LandingAdmin />} />
+	          <Route path="blog" element={<BlogAdmin />} />
+	          <Route path="sobre" element={<AboutAdmin />} />
+	          <Route path="instagram" element={<InstagramAdmin />} />
+	          <Route path="faq" element={<FAQAdmin />} />
+	        </Route>
+	        <Route path="/admin/definicoes" element={<SettingsLayout />}>
+	          <Route index element={<Navigate to="pagamentos" replace />} />
+	          <Route path="pagamentos" element={<PaymentSettingsAdmin />} />
+	        </Route>
+	        <Route path="/admin/fornecedores" element={<AdminSuppliers />} />
+	        <Route path="/admin/compras" element={<AdminPurchases />} />
+	        <Route path="/admin/inventario" element={<AdminInventory />} />
+	        <Route path="/admin/relatorios" element={<AdminReports />} />
+	        <Route path="/admin/avaliacoes" element={<AdminReviews />} />
+	      </Route>
 
       <Route path="*" element={<PageNotFound />} />
     </Routes>

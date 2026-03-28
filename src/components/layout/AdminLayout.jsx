@@ -4,9 +4,8 @@ import {
   BarChart3,
   BarChartBig,
   Boxes,
+  CreditCard,
   FileText,
-  HelpCircle,
-  Instagram,
   LayoutDashboard,
   LogOut,
   MessageSquare,
@@ -33,16 +32,18 @@ const navSections = [
       { to: '/admin/produtos', icon: Package, label: 'Produtos' },
       { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
       { to: '/admin/clientes', icon: Users, label: 'Clientes' },
-      { to: '/admin/blog', icon: BarChart3, label: 'Blog' },
     ],
   },
   {
     label: 'Conteúdo',
     items: [
-      { to: '/admin/conteudo/sobre', icon: FileText, label: 'Sobre Nós' },
-      { to: '/admin/conteudo/instagram', icon: Instagram, label: 'Instagram' },
-      { to: '/admin/conteudo/faq', icon: HelpCircle, label: 'FAQ' },
+      { to: '/admin/conteudo/landing', icon: FileText, label: 'Conteúdo' },
+      { to: '/admin/conteudo/blog', icon: BarChart3, label: 'Blog' },
     ],
+  },
+  {
+    label: 'Definições',
+    items: [{ to: '/admin/definicoes/pagamentos', icon: CreditCard, label: 'Pagamentos' }],
   },
   {
     label: 'Operação',
@@ -71,8 +72,7 @@ export default function AdminLayout() {
           </div>
           <div className="space-y-1">
             {section.items.map((item) => {
-              const active =
-                location.pathname === item.to || (item.to !== '/admin' && location.pathname.startsWith(item.to));
+              const active = location.pathname === item.to || (item.to !== '/admin' && location.pathname.startsWith(item.to));
               return (
                 <Link
                   key={item.to}
@@ -95,10 +95,8 @@ export default function AdminLayout() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Top bar */}
       <div className="bg-card border-b border-border px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Mobile menu */}
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
@@ -118,6 +116,7 @@ export default function AdminLayout() {
               </SheetContent>
             </Sheet>
           </div>
+
           <img src={zanaLogo} alt="Zana" className="h-7 w-auto" loading="eager" />
         </div>
 
@@ -146,12 +145,10 @@ export default function AdminLayout() {
       </div>
 
       <div className="flex">
-        {/* Sidebar */}
         <aside className="w-64 bg-card border-r border-border min-h-[calc(100vh-52px)] hidden md:block">
           {renderNav()}
         </aside>
 
-        {/* Content */}
         <main className="flex-1 p-4 md:p-8">
           <Outlet />
         </main>

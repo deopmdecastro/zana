@@ -360,6 +360,14 @@ export const base44 = {
         get: async () => authedJsonRequest('/api/admin/content/about'),
         update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
       },
+      landing: {
+        get: async () => authedJsonRequest('/api/admin/content/landing'),
+        update: async (data) => authedJsonRequest('/api/admin/content/landing', { method: 'PATCH', body: data }),
+      },
+      payments: {
+        get: async () => authedJsonRequest('/api/admin/content/payments'),
+        update: async (data) => authedJsonRequest('/api/admin/content/payments', { method: 'PATCH', body: data }),
+      },
     },
     inventory: {
       list: async (limit = 500) => {
@@ -372,6 +380,8 @@ export const base44 = {
   },
   content: {
     about: async () => jsonRequest('/api/content/about'),
+    landing: async () => jsonRequest('/api/content/landing'),
+    payments: async () => jsonRequest('/api/content/payments'),
   },
   faq: {
     list: async () => jsonRequest('/api/faq'),

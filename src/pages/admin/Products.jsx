@@ -13,6 +13,7 @@ import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
+import ImageUpload from '@/components/uploads/ImageUpload';
 
 const emptyProduct = {
   name: '', description: '', price: '', original_price: '', category: 'colares',
@@ -210,8 +211,17 @@ export default function AdminProducts() {
                 <Input placeholder="URL da imagem" value={imageInput} onChange={(e) => setImageInput(e.target.value)} className="rounded-none flex-1" />
                 <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-none">+</Button>
               </div>
-              <div className="mt-2">
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="font-body text-xs" />
+              <div className="mt-3">
+                <ImageUpload
+                  value={null}
+                  label="Upload (adiciona ao array)"
+                  helper="Pode enviar várias imagens."
+                  recommended="1000×1000"
+                  onChange={(url) => {
+                    if (!url) return;
+                    setForm((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
+                  }}
+                />
               </div>
             </div>
             <div className="flex flex-wrap gap-4">
