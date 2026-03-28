@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, CheckCircle } from 'lucide-react';
+import { Plus, Pencil, CheckCircle, Code } from 'lucide-react';
+import { getPrimaryImage } from '@/lib/images';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -33,12 +34,17 @@ const emptyPurchase = {
   status: 'draft',
   purchased_at: new Date().toISOString(),
   notes: '',
-  items: [{ product_id: null, product_name: '', unit_cost: '', quantity: 1 }],
+  items: [{ product_id: null, product_name: '', product_image: '', unit_cost: '', quantity: 1 }],
 };
 
 export default function AdminPurchases() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [jsonSaving, setJsonSaving] = useState(false);
+  const [supplierPromptOpen, setSupplierPromptOpen] = useState(false);
+  const [supplierPromptSupplierId, setSupplierPromptSupplierId] = useState('none');
+  const [pendingJsonObjects, setPendingJsonObjects] = useState(null);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPurchase);
   const [jsonText, setJsonText] = useState('');
@@ -95,55 +101,160 @@ export default function AdminPurchases() {
     setDialogOpen(true);
   };
 
-  const openEdit = (p) => {
-    setEditing(p);
-    setForm({
-      supplier_id: p.supplier_id ?? null,
+  const openJson = () => {
+    setEditing(null);
+    setForm({ ...emptyPurchase, purchased_at: new Date().toISOString() });
+    setJsonText('');
+    setJsonDialogOpen(true);
+  };
+
+	  const openEdit = (p) => {
+	    setEditing(p);
+	    setForm({
+	      supplier_id: p.supplier_id ?? null,
       reference: p.reference ?? '',
       status: p.status ?? 'draft',
       purchased_at: new Date(p.purchased_at ?? new Date()).toISOString(),
       notes: p.notes ?? '',
-      items: (p.items ?? []).map((it) => ({
-        product_id: it.product_id ?? null,
-        product_name: it.product_name ?? '',
-        unit_cost: String(it.unit_cost ?? ''),
-        quantity: it.quantity ?? 1,
-      })),
-    });
+	      items: (p.items ?? []).map((it) => ({
+	        product_id: it.product_id ?? null,
+	        product_name: it.product_name ?? '',
+	        product_image: it.product_image ?? '',
+	        unit_cost: String(it.unit_cost ?? ''),
+	        quantity: it.quantity ?? 1,
+	      })),
+	    });
     setJsonText('');
     setDialogOpen(true);
   };
 
+  const runJsonImport = (objects, fallbackSupplierId = null) => {
+    (async () => {
+      setJsonSaving(true);
+      let created = 0;
+      let failed = 0;
+      let firstError = null;
+
+      for (const obj of objects) {
+        try {
+          const supplierIdRaw = obj.supplier_id ?? obj.supplierId ?? obj.supplier?.id ?? null;
+          const supplierId = supplierIdRaw || fallbackSupplierId || null;
+          const purchasedAt = obj.purchased_at ?? obj.purchasedAt ?? null;
+          const items = Array.isArray(obj.items) ? obj.items : null;
+
+          if (!items || items.length === 0) {
+            if (!firstError) firstError = new Error('Itens inválidos.');
+            failed += 1;
+            continue;
+          }
+
+          const normalizedItems = items
+            .map((it) => {
+              const productId = it.product_id ?? it.productId ?? it.product?.id ?? null;
+              const productFromList = productId ? productOptions.find((p) => p.id === productId) : null;
+              const productName = String(it.product_name ?? it.productName ?? it.product?.name ?? productFromList?.name ?? '').trim();
+              const productImage =
+                String(it.product_image ?? it.productImage ?? it.image ?? '').trim() ||
+                (productFromList ? getPrimaryImage(productFromList.images) : '') ||
+                null;
+
+              return {
+                product_id: productId,
+                product_name: productName,
+                product_image: productImage,
+                unit_cost: Number(it.unit_cost ?? it.unitCost ?? it.cost ?? 0) || 0,
+                quantity: Number(it.quantity ?? 0) || 0,
+              };
+            })
+            .filter((it) => it.product_name && it.quantity > 0);
+
+          if (normalizedItems.length === 0) {
+            if (!firstError) firstError = new Error('Itens inválidos.');
+            failed += 1;
+            continue;
+          }
+
+          const payload = {
+            supplier_id: supplierId,
+            reference: String(obj.reference ?? '').trim() || null,
+            status: String(obj.status ?? 'draft'),
+            purchased_at: purchasedAt ? new Date(purchasedAt).toISOString() : new Date().toISOString(),
+            notes: String(obj.notes ?? '').trim() || null,
+            items: normalizedItems,
+          };
+
+          await base44.entities.Purchase.create(payload);
+          created += 1;
+        } catch (err) {
+          if (!firstError) firstError = err;
+          failed += 1;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['admin-purchases'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['product'] });
+      setJsonSaving(false);
+
+      if (created > 0) {
+        setJsonDialogOpen(false);
+        setJsonText('');
+      }
+
+      if (failed > 0) {
+        const human = firstError ? getErrorMessage(firstError, 'Não foi possível criar a compra.') : 'Não foi possível criar a compra.';
+        toast.error(`${human} (Criadas: ${created} · Falhas: ${failed})`);
+      } else if (objects.length === 1) {
+        toast.success('Compra criada');
+      } else {
+        toast.success(`Criadas: ${created}`);
+      }
+    })();
+  };
+
   const applyJson = () => {
-    const parsed = safeJson(jsonText);
-    if (!parsed || typeof parsed !== 'object') {
+    if (jsonSaving) return;
+
+    const trimmed = String(jsonText ?? '').trim();
+    if (!trimmed) return;
+
+    const parsed = safeJson(trimmed);
+    let objects = [];
+
+    if (Array.isArray(parsed)) objects = parsed;
+    else if (parsed && typeof parsed === 'object') objects = [parsed];
+    else {
+      const lines = trimmed
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && !/^-+$/.test(l));
+
+      objects = lines.map((line) => safeJson(line)).filter(Boolean);
+      if (objects.length !== lines.length) {
+        toast.error('JSON inválido');
+        return;
+      }
+    }
+
+    if (objects.length === 0) {
       toast.error('JSON inválido');
       return;
     }
 
-    const obj = parsed;
-    const supplierId = obj.supplier_id ?? obj.supplierId ?? obj.supplier?.id ?? null;
-    const purchasedAt = obj.purchased_at ?? obj.purchasedAt ?? null;
-    const items = Array.isArray(obj.items) ? obj.items : null;
+    const missingSupplier = objects.some((o) => !(o?.supplier_id ?? o?.supplierId ?? o?.supplier?.id));
+    if (missingSupplier) {
+      if (!suppliers.length) {
+        toast.error('Sem fornecedores. Crie um fornecedor primeiro.');
+        return;
+      }
+      setPendingJsonObjects(objects);
+      setSupplierPromptSupplierId('none');
+      setSupplierPromptOpen(true);
+      return;
+    }
 
-    setForm((p) => ({
-      ...p,
-      supplier_id: supplierId ?? p.supplier_id,
-      reference: obj.reference ?? p.reference,
-      status: obj.status ?? p.status,
-      purchased_at: purchasedAt ? new Date(purchasedAt).toISOString() : p.purchased_at,
-      notes: obj.notes ?? p.notes,
-      items: items
-        ? items.map((it) => ({
-            product_id: it.product_id ?? it.productId ?? it.product?.id ?? null,
-            product_name: it.product_name ?? it.productName ?? it.product?.name ?? '',
-            unit_cost: String(it.unit_cost ?? it.unitCost ?? it.cost ?? ''),
-            quantity: it.quantity ?? 1,
-          }))
-        : p.items,
-    }));
-
-    toast.success('JSON aplicado');
+    runJsonImport(objects);
   };
 
   const updateItem = (idx, patch) => {
@@ -156,7 +267,7 @@ export default function AdminPurchases() {
   const addItem = () => {
     setForm((p) => ({
       ...p,
-      items: [...p.items, { product_id: null, product_name: '', unit_cost: '', quantity: 1 }],
+      items: [...p.items, { product_id: null, product_name: '', product_image: '', unit_cost: '', quantity: 1 }],
     }));
   };
 
@@ -174,14 +285,15 @@ export default function AdminPurchases() {
       return;
     }
 
-    const items = form.items
-      .map((it) => ({
-        product_id: it.product_id || null,
-        product_name: String(it.product_name ?? '').trim(),
-        unit_cost: Number(it.unit_cost) || 0,
-        quantity: Number(it.quantity) || 0,
-      }))
-      .filter((it) => it.product_name && it.quantity > 0);
+	    const items = form.items
+	      .map((it) => ({
+	        product_id: it.product_id || null,
+	        product_name: String(it.product_name ?? '').trim(),
+	        product_image: String(it.product_image ?? '').trim() || null,
+	        unit_cost: Number(it.unit_cost) || 0,
+	        quantity: Number(it.quantity) || 0,
+	      }))
+	      .filter((it) => it.product_name && it.quantity > 0);
 
     if (items.length === 0) {
       toast.error('Itens inválidos');
@@ -209,13 +321,18 @@ export default function AdminPurchases() {
   const isLocked = editing?.status === 'received';
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Compras</h1>
-        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2">
-          <Plus className="w-4 h-4" /> Nova
-        </Button>
-      </div>
+	    <div>
+	      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+	        <h1 className="font-heading text-3xl">Compras</h1>
+	        <div className="flex items-center gap-2">
+	          <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2">
+	            <Plus className="w-4 h-4" /> Nova
+	          </Button>
+	          <Button onClick={openJson} variant="outline" className="rounded-none font-body text-sm gap-2">
+	            <Code className="w-4 h-4" /> JSON
+	          </Button>
+	        </div>
+	      </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
         <table className="w-full">
@@ -258,24 +375,8 @@ export default function AdminPurchases() {
             <DialogTitle className="font-heading text-xl">{editing ? 'Editar' : 'Nova'} compra</DialogTitle>
 	          </DialogHeader>
 
-	          <div className="space-y-4">
-	            {!isLocked ? (
-	              <div>
-	                <Label className="font-body text-xs">JSON (opcional)</Label>
-	                <Textarea
-	                  value={jsonText}
-	                  onChange={(e) => setJsonText(e.target.value)}
-	                  className="rounded-none mt-1 min-h-[90px] font-mono text-xs"
-	                  placeholder='Ex: {"supplier_id":"...","status":"draft","items":[{"product_id":"...","unit_cost":5,"quantity":2}]}'
-	                />
-	                <div className="flex justify-end mt-2">
-	                  <Button variant="outline" className="rounded-none font-body text-xs" onClick={applyJson} disabled={!jsonText.trim()}>
-	                    Aplicar JSON
-	                  </Button>
-	                </div>
-	              </div>
-	            ) : null}
-	            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+		          <div className="space-y-4">
+		            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
 	              <div>
 	                <Label className="font-body text-xs">Fornecedor</Label>
 	                <Select
@@ -335,18 +436,20 @@ export default function AdminPurchases() {
                   <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
                     <div className="md:col-span-2">
                       <Label className="font-body text-xs">Produto (opcional)</Label>
-                      <Select
-                        value={it.product_id ?? 'none'}
-                        onValueChange={(v) => {
-                          const productId = v === 'none' ? null : v;
-                          const product = productOptions.find((p) => p.id === productId) ?? null;
-                          updateItem(idx, {
-                            product_id: productId,
-                            product_name: product?.name ?? it.product_name,
-                          });
-                        }}
-                        disabled={isLocked}
-                      >
+	                      <Select
+	                        value={it.product_id ?? 'none'}
+	                        onValueChange={(v) => {
+	                          const productId = v === 'none' ? null : v;
+	                          const product = productOptions.find((p) => p.id === productId) ?? null;
+	                          const nextImage = product ? getPrimaryImage(product.images) : '';
+	                          updateItem(idx, {
+	                            product_id: productId,
+	                            product_name: product?.name ?? it.product_name,
+	                            product_image: nextImage ?? it.product_image,
+	                          });
+	                        }}
+	                        disabled={isLocked}
+	                      >
                         <SelectTrigger className="rounded-none mt-1">
                           <SelectValue placeholder="-" />
                         </SelectTrigger>
@@ -360,23 +463,43 @@ export default function AdminPurchases() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="md:col-span-2">
-                      <Label className="font-body text-xs">Nome do item</Label>
-                      <Input
-                        value={it.product_name}
-                        onChange={(e) => updateItem(idx, { product_name: e.target.value })}
-                        className="rounded-none mt-1"
-                        disabled={isLocked}
-                      />
-                    </div>
-                    <div>
-                      <Label className="font-body text-xs">Custo</Label>
-                      <Input type="number" value={it.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} className="rounded-none mt-1" disabled={isLocked} />
-                    </div>
-                    <div>
-                      <Label className="font-body text-xs">Qtd</Label>
-                      <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} className="rounded-none mt-1" disabled={isLocked} />
-                    </div>
+	                    <div className="md:col-span-2">
+	                      <Label className="font-body text-xs">Nome do item</Label>
+	                      <Input
+	                        value={it.product_name}
+	                        onChange={(e) => updateItem(idx, { product_name: e.target.value })}
+	                        className="rounded-none mt-1"
+	                        disabled={isLocked}
+	                      />
+	                    </div>
+	                    <div className="md:col-span-2">
+	                      <Label className="font-body text-xs">Imagem (URL)</Label>
+	                      <Input
+	                        value={it.product_image}
+	                        onChange={(e) => updateItem(idx, { product_image: e.target.value })}
+	                        className="rounded-none mt-1"
+	                        placeholder="https://..."
+	                        disabled={isLocked}
+	                      />
+	                      {it.product_image ? (
+	                        <img
+	                          src={it.product_image}
+	                          alt=""
+	                          className="mt-2 w-12 h-12 rounded object-cover border border-border"
+	                          onError={(e) => {
+	                            e.currentTarget.style.display = 'none';
+	                          }}
+	                        />
+	                      ) : null}
+	                    </div>
+	                    <div className="md:col-span-1">
+	                      <Label className="font-body text-xs">Custo</Label>
+	                      <Input type="number" value={it.unit_cost} onChange={(e) => updateItem(idx, { unit_cost: e.target.value })} className="rounded-none mt-1" disabled={isLocked} />
+	                    </div>
+	                    <div className="md:col-span-1">
+	                      <Label className="font-body text-xs">Qtd</Label>
+	                      <Input type="number" value={it.quantity} onChange={(e) => updateItem(idx, { quantity: e.target.value })} className="rounded-none mt-1" disabled={isLocked} />
+	                    </div>
                   </div>
                   {!isLocked && (
                     <div className="mt-3 flex justify-end">
@@ -410,8 +533,110 @@ export default function AdminPurchases() {
               </p>
             ) : null}
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+	        </DialogContent>
+	      </Dialog>
+
+	      <Dialog
+	        open={jsonDialogOpen}
+	        onOpenChange={(open) => {
+	          setJsonDialogOpen(open);
+	          if (!open) setJsonText('');
+	        }}
+	      >
+	        <DialogContent className="max-w-lg">
+	          <DialogHeader>
+	            <DialogTitle className="font-heading text-xl">Importar compra (JSON)</DialogTitle>
+	          </DialogHeader>
+	          <div className="space-y-3">
+	            <div>
+	              <Label className="font-body text-xs">JSON</Label>
+		              <Textarea
+		                value={jsonText}
+		                onChange={(e) => setJsonText(e.target.value)}
+		                className="rounded-none mt-1 min-h-[160px] font-mono text-xs"
+		                placeholder={
+		                  '1 JSON, array ou 1 por linha.\nEx (1): {"supplier_id":"...","status":"draft","items":[{"product_id":"...","unit_cost":5,"quantity":2}]}\nEx (varios): {"supplier_id":"...","items":[{"product_name":"A","unit_cost":1,"quantity":1}]}\\n{"supplier_id":"...","items":[{"product_name":"B","unit_cost":2,"quantity":1}]}\nEx (array): [{"supplier_id":"...","items":[{"product_name":"A","unit_cost":1,"quantity":1}]}]'
+		                }
+		              />
+	            </div>
+	            <div className="flex items-center justify-end gap-2">
+	              <Button
+	                type="button"
+	                variant="outline"
+	                className="rounded-none font-body text-sm"
+	                onClick={() => setJsonDialogOpen(false)}
+	              >
+	                Cancelar
+	              </Button>
+	              <Button
+	                type="button"
+	                className="rounded-none font-body text-sm"
+	                onClick={applyJson}
+	                disabled={!jsonText.trim() || jsonSaving}
+	              >
+	                {jsonSaving ? 'A criar...' : 'Aplicar'}
+	              </Button>
+	            </div>
+	          </div>
+	        </DialogContent>
+		      </Dialog>
+
+		      <Dialog open={supplierPromptOpen} onOpenChange={setSupplierPromptOpen}>
+		        <DialogContent className="max-w-md">
+		          <DialogHeader>
+		            <DialogTitle className="font-heading text-xl">Fornecedor em falta</DialogTitle>
+		          </DialogHeader>
+		          <div className="space-y-3">
+		            <div className="font-body text-sm text-muted-foreground whitespace-normal">
+		              Esta compra (JSON) não tem fornecedor. Selecione um fornecedor para continuar.
+		            </div>
+		            <div>
+		              <Label className="font-body text-xs">Fornecedor *</Label>
+		              <Select value={supplierPromptSupplierId} onValueChange={setSupplierPromptSupplierId}>
+		                <SelectTrigger className="rounded-none mt-1">
+		                  <SelectValue placeholder="Selecionar" />
+		                </SelectTrigger>
+		                <SelectContent>
+		                  <SelectItem value="none">Selecionar...</SelectItem>
+		                  {suppliers.map((s) => (
+		                    <SelectItem key={s.id} value={s.id}>
+		                      {s.name}
+		                    </SelectItem>
+		                  ))}
+		                </SelectContent>
+		              </Select>
+		            </div>
+		            <div className="flex items-center justify-end gap-2">
+		              <Button
+		                type="button"
+		                variant="outline"
+		                className="rounded-none font-body text-sm"
+		                onClick={() => {
+		                  setSupplierPromptOpen(false);
+		                  setPendingJsonObjects(null);
+		                }}
+		              >
+		                Cancelar
+		              </Button>
+		              <Button
+		                type="button"
+		                className="rounded-none font-body text-sm"
+		                disabled={supplierPromptSupplierId === 'none' || jsonSaving || !pendingJsonObjects}
+		                onClick={() => {
+		                  const objects = pendingJsonObjects;
+		                  const chosen = supplierPromptSupplierId === 'none' ? null : supplierPromptSupplierId;
+		                  if (!chosen || !objects) return;
+		                  setSupplierPromptOpen(false);
+		                  setPendingJsonObjects(null);
+		                  runJsonImport(objects, chosen);
+		                }}
+		              >
+		                {jsonSaving ? 'A criar...' : 'Guardar'}
+		              </Button>
+		            </div>
+		          </div>
+		        </DialogContent>
+		      </Dialog>
+		    </div>
+		  );
+	}

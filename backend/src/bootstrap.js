@@ -67,22 +67,23 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "PasswordResetToken_usedAt_idx" ON "PasswordResetToken" ("usedAt");`,
 
   `
-  CREATE TABLE IF NOT EXISTS "Product" (
-    "id" TEXT PRIMARY KEY,
-    "name" TEXT NOT NULL,
-    "description" TEXT,
-    "price" NUMERIC(12,2) NOT NULL,
-    "originalPrice" NUMERIC(12,2),
-    "category" "ProductCategory" NOT NULL,
-    "material" "ProductMaterial",
-    "colors" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-    "images" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
-    "stock" INTEGER NOT NULL DEFAULT 0,
-    "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE,
-    "isFeatured" BOOLEAN NOT NULL DEFAULT FALSE,
-    "isNew" BOOLEAN NOT NULL DEFAULT FALSE,
-    "isBestseller" BOOLEAN NOT NULL DEFAULT FALSE,
-    "status" "ProductStatus" NOT NULL DEFAULT 'active',
+	  CREATE TABLE IF NOT EXISTS "Product" (
+	    "id" TEXT PRIMARY KEY,
+	    "name" TEXT NOT NULL,
+	    "description" TEXT,
+	    "price" NUMERIC(12,2) NOT NULL,
+	    "originalPrice" NUMERIC(12,2),
+	    "category" "ProductCategory" NOT NULL,
+	    "material" "ProductMaterial",
+	    "colors" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+	    "images" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+	    "videos" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+	    "stock" INTEGER NOT NULL DEFAULT 0,
+	    "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE,
+	    "isFeatured" BOOLEAN NOT NULL DEFAULT FALSE,
+	    "isNew" BOOLEAN NOT NULL DEFAULT FALSE,
+	    "isBestseller" BOOLEAN NOT NULL DEFAULT FALSE,
+	    "status" "ProductStatus" NOT NULL DEFAULT 'active',
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
@@ -118,7 +119,8 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "Order" ("status");`,
   `CREATE INDEX IF NOT EXISTS "Order_customerEmail_idx" ON "Order" ("customerEmail");`,
 
-  `ALTER TABLE IF EXISTS "Product" ADD COLUMN IF NOT EXISTS "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE;`,
+	  `ALTER TABLE IF EXISTS "Product" ADD COLUMN IF NOT EXISTS "freeShipping" BOOLEAN NOT NULL DEFAULT FALSE;`,
+	  `ALTER TABLE IF EXISTS "Product" ADD COLUMN IF NOT EXISTS "videos" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];`,
   `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "shippingMethodId" TEXT;`,
   `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "shippingMethodLabel" TEXT;`,
   `ALTER TABLE IF EXISTS "Order" ADD COLUMN IF NOT EXISTS "trackingCode" TEXT;`,
@@ -372,19 +374,21 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "Purchase_supplierId_idx" ON "Purchase" ("supplierId");`,
 
   `
-  CREATE TABLE IF NOT EXISTS "PurchaseItem" (
-    "id" TEXT PRIMARY KEY,
-    "purchaseId" TEXT NOT NULL,
-    "productId" TEXT,
-    "productName" TEXT NOT NULL,
-    "unitCost" NUMERIC(12,2) NOT NULL,
-    "quantity" INTEGER NOT NULL,
-    CONSTRAINT "PurchaseItem_purchaseId_fkey" FOREIGN KEY ("purchaseId") REFERENCES "Purchase"("id") ON DELETE CASCADE,
-    CONSTRAINT "PurchaseItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL
-  );
-  `,
-  `CREATE INDEX IF NOT EXISTS "PurchaseItem_purchaseId_idx" ON "PurchaseItem" ("purchaseId");`,
-  `CREATE INDEX IF NOT EXISTS "PurchaseItem_productId_idx" ON "PurchaseItem" ("productId");`,
+	  CREATE TABLE IF NOT EXISTS "PurchaseItem" (
+	    "id" TEXT PRIMARY KEY,
+	    "purchaseId" TEXT NOT NULL,
+	    "productId" TEXT,
+	    "productName" TEXT NOT NULL,
+	    "productImage" TEXT,
+	    "unitCost" NUMERIC(12,2) NOT NULL,
+	    "quantity" INTEGER NOT NULL,
+	    CONSTRAINT "PurchaseItem_purchaseId_fkey" FOREIGN KEY ("purchaseId") REFERENCES "Purchase"("id") ON DELETE CASCADE,
+	    CONSTRAINT "PurchaseItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE SET NULL
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "PurchaseItem_purchaseId_idx" ON "PurchaseItem" ("purchaseId");`,
+	  `CREATE INDEX IF NOT EXISTS "PurchaseItem_productId_idx" ON "PurchaseItem" ("productId");`,
+	  `ALTER TABLE IF EXISTS "PurchaseItem" ADD COLUMN IF NOT EXISTS "productImage" TEXT;`,
 
   `
   CREATE TABLE IF NOT EXISTS "InventoryMovement" (

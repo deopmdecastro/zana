@@ -217,6 +217,7 @@ const productPayloadSchema = z
       .nullable(),
     colors: z.array(z.string()).optional(),
     images: z.array(z.string()).optional(),
+    videos: z.array(z.string()).optional(),
 	    stock: z.union([z.number(), z.string()]).optional().nullable(),
 	    free_shipping: z.boolean().optional(),
 	    is_featured: z.boolean().optional(),
@@ -401,6 +402,7 @@ const supplierPayloadSchema = z
 const purchaseItemPayloadSchema = z.object({
   product_id: z.string().optional().nullable(),
   product_name: z.string().min(1).max(200),
+  product_image: z.string().max(5000).optional().nullable(),
   unit_cost: z.union([z.number(), z.string()]),
   quantity: z.number().int().positive(),
 })
@@ -545,6 +547,7 @@ function toApiProduct(p) {
     material: p.material ?? null,
     colors: Array.isArray(p.colors) ? p.colors : [],
     images: Array.isArray(p.images) ? p.images : [],
+    videos: Array.isArray(p.videos) ? p.videos : [],
     stock: p.stock ?? 0,
     free_shipping: Boolean(p.freeShipping),
     is_featured: Boolean(p.isFeatured),
@@ -739,14 +742,15 @@ function toApiPurchase(p) {
     total: p.total === null || p.total === undefined ? null : decimalToNumber(p.total),
     created_date: p.createdAt,
     updated_date: p.updatedAt,
-    items: (p.items ?? []).map((it) => ({
-      id: it.id,
-      product_id: it.productId ?? null,
-      product_name: it.productName,
-      unit_cost: decimalToNumber(it.unitCost) ?? 0,
-      quantity: it.quantity,
-    })),
-  }
+	    items: (p.items ?? []).map((it) => ({
+	      id: it.id,
+	      product_id: it.productId ?? null,
+	      product_name: it.productName,
+	      product_image: it.productImage ?? null,
+	      unit_cost: decimalToNumber(it.unitCost) ?? 0,
+	      quantity: it.quantity,
+	    })),
+	  }
 }
 
 async function ensureAdminUser() {
@@ -1706,21 +1710,22 @@ app.post('/api/admin/products', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
   const data = parsed.data
-  const created = await prisma.product.create({
-    data: {
-      name: data.name,
-      description: data.description ?? null,
-      price: String(data.price),
-      originalPrice: data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
-      category: data.category,
-      material: data.material ?? null,
-      colors: data.colors ?? [],
-	      images: data.images ?? [],
-	      stock:
-	        data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
-	      freeShipping: data.free_shipping ?? undefined,
-	      isFeatured: data.is_featured ?? undefined,
-	      isNew: data.is_new ?? undefined,
+	  const created = await prisma.product.create({
+	    data: {
+	      name: data.name,
+	      description: data.description ?? null,
+	      price: String(data.price),
+	      originalPrice: data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
+	      category: data.category,
+	      material: data.material ?? null,
+	      colors: data.colors ?? [],
+		      images: data.images ?? [],
+		      videos: data.videos ?? [],
+		      stock:
+		        data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
+		      freeShipping: data.free_shipping ?? undefined,
+		      isFeatured: data.is_featured ?? undefined,
+		      isNew: data.is_new ?? undefined,
 	      isBestseller: data.is_bestseller ?? undefined,
 	      status: data.status ?? undefined,
     },
@@ -1739,22 +1744,23 @@ app.patch('/api/admin/products/:id', async (req, res) => {
 
   const data = parsed.data
   try {
-    const updated = await prisma.product.update({
-      where: { id: req.params.id },
-      data: {
-        name: data.name,
-        description: data.description === undefined ? undefined : data.description,
-        price: data.price === undefined ? undefined : String(data.price),
-        originalPrice:
-          data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
-        category: data.category,
-        material: data.material === undefined ? undefined : data.material,
-	        colors: data.colors,
-	        images: data.images,
-	        stock: data.stock === undefined ? undefined : data.stock === null ? null : Number.parseInt(String(data.stock), 10) || 0,
-	        freeShipping: data.free_shipping,
-	        isFeatured: data.is_featured,
-	        isNew: data.is_new,
+	    const updated = await prisma.product.update({
+	      where: { id: req.params.id },
+	      data: {
+	        name: data.name,
+	        description: data.description === undefined ? undefined : data.description,
+	        price: data.price === undefined ? undefined : String(data.price),
+	        originalPrice:
+	          data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
+	        category: data.category,
+	        material: data.material === undefined ? undefined : data.material,
+		        colors: data.colors,
+		        images: data.images,
+		        videos: data.videos,
+		        stock: data.stock === undefined ? undefined : data.stock === null ? null : Number.parseInt(String(data.stock), 10) || 0,
+		        freeShipping: data.free_shipping,
+		        isFeatured: data.is_featured,
+		        isNew: data.is_new,
 	        isBestseller: data.is_bestseller,
 	        status: data.status,
       },
@@ -2657,17 +2663,22 @@ async function sanitizePurchaseInput({ supplierId, items } = {}) {
   )
 
   const products = productIds.length ? await prisma.product.findMany({ where: { id: { in: productIds } } }) : []
-  const productSet = new Set(products.map((p) => p.id))
+  const productMap = new Map(products.map((p) => [p.id, p]))
+  const productSet = new Set(productMap.keys())
 
   const sanitizedItems = (items ?? []).map((it) => {
     const productId = it?.product_id ? String(it.product_id) : null
+    const product = productId ? productMap.get(productId) : null
     const unitCostNumber = Number(it?.unit_cost)
     const unitCost = Number.isFinite(unitCostNumber) ? unitCostNumber : 0
     const quantityNumber = Number.parseInt(String(it?.quantity ?? 0), 10)
     const quantity = Number.isFinite(quantityNumber) ? quantityNumber : 0
+    const imageRaw = String(it?.product_image ?? '').trim()
+    const productImage = imageRaw ? imageRaw : Array.isArray(product?.images) && product.images.length ? product.images[0] : null
     return {
       productId: productId && productSet.has(productId) ? productId : null,
       productName: String(it?.product_name ?? '').trim(),
+      productImage,
       unitCost,
       quantity,
     }
@@ -2708,24 +2719,25 @@ app.post('/api/admin/purchases', async (req, res) => {
 
 	    const total = items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0)
 
-	    const created = await prisma.purchase.create({
-	      data: {
-	        supplierId: sanitized.supplierId,
-	        reference: parsed.data.reference ?? null,
-	        status,
-	        purchasedAt,
-	        notes: parsed.data.notes ?? null,
-	        total: String(total),
-	        items: {
-	          create: items.map((it) => ({
-	            productId: it.productId,
-	            productName: it.productName,
-	            unitCost: String(it.unitCost),
-	            quantity: it.quantity,
-	          })),
-	        },
-	      },
-	      include: { supplier: true, items: true },
+		    const created = await prisma.purchase.create({
+		      data: {
+		        supplierId: sanitized.supplierId,
+		        reference: parsed.data.reference ?? null,
+		        status,
+		        purchasedAt,
+		        notes: parsed.data.notes ?? null,
+		        total: String(total),
+		        items: {
+		          create: items.map((it) => ({
+		            productId: it.productId,
+		            productName: it.productName,
+		            productImage: it.productImage ?? null,
+		            unitCost: String(it.unitCost),
+		            quantity: it.quantity,
+		          })),
+		        },
+		      },
+		      include: { supplier: true, items: true },
 	    })
 
 	    await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'Purchase', entityId: created.id })
@@ -2771,17 +2783,18 @@ app.patch('/api/admin/purchases/:id', async (req, res) => {
 	      : null
 
 	    const updated = await prisma.$transaction(async (tx) => {
-	      if (existing.status !== 'received' && parsed.data.items) {
-	        const cleanItems = (sanitized?.items ?? [])
-	          .filter((it) => it.productName && it.quantity > 0)
-	          .map((it) => ({
-	            id: crypto.randomUUID(),
-	            purchaseId: existing.id,
-	            productId: it.productId,
-	            productName: it.productName,
-	            unitCost: String(it.unitCost),
-	            quantity: it.quantity,
-	          }))
+		      if (existing.status !== 'received' && parsed.data.items) {
+		        const cleanItems = (sanitized?.items ?? [])
+		          .filter((it) => it.productName && it.quantity > 0)
+		          .map((it) => ({
+		            id: crypto.randomUUID(),
+		            purchaseId: existing.id,
+		            productId: it.productId,
+		            productName: it.productName,
+		            productImage: it.productImage ?? null,
+		            unitCost: String(it.unitCost),
+		            quantity: it.quantity,
+		          }))
 
 	        if (cleanItems.length === 0) {
 	          throw Object.assign(new Error('invalid_items'), { code: 'INVALID_ITEMS' })

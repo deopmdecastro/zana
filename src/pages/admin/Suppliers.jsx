@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Eye, Plus, Pencil, Trash2, Truck } from 'lucide-react';
+import { Code, Eye, Plus, Pencil, Trash2, Truck } from 'lucide-react';
 
 const emptySupplier = { name: '', email: '', phone: '', link: '', address: '', notes: '' };
 
@@ -24,6 +24,8 @@ function safeJson(value) {
 export default function AdminSuppliers() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [jsonSaving, setJsonSaving] = useState(false);
   const [editing, setEditing] = useState(null);
   const [viewing, setViewing] = useState(null);
   const [form, setForm] = useState(emptySupplier);
@@ -101,6 +103,11 @@ export default function AdminSuppliers() {
     setDialogOpen(true);
   };
 
+  const openJson = () => {
+    setJsonText('');
+    setJsonDialogOpen(true);
+  };
+
   const submit = () => {
     if (!form.name.trim()) {
       toast.error('Nome é obrigatório');
@@ -119,23 +126,83 @@ export default function AdminSuppliers() {
 	  };
 
   const applyJson = () => {
-    const parsed = safeJson(jsonText);
-    if (!parsed || typeof parsed !== 'object') {
+    if (jsonSaving) return;
+
+    const trimmed = String(jsonText ?? '').trim();
+    if (!trimmed) return;
+
+    const parsed = safeJson(trimmed);
+    let objects = [];
+
+    if (Array.isArray(parsed)) objects = parsed;
+    else if (parsed && typeof parsed === 'object') objects = [parsed];
+    else {
+      const lines = trimmed
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && !/^-+$/.test(l));
+
+      objects = lines.map((line) => safeJson(line)).filter(Boolean);
+      if (objects.length !== lines.length) {
+        toast.error('JSON inválido');
+        return;
+      }
+    }
+
+    if (objects.length === 0) {
       toast.error('JSON inválido');
       return;
     }
-    const obj = parsed;
-    const link = obj.link ?? obj.url ?? obj.website ?? obj.site ?? '';
-    setForm((p) => ({
-      ...p,
-      name: obj.name ?? p.name,
-      email: obj.email ?? p.email,
-      phone: obj.phone ?? p.phone,
-      link: link ?? p.link,
-      address: obj.address ?? p.address,
-      notes: obj.notes ?? p.notes,
-    }));
-    toast.success('JSON aplicado');
+
+    (async () => {
+      setJsonSaving(true);
+      let created = 0;
+      let failed = 0;
+      let firstError = null;
+
+      for (const obj of objects) {
+        try {
+          const link = obj.link ?? obj.url ?? obj.website ?? obj.site ?? '';
+          const data = {
+            name: String(obj.name ?? '').trim(),
+            email: String(obj.email ?? '').trim() || null,
+            phone: String(obj.phone ?? '').trim() || null,
+            link: String(link ?? '').trim() || null,
+            address: String(obj.address ?? '').trim() || null,
+            notes: String(obj.notes ?? '').trim() || null,
+          };
+
+          if (!data.name) {
+            if (!firstError) firstError = new Error('Nome é obrigatório.');
+            failed += 1;
+            continue;
+          }
+
+          await base44.entities.Supplier.create(data);
+          created += 1;
+        } catch (err) {
+          if (!firstError) firstError = err;
+          failed += 1;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['admin-suppliers'] });
+      setJsonSaving(false);
+
+      if (created > 0) {
+        setJsonDialogOpen(false);
+        setJsonText('');
+      }
+
+      if (failed > 0) {
+        const human = firstError ? getErrorMessage(firstError, 'Não foi possível criar.') : 'Não foi possível criar.';
+        toast.error(`${human} (Criados: ${created} · Falhas: ${failed})`);
+      } else if (objects.length === 1) {
+        toast.success('Fornecedor criado');
+      } else {
+        toast.success(`Criados: ${created}`);
+      }
+    })();
   };
 
   const isView = Boolean(viewing);
@@ -144,9 +211,14 @@ export default function AdminSuppliers() {
     <div>
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
         <h1 className="font-heading text-3xl">Fornecedores</h1>
-        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2">
-          <Plus className="w-4 h-4" /> Novo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2">
+            <Plus className="w-4 h-4" /> Novo
+          </Button>
+          <Button onClick={openJson} variant="outline" className="rounded-none font-body text-sm gap-2">
+            <Code className="w-4 h-4" /> JSON
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
@@ -155,6 +227,7 @@ export default function AdminSuppliers() {
             <tr className="border-b border-border bg-secondary/30">
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Contacto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Link</th>
               <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
             </tr>
           </thead>
@@ -165,27 +238,31 @@ export default function AdminSuppliers() {
                   <p className="font-body text-sm font-medium">{s.name}</p>
                   {s.address ? <p className="font-body text-xs text-muted-foreground mt-1">{s.address}</p> : null}
                 </td>
-	                <td className="p-3 font-body text-sm text-muted-foreground">
-	                  {s.email || s.phone ? (
-	                    <div className="space-y-1">
-	                      {s.email ? <div>{s.email}</div> : null}
-	                      {s.phone ? <div>{s.phone}</div> : null}
-	                      {s.link ? (
-	                        <a
-	                          href={s.link}
-	                          target="_blank"
-	                          rel="noreferrer"
-	                          className="underline underline-offset-2"
-	                          title={s.link}
-	                        >
-	                          Link
-	                        </a>
-	                      ) : null}
-	                    </div>
-	                  ) : (
-	                    '-'
-	                  )}
-	                </td>
+		                <td className="p-3 font-body text-sm text-muted-foreground">
+		                  {s.email || s.phone ? (
+		                    <div className="space-y-1">
+		                      {s.email ? <div>{s.email}</div> : null}
+		                      {s.phone ? <div>{s.phone}</div> : null}
+		                    </div>
+		                  ) : (
+		                    '-'
+		                  )}
+		                </td>
+		                <td className="p-3 font-body text-sm text-muted-foreground max-w-[320px]">
+		                  {s.link ? (
+		                    <a
+		                      href={s.link}
+		                      target="_blank"
+		                      rel="noreferrer"
+		                      className="underline underline-offset-2 truncate block"
+		                      title={s.link}
+		                    >
+		                      {s.link}
+		                    </a>
+		                  ) : (
+		                    '-'
+		                  )}
+		                </td>
 	                <td className="p-3 text-right whitespace-nowrap">
 	                  <Button variant="ghost" size="icon" onClick={() => openView(s)} title="Ver">
 	                    <Eye className="w-4 h-4" />
@@ -227,22 +304,6 @@ export default function AdminSuppliers() {
 	            </DialogTitle>
 	          </DialogHeader>
 	          <div className="space-y-3">
-	            {!isView ? (
-	              <div>
-	                <Label className="font-body text-xs">JSON (opcional)</Label>
-	                <Textarea
-	                  value={jsonText}
-	                  onChange={(e) => setJsonText(e.target.value)}
-	                  className="rounded-none mt-1 min-h-[90px] font-mono text-xs"
-	                  placeholder='Ex: {"name":"Fornecedor X","email":"x@ex.com","link":"https://..."}'
-	                />
-	                <div className="flex justify-end mt-2">
-	                  <Button variant="outline" className="rounded-none font-body text-xs" onClick={applyJson} disabled={!jsonText.trim()}>
-	                    Aplicar JSON
-	                  </Button>
-	                </div>
-	              </div>
-	            ) : null}
 	            <div>
 	              <Label className="font-body text-xs">Nome *</Label>
 	              <Input
@@ -320,6 +381,39 @@ export default function AdminSuppliers() {
 	          </div>
 	        </DialogContent>
 	      </Dialog>
+
+      <Dialog
+        open={jsonDialogOpen}
+        onOpenChange={(open) => {
+          setJsonDialogOpen(open);
+          if (!open) setJsonText('');
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Importar fornecedor (JSON)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="font-body text-xs">JSON</Label>
+	              <Textarea
+	                value={jsonText}
+	                onChange={(e) => setJsonText(e.target.value)}
+	                className="rounded-none mt-1 min-h-[160px] font-mono text-xs"
+	                placeholder={'1 JSON, array ou 1 por linha.\nEx (1): {"name":"Fornecedor X","email":"x@ex.com","link":"https://..."}\nEx (varios): {"name":"A"}\\n{"name":"B"}\nEx (array): [{"name":"A"},{"name":"B"}]'}
+	              />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setJsonDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="rounded-none font-body text-sm" onClick={applyJson} disabled={!jsonText.trim() || jsonSaving}>
+                {jsonSaving ? 'A criar...' : 'Aplicar'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

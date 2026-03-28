@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
+import { Code, Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
@@ -19,7 +19,7 @@ import { entityCode } from '@/utils/entityCode';
 const emptyProduct = {
   name: '', description: '', price: '', original_price: '', category: 'colares',
   material: 'dourado', colors: [], images: [], stock: 0, is_featured: false,
-  free_shipping: false, is_new: false, is_bestseller: false, status: 'active'
+  videos: [], free_shipping: false, is_new: false, is_bestseller: false, status: 'active'
 };
 
 function safeJson(value) {
@@ -34,10 +34,13 @@ function safeJson(value) {
 export default function AdminProducts() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
+  const [jsonSaving, setJsonSaving] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyProduct);
   const [search, setSearch] = useState('');
   const [imageInput, setImageInput] = useState('');
+  const [videoInput, setVideoInput] = useState('');
   const [jsonText, setJsonText] = useState('');
 
   const { data: products = [], isLoading } = useQuery({
@@ -63,44 +66,115 @@ export default function AdminProducts() {
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover o produto.')),
   });
 
-  const openCreate = () => { setEditing(null); setForm(emptyProduct); setJsonText(''); setDialogOpen(true); };
-  const openEdit = (p) => { setEditing(p); setForm({ ...p, price: p.price || '', original_price: p.original_price || '', stock: p.stock || 0 }); setJsonText(''); setDialogOpen(true); };
+  const openCreate = () => { setEditing(null); setForm(emptyProduct); setImageInput(''); setVideoInput(''); setJsonText(''); setDialogOpen(true); };
+  const openEdit = (p) => { setEditing(p); setForm({ ...emptyProduct, ...p, price: p.price || '', original_price: p.original_price || '', stock: p.stock || 0, images: p.images ?? [], videos: p.videos ?? [] }); setImageInput(''); setVideoInput(''); setJsonText(''); setDialogOpen(true); };
+  const openJson = () => { setJsonText(''); setJsonDialogOpen(true); };
+
+  const normalizeVideos = (value) => (Array.isArray(value) ? value.map((v) => String(v ?? '').trim()).filter(Boolean) : []);
 
   const applyJson = () => {
-    const parsed = safeJson(jsonText);
-    if (!parsed || typeof parsed !== 'object') {
+    if (jsonSaving) return;
+
+    const trimmed = String(jsonText ?? '').trim();
+    if (!trimmed) return;
+
+    const parsed = safeJson(trimmed);
+    let objects = [];
+
+    if (Array.isArray(parsed)) objects = parsed;
+    else if (parsed && typeof parsed === 'object') objects = [parsed];
+    else {
+      const lines = trimmed
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && !/^-+$/.test(l));
+
+      objects = lines.map((line) => safeJson(line)).filter(Boolean);
+      if (objects.length !== lines.length) {
+        toast.error('JSON inválido');
+        return;
+      }
+    }
+
+    if (objects.length === 0) {
       toast.error('JSON inválido');
       return;
     }
-    const obj = parsed;
-    const pick = (key, fallback) => (obj[key] === undefined ? fallback : obj[key]);
 
-    const images = pick('images', pick('image_urls', pick('imageUrls', undefined)));
-    const colors = pick('colors', undefined);
+    (async () => {
+      setJsonSaving(true);
+      let created = 0;
+      let failed = 0;
+      let firstError = null;
 
-    setForm((p) => ({
-      ...p,
-      name: pick('name', p.name) ?? p.name,
-      description: pick('description', p.description) ?? p.description,
-      price: pick('price', pick('unit_price', p.price)) ?? p.price,
-      original_price: pick('original_price', pick('originalPrice', p.original_price)) ?? p.original_price,
-      category: pick('category', p.category) ?? p.category,
-      material: pick('material', p.material) ?? p.material,
-      colors: Array.isArray(colors) ? colors : p.colors,
-      images: Array.isArray(images) ? normalizeImages(images) : p.images,
-      stock: pick('stock', p.stock) ?? p.stock,
-      free_shipping: Boolean(pick('free_shipping', pick('freeShipping', p.free_shipping))),
-      is_featured: Boolean(pick('is_featured', pick('isFeatured', p.is_featured))),
-      is_new: Boolean(pick('is_new', pick('isNew', p.is_new))),
-      is_bestseller: Boolean(pick('is_bestseller', pick('isBestseller', p.is_bestseller))),
-      status: pick('status', p.status) ?? p.status,
-    }));
+      for (const obj of objects) {
+        try {
+          const pick = (key, fallback) => (obj?.[key] === undefined ? fallback : obj[key]);
+          const images = pick('images', pick('image_urls', pick('imageUrls', undefined)));
+          const videos = pick('videos', pick('video_urls', pick('videoUrls', undefined)));
+          const colors = pick('colors', undefined);
 
-    toast.success('JSON aplicado');
+          const name = String(pick('name', '') ?? '').trim();
+          if (!name) {
+            if (!firstError) firstError = new Error('Nome é obrigatório.');
+            failed += 1;
+            continue;
+          }
+
+          const rawPrice = pick('price', pick('unit_price', ''));
+          const rawOriginalPrice = pick('original_price', pick('originalPrice', ''));
+          const rawStock = pick('stock', 0);
+
+          const data = {
+            ...emptyProduct,
+            name,
+            description: String(pick('description', emptyProduct.description) ?? ''),
+            price: parseFloat(rawPrice) || 0,
+            original_price: rawOriginalPrice ? parseFloat(rawOriginalPrice) : undefined,
+            category: String(pick('category', emptyProduct.category) ?? emptyProduct.category),
+            material: String(pick('material', emptyProduct.material) ?? emptyProduct.material),
+            colors: Array.isArray(colors) ? colors : emptyProduct.colors,
+            images: Array.isArray(images) ? normalizeImages(images) : emptyProduct.images,
+            videos: Array.isArray(videos) ? normalizeVideos(videos) : emptyProduct.videos,
+            stock: parseInt(rawStock) || 0,
+            free_shipping: Boolean(pick('free_shipping', pick('freeShipping', emptyProduct.free_shipping))),
+            is_featured: Boolean(pick('is_featured', pick('isFeatured', emptyProduct.is_featured))),
+            is_new: Boolean(pick('is_new', pick('isNew', emptyProduct.is_new))),
+            is_bestseller: Boolean(pick('is_bestseller', pick('isBestseller', emptyProduct.is_bestseller))),
+            status: String(pick('status', emptyProduct.status) ?? emptyProduct.status),
+          };
+
+          await base44.entities.Product.create(data);
+          created += 1;
+        } catch (err) {
+          if (!firstError) firstError = err;
+          failed += 1;
+        }
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['product'] });
+      setJsonSaving(false);
+
+      if (created > 0) {
+        setJsonDialogOpen(false);
+        setJsonText('');
+      }
+
+      if (failed > 0) {
+        const human = firstError ? getErrorMessage(firstError, 'Não foi possível criar o produto.') : 'Não foi possível criar o produto.';
+        toast.error(`${human} (Criados: ${created} · Falhas: ${failed})`);
+      } else if (objects.length === 1) {
+        toast.success('Produto criado');
+      } else {
+        toast.success(`Criados: ${created}`);
+      }
+    })();
   };
 
   const handleSubmit = () => {
-    const data = { ...form, images: normalizeImages(form.images), price: parseFloat(form.price) || 0, original_price: form.original_price ? parseFloat(form.original_price) : undefined, stock: parseInt(form.stock) || 0 };
+    const data = { ...form, images: normalizeImages(form.images), videos: normalizeVideos(form.videos), price: parseFloat(form.price) || 0, original_price: form.original_price ? parseFloat(form.original_price) : undefined, stock: parseInt(form.stock) || 0 };
     if (!data.name) { toast.error('Nome é obrigatório'); return; }
     if (editing) { updateMutation.mutate({ id: editing.id, data }); }
     else { createMutation.mutate(data); }
@@ -130,13 +204,28 @@ export default function AdminProducts() {
     }
   };
 
+  const addVideoUrl = () => {
+    const value = videoInput.trim();
+    if (value) {
+      if (/^[a-zA-Z]:\\/.test(value) || value.startsWith('file:') || value.startsWith('\\\\')) {
+        toast.error('Caminho local nÃ£o funciona no browser. Use uma URL.');
+        return;
+      }
+      setForm((prev) => ({ ...prev, videos: [...(prev.videos || []), value] }));
+      setVideoInput('');
+    }
+  };
+
   const filtered = products.filter(p => p.name?.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="font-heading text-3xl">Produtos</h1>
-        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2"><Plus className="w-4 h-4" /> Novo Produto</Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2"><Plus className="w-4 h-4" /> Novo Produto</Button>
+          <Button onClick={openJson} variant="outline" className="rounded-none font-body text-sm gap-2"><Code className="w-4 h-4" /> JSON</Button>
+        </div>
       </div>
 
       <div className="relative max-w-sm mb-6">
@@ -193,26 +282,12 @@ export default function AdminProducts() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">{editing ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
-	          </DialogHeader>
-	          <div className="space-y-4">
-	            <div>
-	              <Label className="font-body text-xs">JSON (opcional)</Label>
-	              <Textarea
-	                value={jsonText}
-	                onChange={(e) => setJsonText(e.target.value)}
-	                className="rounded-none mt-1 min-h-[90px] font-mono text-xs"
-	                placeholder='Ex: {"name":"Produto X","price":12.5,"stock":10,"images":["https://..."]}'
-	              />
-	              <div className="flex justify-end mt-2">
-	                <Button variant="outline" className="rounded-none font-body text-xs" onClick={applyJson} disabled={!jsonText.trim()}>
-	                  Aplicar JSON
-	                </Button>
-	              </div>
-	            </div>
-	            <div>
-	              <Label className="font-body text-xs">Nome *</Label>
-	              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-none mt-1" />
-	            </div>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label className="font-body text-xs">Nome *</Label>
+              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-none mt-1" />
+            </div>
             <div>
               <Label className="font-body text-xs">Descrição</Label>
               <Textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="rounded-none mt-1" rows={3} />
@@ -260,8 +335,8 @@ export default function AdminProducts() {
               <Label className="font-body text-xs">Stock</Label>
               <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="rounded-none mt-1" />
             </div>
-            <div>
-              <Label className="font-body text-xs">Imagens</Label>
+	            <div>
+	              <Label className="font-body text-xs">Imagens</Label>
               <div className="flex gap-2 mt-1 flex-wrap">
                 {form.images?.map((img, i) => (
                   <div key={i} className="relative w-16 h-16 rounded overflow-hidden">
@@ -285,9 +360,34 @@ export default function AdminProducts() {
                     setForm((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
                   }}
                 />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-4">
+	              </div>
+	            </div>
+	            <div>
+	              <Label className="font-body text-xs">Vídeos</Label>
+	              <div className="space-y-1 mt-1">
+	                {(form.videos || []).map((v, i) => (
+	                  <div key={i} className="flex items-center gap-2">
+	                    <a href={v} target="_blank" rel="noreferrer" className="text-xs underline underline-offset-2 truncate flex-1" title={v}>
+	                      {v}
+	                    </a>
+	                    <Button
+	                      type="button"
+	                      variant="destructive"
+	                      size="sm"
+	                      className="rounded-none h-7 px-2 text-xs"
+	                      onClick={() => setForm({ ...form, videos: (form.videos || []).filter((_, j) => j !== i) })}
+	                    >
+	                      Remover
+	                    </Button>
+	                  </div>
+	                ))}
+	              </div>
+	              <div className="flex gap-2 mt-2">
+	                <Input placeholder="URL do vídeo (YouTube/MP4)" value={videoInput} onChange={(e) => setVideoInput(e.target.value)} className="rounded-none flex-1" />
+	                <Button type="button" variant="outline" onClick={addVideoUrl} className="rounded-none">+</Button>
+	              </div>
+	            </div>
+	            <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <Switch checked={form.free_shipping} onCheckedChange={(v) => setForm({ ...form, free_shipping: v })} />
                 <Label className="font-body text-xs">Entrega grátis</Label>
@@ -319,6 +419,39 @@ export default function AdminProducts() {
             <Button onClick={handleSubmit} className="w-full rounded-none font-body text-sm tracking-wider">
               {editing ? 'Guardar Alterações' : 'Criar Produto'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={jsonDialogOpen}
+        onOpenChange={(open) => {
+          setJsonDialogOpen(open);
+          if (!open) setJsonText('');
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Importar produto (JSON)</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="font-body text-xs">JSON</Label>
+	              <Textarea
+	                value={jsonText}
+	                onChange={(e) => setJsonText(e.target.value)}
+	                className="rounded-none mt-1 min-h-[160px] font-mono text-xs"
+	                placeholder={'1 JSON, array ou 1 por linha.\nEx (1): {"name":"Produto X","price":12.5,"stock":10,"images":["https://..."]}\nEx (varios): {"name":"A","price":1}\\n{"name":"B","price":2}\nEx (array): [{"name":"A","price":1},{"name":"B","price":2}]'}
+	              />
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setJsonDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button className="rounded-none font-body text-sm" onClick={applyJson} disabled={!jsonText.trim() || jsonSaving}>
+                {jsonSaving ? 'A criar...' : 'Aplicar'}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
