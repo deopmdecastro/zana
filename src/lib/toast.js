@@ -2,7 +2,16 @@ import { toast } from 'sonner';
 
 export function getErrorMessage(err, fallback = 'Ocorreu um erro.') {
   const fromApi = err?.data?.error;
-  if (typeof fromApi === 'string' && fromApi.trim()) return fromApi;
+  if (typeof fromApi === 'string' && fromApi.trim()) {
+    const code = fromApi.trim();
+    if (code === 'network_error') {
+      const detail = err?.data?.detail ? String(err.data.detail) : '';
+      return detail
+        ? `Sem ligação ao servidor (${detail}). Confirme se o backend está a correr em http://localhost:3001`
+        : 'Sem ligação ao servidor. Confirme se o backend está a correr em http://localhost:3001';
+    }
+    return code;
+  }
   if (typeof err?.message === 'string' && err.message.trim()) return err.message;
   return fallback;
 }

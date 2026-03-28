@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { BookOpen, FileText, HelpCircle, Instagram, LayoutTemplate } from 'lucide-react';
+import { BookOpen, FileText, HelpCircle, Instagram, LayoutTemplate, MessageSquare } from 'lucide-react';
 
 const tabs = [
   { to: 'landing', label: 'Landing', icon: LayoutTemplate },
   { to: 'blog', label: 'Blog', icon: BookOpen },
+  { to: 'blog-comentarios', label: 'Comentários', icon: MessageSquare },
   { to: 'sobre', label: 'Sobre Nós', icon: FileText },
   { to: 'instagram', label: 'Instagram', icon: Instagram },
   { to: 'faq', label: 'FAQ', icon: HelpCircle },
@@ -16,9 +17,7 @@ export default function ContentLayout() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="font-heading text-3xl">Conteúdo</h1>
-          <p className="font-body text-sm text-muted-foreground mt-1">
-            Gestão de textos, imagens e secções da landing page.
-          </p>
+          <p className="font-body text-sm text-muted-foreground mt-1">Gestão de textos, imagens e secções do site.</p>
         </div>
       </div>
 

@@ -20,6 +20,11 @@ Este repo tem:
 
 O Vite sobe em `http://localhost:5173` e faz proxy de `/api` e `/health` para `http://localhost:3001` (veja `vite.config.js`).
 
+### Rodar tudo (frontend + backend)
+
+- Windows (PowerShell com scripts bloqueados): `npm.cmd run dev`
+- Outros: `npm run dev`
+
 ## Backend local + Postgres (opcional)
 
 Este repo inclui um backend local em `backend/` e Postgres via `docker-compose.yml`.

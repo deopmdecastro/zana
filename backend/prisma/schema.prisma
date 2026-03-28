@@ -32,6 +32,8 @@ model User {
   wishlistItems       WishlistItem[]
   auditLogs           AuditLog[]      @relation("AuditActor")
   inventoryMovements  InventoryMovement[] @relation("InventoryActor")
+  supportTickets      SupportTicket[]
+  blogComments        BlogComment[]
 
   @@index([createdAt])
 }
@@ -264,11 +266,54 @@ model InstagramPost {
   id        String   @id @default(cuid())
   url       String
   caption   String?
+  coverUrl  String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([isActive])
+  @@index([createdAt])
+}
+
+enum SupportTicketStatus {
+  open
+  closed
+}
+
+enum SupportMessageAuthorType {
+  customer
+  admin
+}
+
+model SupportTicket {
+  id            String             @id @default(cuid())
+  userId        String?
+  customerName  String?
+  customerEmail String?
+  subject       String
+  status        SupportTicketStatus @default(open)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  user          User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  messages      SupportMessage[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([updatedAt])
+}
+
+model SupportMessage {
+  id         String                 @id @default(cuid())
+  ticketId   String
+  authorType SupportMessageAuthorType
+  authorId   String?
+  message    String
+  createdAt  DateTime               @default(now())
+
+  ticket     SupportTicket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
   @@index([createdAt])
 }
 
@@ -369,8 +414,49 @@ model BlogPost {
   createdAt DateTime     @default(now())
   updatedAt DateTime     @updatedAt
 
+  comments  BlogComment[]
+
   @@index([status])
   @@index([category])
+}
+
+model BlogComment {
+  id          String   @id @default(cuid())
+  postId      String
+  userId      String?
+  authorName  String
+  authorEmail String?
+  content     String
+  isApproved  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  post        BlogPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  replies     BlogCommentReply[]
+
+  @@index([postId])
+  @@index([userId])
+  @@index([isApproved])
+  @@index([createdAt])
+}
+
+enum BlogCommentReplyAuthorType {
+  customer
+  admin
+}
+
+model BlogCommentReply {
+  id         String                   @id @default(cuid())
+  commentId  String
+  authorType BlogCommentReplyAuthorType
+  authorId   String?
+  message    String
+  createdAt  DateTime                 @default(now())
+
+  comment    BlogComment              @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([commentId])
+  @@index([createdAt])
 }
 
 model AuditLog {

@@ -10,8 +10,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 import { Plus, Pencil, Trash2, Instagram } from 'lucide-react';
+import ImageUpload from '@/components/uploads/ImageUpload';
 
-const emptyPost = { url: '', caption: '', is_active: true };
+const emptyPost = { url: '', caption: '', cover_url: '', is_active: true };
 
 export default function InstagramAdmin() {
   const queryClient = useQueryClient();
@@ -61,7 +62,7 @@ export default function InstagramAdmin() {
 
   const openEdit = (p) => {
     setEditing(p);
-    setForm({ url: p.url ?? '', caption: p.caption ?? '', is_active: p.is_active !== false });
+    setForm({ url: p.url ?? '', caption: p.caption ?? '', cover_url: p.cover_url ?? '', is_active: p.is_active !== false });
     setDialogOpen(true);
   };
 
@@ -70,7 +71,12 @@ export default function InstagramAdmin() {
       toast.error('URL é obrigatório');
       return;
     }
-    const data = { url: form.url.trim(), caption: form.caption?.trim() || null, is_active: !!form.is_active };
+    const data = {
+      url: form.url.trim(),
+      caption: form.caption?.trim() || null,
+      cover_url: form.cover_url?.trim() || null,
+      is_active: !!form.is_active,
+    };
     if (editing) updateMutation.mutate({ id: editing.id, data });
     else createMutation.mutate(data);
   };
@@ -129,6 +135,12 @@ export default function InstagramAdmin() {
             <DialogTitle className="font-heading text-xl">{editing ? 'Editar' : 'Adicionar'} link</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            <ImageUpload
+              value={form.cover_url}
+              label="Capa / Thumbnail"
+              recommended="1080×1080 (post) ou 1080×1920 (reel)"
+              onChange={(url) => setForm({ ...form, cover_url: url })}
+            />
             <div>
               <Label className="font-body text-xs">URL</Label>
               <Input value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className="rounded-none mt-1" />
@@ -150,4 +162,3 @@ export default function InstagramAdmin() {
     </div>
   );
 }
-

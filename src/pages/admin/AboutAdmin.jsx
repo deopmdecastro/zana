@@ -5,8 +5,35 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import ImageUpload from '@/components/uploads/ImageUpload';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
+
+const defaultAbout = {
+  hero_title: 'Sobre a Zana',
+  hero_subtitle: 'Celebrar a beleza, autenticidade e essência da mulher moderna.',
+  story_title: 'A Nossa Essência',
+  story_image_url: 'https://media.base44.com/images/public/69c68e1a7672ae1454387e62/0912c9232_generated_fe47a609.png',
+  story_paragraphs: [
+    'A Zana nasce com a missão de celebrar o universo feminino, oferecendo às mulheres produtos pensados para o seu dia a dia, com praticidade, estilo e personalidade.',
+    'Mais do que uma marca, a Zana é um convite para que cada mulher se sinta única, confiante e inspirada.',
+    'Com o lançamento da Zana Acessórios, apresentamos bijuterias e outros artigos que vão desde opções simples e elegantes até peças exclusivas e personalizadas. O propósito da marca é proporcionar não apenas produtos, mas experiências que traduzam beleza, autenticidade e a essência da mulher moderna.',
+  ],
+  values: [
+    {
+      title: 'Missão',
+      text: 'Celebrar a beleza feminina através de acessórios que combinam elegância, qualidade e preço acessível.',
+    },
+    {
+      title: 'Visão',
+      text: 'Ser a marca de referência em bijuterias para a mulher moderna, reconhecida pela qualidade e design único.',
+    },
+    {
+      title: 'Valores',
+      text: 'Autenticidade, sofisticação, acessibilidade e dedicação a cada cliente que nos escolhe.',
+    },
+  ],
+};
 
 function toLines(value) {
   if (Array.isArray(value)) return value.filter(Boolean).join('\n');
@@ -31,12 +58,12 @@ export default function AboutAdmin() {
 
   const initial = useMemo(() => {
     return {
-      hero_title: existing?.hero_title ?? 'Sobre a Zana',
-      hero_subtitle: existing?.hero_subtitle ?? 'Celebrar a beleza, autenticidade e essência da mulher moderna.',
-      story_image_url: existing?.story_image_url ?? '',
-      story_title: existing?.story_title ?? 'A Nossa Essência',
-      story_paragraphs: toLines(existing?.story_paragraphs ?? []),
-      values: Array.isArray(existing?.values) ? existing.values : [],
+      hero_title: existing?.hero_title ?? defaultAbout.hero_title,
+      hero_subtitle: existing?.hero_subtitle ?? defaultAbout.hero_subtitle,
+      story_image_url: existing?.story_image_url ?? defaultAbout.story_image_url,
+      story_title: existing?.story_title ?? defaultAbout.story_title,
+      story_paragraphs: toLines(existing?.story_paragraphs ?? defaultAbout.story_paragraphs),
+      values: Array.isArray(existing?.values) && existing.values.length ? existing.values : defaultAbout.values,
     };
   }, [existing]);
 
@@ -129,22 +156,30 @@ export default function AboutAdmin() {
 
           <div className="bg-card border border-border rounded-lg p-5">
             <h2 className="font-heading text-xl mb-4">História</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label className="font-body text-xs">URL da imagem</Label>
-                <Input
-                  value={form.story_image_url}
-                  onChange={(e) => setForm((p) => ({ ...p, story_image_url: e.target.value }))}
-                  className="rounded-none mt-1"
-                />
-              </div>
-              <div>
-                <Label className="font-body text-xs">Título</Label>
-                <Input
-                  value={form.story_title}
-                  onChange={(e) => setForm((p) => ({ ...p, story_title: e.target.value }))}
-                  className="rounded-none mt-1"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              <ImageUpload
+                value={form.story_image_url}
+                label="Foto"
+                recommended="1200×900"
+                onChange={(url) => setForm((p) => ({ ...p, story_image_url: url }))}
+              />
+              <div className="space-y-4">
+                <div>
+                  <Label className="font-body text-xs">Título</Label>
+                  <Input
+                    value={form.story_title}
+                    onChange={(e) => setForm((p) => ({ ...p, story_title: e.target.value }))}
+                    className="rounded-none mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="font-body text-xs">URL (opcional)</Label>
+                  <Input
+                    value={form.story_image_url}
+                    onChange={(e) => setForm((p) => ({ ...p, story_image_url: e.target.value }))}
+                    className="rounded-none mt-1"
+                  />
+                </div>
               </div>
             </div>
             <div className="mt-4">
@@ -159,7 +194,7 @@ export default function AboutAdmin() {
 
           <div className="bg-card border border-border rounded-lg p-5">
             <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
-              <h2 className="font-heading text-xl">Valores</h2>
+              <h2 className="font-heading text-xl">Missão, Visão e Valores</h2>
               <Button type="button" variant="outline" onClick={addValue} className="rounded-none font-body text-sm">
                 + Adicionar
               </Button>

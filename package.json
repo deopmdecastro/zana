@@ -4,7 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --configLoader native",
+    "dev": "node scripts/dev.js",
+    "dev:frontend": "vite --configLoader native",
+    "dev:backend": "cd backend && node src/index.js",
     "build": "vite build --configLoader native",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",

@@ -6,22 +6,57 @@ const USER_KEY = 'mock_user';
 
 const hasWindow = typeof window !== 'undefined';
 
+const API_BASE_URL = (() => {
+  try {
+    const raw = import.meta?.env?.VITE_BASE44_APP_BASE_URL;
+    const value = typeof raw === 'string' ? raw.trim() : '';
+    return value ? value.replace(/\/+$/, '') : '';
+  } catch {
+    return '';
+  }
+})();
+
+function resolveApiUrl(path) {
+  const value = String(path ?? '');
+  if (/^https?:\/\//i.test(value)) return value;
+  if (!API_BASE_URL) return value;
+  if (!value.startsWith('/')) return `${API_BASE_URL}/${value}`;
+  return `${API_BASE_URL}${value}`;
+}
+
 async function jsonRequest(path, { method = 'GET', body, token } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  let res;
+  try {
+    res = await fetch(resolveApiUrl(path), {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+  } catch (err) {
+    const e = new Error('network_error');
+    e.status = 0;
+    e.data = { error: 'network_error', detail: err?.message ? String(err.message) : String(err) };
+    throw e;
+  }
 
-  const isJson = (res.headers.get('content-type') ?? '').includes('application/json');
+  const contentType = res.headers.get('content-type') ?? '';
+  const isJson = contentType.includes('application/json');
   const data = isJson ? await res.json().catch(() => null) : null;
+  const rawText = !isJson ? await res.text().catch(() => '') : '';
 
   if (!res.ok) {
-    const code = data?.error ?? `HTTP ${res.status}`;
+    const proxyLooksDown =
+      !isJson &&
+      res.status === 500 &&
+      typeof rawText === 'string' &&
+      /ECONNREFUSED|ECONNRESET|ENOTFOUND|proxy error/i.test(rawText);
+
+    const code = proxyLooksDown ? 'network_error' : (data?.error ?? `HTTP ${res.status}`);
     const issues = Array.isArray(data?.issues) ? data.issues : null;
+    const detail = data?.detail ? String(data.detail) : rawText ? String(rawText).slice(0, 600) : '';
     const issuesText = issues
       ? issues
           .map((issue) => {
@@ -32,9 +67,10 @@ async function jsonRequest(path, { method = 'GET', body, token } = {}) {
           .join(' | ')
       : '';
 
-    const err = new Error(issuesText ? `${code}: ${issuesText}` : code);
+    const parts = [issuesText, detail].filter(Boolean);
+    const err = new Error(parts.length ? `${code}: ${parts.join(' | ')}` : code);
     err.status = res.status;
-    err.data = data;
+    err.data = proxyLooksDown ? { error: 'network_error', detail } : data;
     throw err;
   }
 
@@ -347,19 +383,47 @@ export const base44 = {
       },
     },
   },
-  admin: {
-    logs: {
-      list: async (limit = 200) => {
-        const params = new URLSearchParams();
-        if (limit) params.set('limit', String(limit));
-        return authedJsonRequest(`/api/admin/logs?${params.toString()}`);
-      },
-    },
-    content: {
-      about: {
-        get: async () => authedJsonRequest('/api/admin/content/about'),
-        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
-      },
+	  admin: {
+	    logs: {
+	      list: async (limit = 200) => {
+	        const params = new URLSearchParams();
+	        if (limit) params.set('limit', String(limit));
+	        return authedJsonRequest(`/api/admin/logs?${params.toString()}`);
+	      },
+	    },
+	    support: {
+	      tickets: {
+	        list: async (limit = 500) => {
+	          const params = new URLSearchParams();
+	          if (limit) params.set('limit', String(limit));
+	          return authedJsonRequest(`/api/admin/support/tickets?${params.toString()}`);
+	        },
+	        get: async (id) => authedJsonRequest(`/api/admin/support/tickets/${id}`),
+	        addMessage: async (id, message) =>
+	          authedJsonRequest(`/api/admin/support/tickets/${id}/messages`, { method: 'POST', body: { message } }),
+	        update: async (id, patch) => authedJsonRequest(`/api/admin/support/tickets/${id}`, { method: 'PATCH', body: patch }),
+	      },
+	    },
+	    blogComments: {
+	      list: async ({ approved = 'false', post_id, limit = 500 } = {}) => {
+	        const params = new URLSearchParams();
+	        if (approved) params.set('approved', String(approved));
+	        if (post_id) params.set('post_id', String(post_id));
+	        if (limit) params.set('limit', String(limit));
+	        return authedJsonRequest(`/api/admin/blog-comments?${params.toString()}`);
+	      },
+	      get: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`),
+	      reply: async (id, message) =>
+	        authedJsonRequest(`/api/admin/blog-comments/${id}/replies`, { method: 'POST', body: { message } }),
+	      approve: async (id, is_approved) =>
+	        authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'PATCH', body: { is_approved } }),
+	      delete: async (id) => authedJsonRequest(`/api/admin/blog-comments/${id}`, { method: 'DELETE' }),
+	    },
+	    content: {
+	      about: {
+	        get: async () => authedJsonRequest('/api/admin/content/about'),
+	        update: async (data) => authedJsonRequest('/api/admin/content/about', { method: 'PATCH', body: data }),
+	      },
       landing: {
         get: async () => authedJsonRequest('/api/admin/content/landing'),
         update: async (data) => authedJsonRequest('/api/admin/content/landing', { method: 'PATCH', body: data }),
@@ -378,14 +442,46 @@ export const base44 = {
       adjust: async (data) => authedJsonRequest('/api/admin/inventory/adjust', { method: 'POST', body: data }),
     },
   },
-  content: {
-    about: async () => jsonRequest('/api/content/about'),
-    landing: async () => jsonRequest('/api/content/landing'),
-    payments: async () => jsonRequest('/api/content/payments'),
-  },
-  faq: {
-    list: async () => jsonRequest('/api/faq'),
-  },
+	  content: {
+	    about: async () => jsonRequest('/api/content/about'),
+	    landing: async () => jsonRequest('/api/content/landing'),
+	    payments: async () => jsonRequest('/api/content/payments'),
+	  },
+	  blog: {
+	    comments: {
+	      list: async (postId, limit = 200) => {
+	        const params = new URLSearchParams();
+	        if (limit) params.set('limit', String(limit));
+	        const token = getToken();
+	        return jsonRequest(`/api/blog-posts/${postId}/comments?${params.toString()}`, { token });
+	      },
+	      create: async (postId, data) => {
+	        const token = getToken();
+	        return jsonRequest(`/api/blog-posts/${postId}/comments`, { method: 'POST', body: data, token });
+	      },
+	      reply: async (commentId, message) =>
+	        authedJsonRequest(`/api/blog-comments/${commentId}/replies`, { method: 'POST', body: { message } }),
+	    },
+	  },
+	  notifications: {
+	    list: async () => authedJsonRequest('/api/notifications'),
+	  },
+	  support: {
+	    tickets: {
+	      list: async (limit = 200) => {
+	        const params = new URLSearchParams();
+	        if (limit) params.set('limit', String(limit));
+	        return authedJsonRequest(`/api/support/tickets?${params.toString()}`);
+	      },
+	      create: async (data) => authedJsonRequest('/api/support/tickets', { method: 'POST', body: data }),
+	      get: async (id) => authedJsonRequest(`/api/support/tickets/${id}`),
+	      addMessage: async (id, message) =>
+	        authedJsonRequest(`/api/support/tickets/${id}/messages`, { method: 'POST', body: { message } }),
+	    },
+	  },
+	  faq: {
+	    list: async () => jsonRequest('/api/faq'),
+	  },
   instagram: {
     list: async (limit = 30) => {
       const params = new URLSearchParams();

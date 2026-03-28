@@ -1,6 +1,21 @@
 import { prisma } from './prisma.js'
 
 const ddl = [
+  // Enums (Postgres). Prisma binds parameters using these types, so they must exist even if
+  // local tables were created with TEXT columns.
+  `DO $$ BEGIN CREATE TYPE "ProductCategory" AS ENUM ('colares','brincos','pulseiras','aneis','conjuntos'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "ProductMaterial" AS ENUM ('aco_inox','prata','dourado','rose_gold','perolas','cristais'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "ProductStatus" AS ENUM ('active','inactive','out_of_stock'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "OrderStatus" AS ENUM ('pending','confirmed','processing','shipped','delivered','cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "PaymentMethod" AS ENUM ('mbway','transferencia','multibanco','paypal'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "BlogCategory" AS ENUM ('tendencias','dicas','novidades','inspiracao'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "BlogStatus" AS ENUM ('draft','published'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "SupportTicketStatus" AS ENUM ('open','closed'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "SupportMessageAuthorType" AS ENUM ('customer','admin'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "PurchaseStatus" AS ENUM ('draft','received','cancelled'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "InventoryMovementType" AS ENUM ('purchase','manual','order'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+  `DO $$ BEGIN CREATE TYPE "BlogCommentReplyAuthorType" AS ENUM ('customer','admin'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;`,
+
   `
   CREATE TABLE IF NOT EXISTS "User" (
     "id" TEXT PRIMARY KEY,
@@ -184,21 +199,55 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "SearchEvent_queryNormalized_idx" ON "SearchEvent" ("queryNormalized");`,
   `CREATE INDEX IF NOT EXISTS "SearchEvent_userId_idx" ON "SearchEvent" ("userId");`,
 
-  `
-  CREATE TABLE IF NOT EXISTS "BlogPost" (
-    "id" TEXT PRIMARY KEY,
-    "title" TEXT NOT NULL,
-    "content" TEXT NOT NULL,
-    "excerpt" TEXT,
-    "imageUrl" TEXT,
-    "category" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'draft',
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-  `,
-  `CREATE INDEX IF NOT EXISTS "BlogPost_status_idx" ON "BlogPost" ("status");`,
-  `CREATE INDEX IF NOT EXISTS "BlogPost_category_idx" ON "BlogPost" ("category");`,
+	  `
+	  CREATE TABLE IF NOT EXISTS "BlogPost" (
+	    "id" TEXT PRIMARY KEY,
+	    "title" TEXT NOT NULL,
+	    "content" TEXT NOT NULL,
+	    "excerpt" TEXT,
+	    "imageUrl" TEXT,
+	    "category" TEXT,
+	    "status" TEXT NOT NULL DEFAULT 'draft',
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "BlogPost_status_idx" ON "BlogPost" ("status");`,
+	  `CREATE INDEX IF NOT EXISTS "BlogPost_category_idx" ON "BlogPost" ("category");`,
+
+	  `
+		  CREATE TABLE IF NOT EXISTS "BlogComment" (
+		    "id" TEXT PRIMARY KEY,
+		    "postId" TEXT NOT NULL,
+		    "userId" TEXT,
+		    "authorName" TEXT NOT NULL,
+		    "authorEmail" TEXT,
+		    "content" TEXT NOT NULL,
+		    "isApproved" BOOLEAN NOT NULL DEFAULT FALSE,
+		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    CONSTRAINT "BlogComment_postId_fkey" FOREIGN KEY ("postId") REFERENCES "BlogPost"("id") ON DELETE CASCADE,
+		    CONSTRAINT "BlogComment_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL
+		  );
+		  `,
+		  `ALTER TABLE IF EXISTS "BlogComment" ADD COLUMN IF NOT EXISTS "userId" TEXT;`,
+		  `CREATE INDEX IF NOT EXISTS "BlogComment_postId_idx" ON "BlogComment" ("postId");`,
+		  `CREATE INDEX IF NOT EXISTS "BlogComment_userId_idx" ON "BlogComment" ("userId");`,
+		  `CREATE INDEX IF NOT EXISTS "BlogComment_isApproved_idx" ON "BlogComment" ("isApproved");`,
+		  `CREATE INDEX IF NOT EXISTS "BlogComment_createdAt_idx" ON "BlogComment" ("createdAt");`,
+
+		  `
+		  CREATE TABLE IF NOT EXISTS "BlogCommentReply" (
+		    "id" TEXT PRIMARY KEY,
+		    "commentId" TEXT NOT NULL,
+		    "authorType" TEXT NOT NULL,
+		    "authorId" TEXT,
+		    "message" TEXT NOT NULL,
+		    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		    CONSTRAINT "BlogCommentReply_commentId_fkey" FOREIGN KEY ("commentId") REFERENCES "BlogComment"("id") ON DELETE CASCADE
+		  );
+		  `,
+		  `CREATE INDEX IF NOT EXISTS "BlogCommentReply_commentId_idx" ON "BlogCommentReply" ("commentId");`,
+		  `CREATE INDEX IF NOT EXISTS "BlogCommentReply_createdAt_idx" ON "BlogCommentReply" ("createdAt");`,
 
   `
   CREATE TABLE IF NOT EXISTS "SiteContent" (
@@ -225,18 +274,53 @@ const ddl = [
   `CREATE INDEX IF NOT EXISTS "FaqItem_order_idx" ON "FaqItem" ("order");`,
   `CREATE INDEX IF NOT EXISTS "FaqItem_createdAt_idx" ON "FaqItem" ("createdAt");`,
 
-  `
-  CREATE TABLE IF NOT EXISTS "InstagramPost" (
-    "id" TEXT PRIMARY KEY,
-    "url" TEXT NOT NULL,
-    "caption" TEXT,
-    "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
-    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-  `,
-  `CREATE INDEX IF NOT EXISTS "InstagramPost_isActive_idx" ON "InstagramPost" ("isActive");`,
-  `CREATE INDEX IF NOT EXISTS "InstagramPost_createdAt_idx" ON "InstagramPost" ("createdAt");`,
+	  `
+	  CREATE TABLE IF NOT EXISTS "InstagramPost" (
+	    "id" TEXT PRIMARY KEY,
+	    "url" TEXT NOT NULL,
+	    "caption" TEXT,
+	    "coverUrl" TEXT,
+	    "isActive" BOOLEAN NOT NULL DEFAULT TRUE,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "InstagramPost_isActive_idx" ON "InstagramPost" ("isActive");`,
+	  `CREATE INDEX IF NOT EXISTS "InstagramPost_createdAt_idx" ON "InstagramPost" ("createdAt");`,
+
+	  // Backfill/upgrade existing local DBs created before this column existed.
+	  `ALTER TABLE IF EXISTS "InstagramPost" ADD COLUMN IF NOT EXISTS "coverUrl" TEXT;`,
+
+	  `
+	  CREATE TABLE IF NOT EXISTS "SupportTicket" (
+	    "id" TEXT PRIMARY KEY,
+	    "userId" TEXT,
+	    "customerName" TEXT,
+	    "customerEmail" TEXT,
+	    "subject" TEXT NOT NULL,
+	    "status" TEXT NOT NULL DEFAULT 'open',
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    CONSTRAINT "SupportTicket_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "SupportTicket_userId_idx" ON "SupportTicket" ("userId");`,
+	  `CREATE INDEX IF NOT EXISTS "SupportTicket_status_idx" ON "SupportTicket" ("status");`,
+	  `CREATE INDEX IF NOT EXISTS "SupportTicket_updatedAt_idx" ON "SupportTicket" ("updatedAt");`,
+
+	  `
+	  CREATE TABLE IF NOT EXISTS "SupportMessage" (
+	    "id" TEXT PRIMARY KEY,
+	    "ticketId" TEXT NOT NULL,
+	    "authorType" TEXT NOT NULL,
+	    "authorId" TEXT,
+	    "message" TEXT NOT NULL,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    CONSTRAINT "SupportMessage_ticketId_fkey" FOREIGN KEY ("ticketId") REFERENCES "SupportTicket"("id") ON DELETE CASCADE
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "SupportMessage_ticketId_idx" ON "SupportMessage" ("ticketId");`,
+	  `CREATE INDEX IF NOT EXISTS "SupportMessage_createdAt_idx" ON "SupportMessage" ("createdAt");`,
 
   `
   CREATE TABLE IF NOT EXISTS "Supplier" (

@@ -21,6 +21,45 @@ function formatWhen(value) {
   }
 }
 
+function friendlyTitle(log) {
+  const action = String(log?.action ?? '');
+  const type = String(log?.entity_type ?? '');
+  const meta = log?.meta ?? null;
+
+  if (type === 'SupportTicket' && action === 'create') return 'Novo pedido de suporte';
+  if (type === 'SupportTicket' && action === 'update') return 'Pedido de suporte atualizado';
+  if (type === 'SupportMessage' && action === 'create') return 'Nova mensagem no suporte';
+
+  if (type === 'BlogComment' && action === 'create') return 'Novo comentário no blog';
+  if (type === 'BlogComment' && action === 'update') {
+    if (meta && typeof meta.is_approved === 'boolean') return meta.is_approved ? 'Comentário aprovado' : 'Comentário reprovado';
+    return 'Comentário atualizado';
+  }
+  if (type === 'BlogCommentReply' && action === 'create') return 'Nova resposta a comentário';
+
+  if (type === 'InstagramPost') {
+    if (action === 'create') return 'Instagram: link adicionado';
+    if (action === 'update') return 'Instagram: link atualizado';
+    if (action === 'delete') return 'Instagram: link removido';
+  }
+
+  if (type === 'Purchase' && action === 'create') return 'Compra criada';
+  if (type === 'Purchase' && action === 'update') return 'Compra atualizada';
+  if (type === 'Inventory' && action === 'update') return 'Stock atualizado';
+  if (type === 'Product' && action === 'update') return 'Produto atualizado';
+  if (type === 'Supplier' && action === 'create') return 'Fornecedor criado';
+
+  return `${action} ${type}`.trim() || 'Atualização';
+}
+
+function friendlyDetail(log) {
+  const type = String(log?.entity_type ?? '');
+  const id = log?.entity_id ? String(log.entity_id) : '';
+  if (!id) return '';
+  if (['BlogComment', 'BlogCommentReply', 'SupportMessage'].includes(type)) return '';
+  return `${type} · ${id}`;
+}
+
 export default function AdminNotificationBell() {
   const { data: logs = [] } = useQuery({
     queryKey: ['admin-logs-bell'],
@@ -44,6 +83,7 @@ export default function AdminNotificationBell() {
           ) : null}
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent align="end" className="w-[360px] max-w-[calc(100vw-24px)]">
         <DropdownMenuLabel className="font-body text-xs text-muted-foreground">Notificações</DropdownMenuLabel>
         <DropdownMenuSeparator />
@@ -60,12 +100,11 @@ export default function AdminNotificationBell() {
                 </div>
                 <div className="min-w-0">
                   <div className="font-body text-sm">
-                    <span className="font-medium">{l.action}</span>{' '}
-                    <span className="text-muted-foreground">
-                      {l.entity_type}
-                      {l.entity_id ? ` · ${l.entity_id}` : ''}
-                    </span>
+                    <span className="font-medium">{friendlyTitle(l)}</span>
                   </div>
+                  {friendlyDetail(l) ? (
+                    <div className="font-body text-[11px] text-muted-foreground">{friendlyDetail(l)}</div>
+                  ) : null}
                   <div className="font-body text-[11px] text-muted-foreground">
                     {l.actor?.email ?? '—'} · {formatWhen(l.created_date)}
                   </div>

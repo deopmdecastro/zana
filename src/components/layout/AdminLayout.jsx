@@ -29,11 +29,12 @@ const navSections = [
     label: 'Gestão',
     items: [
       { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/admin/produtos', icon: Package, label: 'Produtos' },
-      { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
-      { to: '/admin/clientes', icon: Users, label: 'Clientes' },
-    ],
-  },
+	      { to: '/admin/produtos', icon: Package, label: 'Produtos' },
+	      { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
+	      { to: '/admin/clientes', icon: Users, label: 'Clientes' },
+	      { to: '/admin/suporte', icon: MessageSquare, label: 'Suporte' },
+	    ],
+	  },
   {
     label: 'Conteúdo',
     items: [

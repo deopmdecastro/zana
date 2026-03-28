@@ -16,9 +16,10 @@ export default function Navbar() {
     { to: '/catalogo', label: 'Catálogo' },
     { to: '/sobre', label: 'Sobre Nós' },
     { to: '/blog', label: 'Blog' },
-    { to: '/faq', label: 'FAQ' },
-    { to: '/contacto', label: 'Contacto' },
-  ];
+	    { to: '/faq', label: 'FAQ' },
+	    { to: '/suporte', label: 'Suporte' },
+	    { to: '/contacto', label: 'Contacto' },
+	  ];
 
   return (
     <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-md border-b border-border">

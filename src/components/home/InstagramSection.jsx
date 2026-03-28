@@ -73,19 +73,23 @@ export default function InstagramSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cards.map((card) => (
-              <a
+	            {cards.map((card) => (
+	              <a
                 key={card.id}
                 href={card.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group block bg-card border border-border overflow-hidden hover:border-primary/40 transition-colors"
-                aria-label="Abrir no Instagram"
-              >
-                <div className={`relative ${card.type === 'reel' ? 'aspect-[9/16]' : 'aspect-square'} bg-secondary/30`}>
-                  <img src={zIcon} alt="" className="absolute inset-0 m-auto w-16 opacity-[0.10]" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
-                  {card.type === 'reel' && (
+	                aria-label="Abrir no Instagram"
+	              >
+	                <div className={`relative ${card.type === 'reel' ? 'aspect-[9/16]' : 'aspect-square'} bg-secondary/30`}>
+	                  {card.cover_url ? (
+	                    <img src={card.cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+	                  ) : (
+	                    <img src={zIcon} alt="" className="absolute inset-0 m-auto w-16 opacity-[0.10]" />
+	                  )}
+	                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+	                  {card.type === 'reel' && (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="w-14 h-14 rounded-full bg-white/90 text-primary flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
                         <Play className="w-6 h-6 translate-x-0.5" />

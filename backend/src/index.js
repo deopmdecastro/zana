@@ -15,6 +15,7 @@ const authTokenTtlSeconds = Number.parseInt(process.env.AUTH_TOKEN_TTL_SECONDS ?
 const passwordResetTtlSeconds = Number.parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_SECONDS ?? '3600', 10) // 1 hour
 const canReturnResetToken = (process.env.NODE_ENV ?? 'development') !== 'production'
 const appBaseUrl = process.env.APP_BASE_URL ?? corsOrigin
+const isProduction = (process.env.NODE_ENV ?? 'development') === 'production'
 
 const smtpHost = process.env.SMTP_HOST
 const smtpPort = Number.parseInt(process.env.SMTP_PORT ?? '587', 10)
@@ -64,6 +65,19 @@ app.disable('x-powered-by')
 app.use(cors({ origin: corsOrigin }))
 // Product images can be stored as data URLs in dev; allow a larger JSON payload.
 app.use(express.json({ limit: '10mb' }))
+
+// Express 4 doesn't automatically handle promise rejections in async handlers.
+// Wrap handlers so errors go through our error middleware (instead of crashing the process).
+function wrapAsyncHandler(fn) {
+  if (fn?.__isAsyncWrapped) return fn
+  const wrapped = (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next)
+  wrapped.__isAsyncWrapped = true
+  return wrapped
+}
+for (const method of ['get', 'post', 'put', 'patch', 'delete']) {
+  const original = app[method].bind(app)
+  app[method] = (...args) => original(...args.map((arg) => (typeof arg === 'function' ? wrapAsyncHandler(arg) : arg)))
+}
 
 app.get('/health', (req, res) => {
   res.json({ ok: true })
@@ -247,13 +261,27 @@ const adminOrderUpdateSchema = z
   .passthrough()
 
 const blogPostPayloadSchema = z
+	  .object({
+	    title: z.string().min(1).max(200),
+	    content: z.string().min(1),
+	    excerpt: z.string().optional().nullable(),
+	    image_url: z.string().optional().nullable(),
+	    category: z.enum(['tendencias', 'dicas', 'novidades', 'inspiracao']).optional().nullable(),
+	    status: z.enum(['draft', 'published']).optional(),
+	  })
+	  .passthrough()
+
+const blogCommentCreateSchema = z
   .object({
-    title: z.string().min(1).max(200),
-    content: z.string().min(1),
-    excerpt: z.string().optional().nullable(),
-    image_url: z.string().optional().nullable(),
-    category: z.enum(['tendencias', 'dicas', 'novidades', 'inspiracao']).optional().nullable(),
-    status: z.enum(['draft', 'published']).optional(),
+    author_name: z.string().min(1).max(120),
+    author_email: z.string().email().max(320).optional().nullable(),
+    content: z.string().min(1).max(5000),
+  })
+  .passthrough()
+
+const blogCommentAdminPatchSchema = z
+  .object({
+    is_approved: z.boolean(),
   })
   .passthrough()
 
@@ -307,10 +335,30 @@ const faqPayloadSchema = z
   .passthrough()
 
 const instagramPayloadSchema = z
+	  .object({
+	    url: z.string().url().max(4000),
+	    caption: z.string().max(500).optional().nullable(),
+	    cover_url: z.string().max(4000000).optional().nullable(),
+	    is_active: z.boolean().optional(),
+	  })
+	  .passthrough()
+
+const supportTicketCreateSchema = z
   .object({
-    url: z.string().url().max(4000),
-    caption: z.string().max(500).optional().nullable(),
-    is_active: z.boolean().optional(),
+    subject: z.string().min(3).max(200),
+    message: z.string().min(1).max(5000),
+  })
+  .passthrough()
+
+const supportMessageCreateSchema = z
+  .object({
+    message: z.string().min(1).max(5000),
+  })
+  .passthrough()
+
+const supportTicketAdminUpdateSchema = z
+  .object({
+    status: z.enum(['open', 'closed']).optional(),
   })
   .passthrough()
 
@@ -427,6 +475,16 @@ async function writeAuditLog({ actorId, action, entityType, entityId, meta } = {
   }
 }
 
+function sendInternalError(res, err, error = 'internal_error') {
+  console.error(err)
+  const payload = { error }
+  if (!isProduction) {
+    payload.detail = err?.message ? String(err.message) : String(err)
+    if (err?.code) payload.code = String(err.code)
+  }
+  return res.status(500).json(payload)
+}
+
 function parseOrderParam(raw) {
   const value = String(raw ?? '').trim()
   if (!value) return { createdAt: 'desc' }
@@ -503,16 +561,50 @@ function toApiOrder(o) {
 }
 
 function toApiBlogPost(p) {
+	  return {
+	    id: p.id,
+	    title: p.title,
+	    content: p.content,
+	    excerpt: p.excerpt ?? null,
+	    image_url: p.imageUrl ?? null,
+	    category: p.category ?? null,
+	    status: p.status,
+	    created_date: p.createdAt,
+	    updated_date: p.updatedAt,
+	  }
+}
+
+function toPublicBlogComment(c) {
   return {
-    id: p.id,
-    title: p.title,
-    content: p.content,
-    excerpt: p.excerpt ?? null,
-    image_url: p.imageUrl ?? null,
-    category: p.category ?? null,
-    status: p.status,
-    created_date: p.createdAt,
-    updated_date: p.updatedAt,
+    id: c.id,
+    post_id: c.postId,
+    author_name: c.authorName,
+    content: c.content,
+    created_date: c.createdAt,
+  }
+}
+
+function toAdminBlogComment(c) {
+  return {
+    id: c.id,
+    post_id: c.postId,
+    author_name: c.authorName,
+    author_email: c.authorEmail ?? null,
+    content: c.content,
+    is_approved: Boolean(c.isApproved),
+    created_date: c.createdAt,
+    post: c.post ? { id: c.post.id, title: c.post.title } : null,
+  }
+}
+
+function toPublicBlogCommentReply(r, comment) {
+  return {
+    id: r.id,
+    comment_id: r.commentId,
+    author_type: r.authorType,
+    author_name: r.authorType === 'admin' ? 'Zana' : comment.authorName,
+    message: r.message,
+    created_date: r.createdAt,
   }
 }
 
@@ -552,13 +644,40 @@ function toApiFaqItem(f) {
 }
 
 function toApiInstagramPost(p) {
+	  return {
+	    id: p.id,
+	    url: p.url,
+	    caption: p.caption ?? null,
+	    cover_url: p.coverUrl ?? null,
+	    is_active: Boolean(p.isActive),
+	    created_date: p.createdAt,
+	    updated_date: p.updatedAt,
+	  }
+}
+
+function toApiSupportMessage(m) {
   return {
-    id: p.id,
-    url: p.url,
-    caption: p.caption ?? null,
-    is_active: Boolean(p.isActive),
-    created_date: p.createdAt,
-    updated_date: p.updatedAt,
+    id: m.id,
+    ticket_id: m.ticketId,
+    author_type: m.authorType,
+    author_id: m.authorId ?? null,
+    message: m.message,
+    created_date: m.createdAt,
+  }
+}
+
+function toApiSupportTicket(t) {
+  const last = Array.isArray(t.messages) && t.messages.length ? t.messages[0] : null
+  return {
+    id: t.id,
+    subject: t.subject,
+    status: t.status,
+    customer_name: t.customerName ?? null,
+    customer_email: t.customerEmail ?? null,
+    created_date: t.createdAt,
+    updated_date: t.updatedAt,
+    message_count: typeof t?._count?.messages === 'number' ? t._count.messages : undefined,
+    last_message: last ? { message: last.message, author_type: last.authorType, created_date: last.createdAt } : null,
   }
 }
 
@@ -598,9 +717,9 @@ function toApiPurchase(p) {
 }
 
 async function ensureAdminUser() {
-  const email = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase()
-  const password = process.env.ADMIN_PASSWORD ?? ''
-  const resetPassword = (process.env.ADMIN_RESET_PASSWORD ?? 'false') === 'true'
+	  const email = (process.env.ADMIN_EMAIL ?? '').trim().toLowerCase()
+	  const password = process.env.ADMIN_PASSWORD ?? ''
+	  const resetPassword = (process.env.ADMIN_RESET_PASSWORD ?? 'false') === 'true'
 
   if (!email || !password) return
 
@@ -620,13 +739,105 @@ async function ensureAdminUser() {
     return
   }
 
-  await prisma.user.update({
-    where: { id: existing.id },
-    data: {
-      isAdmin: true,
-      ...(resetPassword ? { passwordSalt: saltHex, passwordHash: hashHex } : null),
-    },
-  })
+	  await prisma.user.update({
+	    where: { id: existing.id },
+	    data: {
+	      isAdmin: true,
+	      ...(resetPassword ? { passwordSalt: saltHex, passwordHash: hashHex } : null),
+	    },
+	  })
+	}
+
+async function ensureMockContent() {
+  const env = (process.env.NODE_ENV ?? 'development').toLowerCase()
+  if (env === 'production') return
+
+  const blogCount = await prisma.blogPost.count()
+  if (blogCount === 0) {
+    await prisma.blogPost.createMany({
+      data: [
+        {
+          title: 'Como escolher acessórios para o dia a dia',
+          excerpt: 'Dicas simples para combinar bijuterias com conforto e estilo — sem complicar.',
+          content: [
+            'Escolher acessórios para o dia a dia não precisa de ser difícil.',
+            '',
+            '### 1) Comece por uma peça “base”',
+            'Um colar delicado ou argolas pequenas combinam com quase tudo.',
+            '',
+            '### 2) Misture texturas com moderação',
+            'Se a roupa já tem padrões, opte por acessórios mais minimalistas.',
+            '',
+            '### 3) Tenha um conjunto pronto',
+            'Um “kit” com colar + brincos + pulseira resolve muitos looks em minutos.',
+          ].join('\n'),
+          imageUrl: 'https://media.base44.com/images/public/69c68e1a7672ae1454387e62/2d13f0217_generated_69ec28d0.png',
+          category: 'dicas',
+          status: 'published',
+        },
+        {
+          title: 'Tendências 2026: brilho discreto e peças versáteis',
+          excerpt: 'O que está a ganhar destaque e como usar no seu estilo.',
+          content: [
+            'Em 2026, a tendência é **brilhar sem exageros**.',
+            '',
+            '- Metais com acabamento suave',
+            '- Pérolas reinterpretadas',
+            '- Conjuntos minimalistas (mix & match)',
+            '',
+            'A regra é simples: escolha uma peça com presença e mantenha o resto equilibrado.',
+          ].join('\n'),
+          imageUrl: 'https://media.base44.com/images/public/69c68e1a7672ae1454387e62/56b29b25c_generated_ac56f9ac.png',
+          category: 'tendencias',
+          status: 'published',
+        },
+        {
+          title: 'Presentes com significado: 5 ideias que nunca falham',
+          excerpt: 'Sugestões para surpreender — e acertar.',
+          content: [
+            'Se procura um presente com significado, pense na intenção:',
+            '',
+            '1. Um colar com detalhe delicado',
+            '2. Brincos para usar todos os dias',
+            '3. Pulseira com toque minimalista',
+            '4. Conjunto que combina com vários looks',
+            '5. Uma peça “statement” para ocasiões especiais',
+            '',
+            'Dica: guarde sempre o talão e ofereça com uma mensagem curta e pessoal.',
+          ].join('\n'),
+          imageUrl: 'https://media.base44.com/images/public/69c68e1a7672ae1454387e62/5e15fdc1b_generated_83c31e3b.png',
+          category: 'inspiracao',
+          status: 'published',
+        },
+      ],
+    })
+  }
+
+  const faqCount = await prisma.faqItem.count()
+  if (faqCount === 0) {
+    await prisma.faqItem.createMany({
+      data: [
+        {
+          question: 'Quanto tempo demora a entrega?',
+          answer: 'Normalmente entre 1–3 dias úteis (Portugal Continental). Em períodos promocionais pode variar.',
+          order: 1,
+          isActive: true,
+        },
+        {
+          question: 'Posso trocar ou devolver?',
+          answer: 'Sim. Se houver algum problema com o pedido, contacte-nos pelo Suporte e ajudamos rapidamente.',
+          order: 2,
+          isActive: true,
+        },
+        {
+          question: 'Como devo cuidar das bijuterias?',
+          answer: 'Evite contacto com água, perfumes e cremes. Guarde as peças em local seco e limpe com pano macio.',
+          order: 3,
+          isActive: true,
+        },
+      ],
+    })
+  }
 }
 
 app.post('/api/auth/register', async (req, res) => {
@@ -932,17 +1143,96 @@ app.post('/api/reviews', async (req, res) => {
 })
 
 app.get('/api/blog-posts', async (req, res) => {
-  const where = {}
-  if (req.query.id) where.id = String(req.query.id)
-  if (req.query.status) where.status = String(req.query.status)
-  if (req.query.category) where.category = String(req.query.category)
+	  const where = {}
+	  if (req.query.id) where.id = String(req.query.id)
+	  if (req.query.status) where.status = String(req.query.status)
+	  if (req.query.category) where.category = String(req.query.category)
 
   const posts = await prisma.blogPost.findMany({
     where,
     orderBy: parseOrderParam(req.query.order),
     take: parseLimit(req.query.limit, 100),
+	  })
+	  res.json(posts.map(toApiBlogPost))
+	})
+
+app.get('/api/blog-posts/:id/comments', async (req, res) => {
+  const token = getBearerToken(req)
+  const payload = token ? verifyToken(token) : null
+  const userId = typeof payload?.sub === 'string' ? payload.sub : null
+
+  const where = { postId: req.params.id, isApproved: true }
+  const comments = await prisma.blogComment.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: parseLimit(req.query.limit, 200),
+    include: { replies: { orderBy: { createdAt: 'asc' } } },
   })
-  res.json(posts.map(toApiBlogPost))
+
+  res.json(
+    comments.map((c) => ({
+      ...toPublicBlogComment(c),
+      is_mine: userId ? c.userId === userId : false,
+      replies: (c.replies ?? []).map((r) => toPublicBlogCommentReply(r, c)),
+    })),
+  )
+})
+
+app.post('/api/blog-posts/:id/comments', async (req, res) => {
+  const parsed = blogCommentCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const post = await prisma.blogPost.findUnique({ where: { id: req.params.id } })
+  if (!post || post.status !== 'published') return res.status(404).json({ error: 'not_found' })
+
+  const token = getBearerToken(req)
+  const payload = token ? verifyToken(token) : null
+  const userId = typeof payload?.sub === 'string' ? payload.sub : null
+
+  const created = await prisma.blogComment.create({
+    data: {
+      postId: post.id,
+      userId,
+      authorName: parsed.data.author_name,
+      authorEmail: parsed.data.author_email ? parsed.data.author_email.trim().toLowerCase() : null,
+      content: parsed.data.content,
+      isApproved: false,
+    },
+  })
+
+  await writeAuditLog({ action: 'create', entityType: 'BlogComment', entityId: created.id, meta: { post_id: post.id } })
+
+  res.status(201).json({ ok: true })
+})
+
+app.post('/api/blog-comments/:id/replies', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const parsed = supportMessageCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const comment = await prisma.blogComment.findUnique({ where: { id: req.params.id }, include: { post: true } })
+  if (!comment) return res.status(404).json({ error: 'not_found' })
+  const userEmail = user.email ? String(user.email).trim().toLowerCase() : ''
+  const canReply =
+    comment.userId === user.id ||
+    (comment.userId === null && comment.authorEmail && userEmail && String(comment.authorEmail).trim().toLowerCase() === userEmail)
+  if (!canReply) return res.status(403).json({ error: 'forbidden' })
+  if (!comment.isApproved) return res.status(409).json({ error: 'comment_not_approved' })
+
+  const reply = await prisma.blogCommentReply.create({
+    data: {
+      commentId: comment.id,
+      authorType: 'customer',
+      authorId: user.id,
+      message: parsed.data.message,
+    },
+  })
+
+  await writeAuditLog({ actorId: user.id, action: 'create', entityType: 'BlogCommentReply', entityId: reply.id, meta: { comment_id: comment.id, post_id: comment.postId } })
+
+  res.status(201).json({ ok: true })
 })
 
 app.get('/api/content/about', async (req, res) => {
@@ -970,12 +1260,159 @@ app.get('/api/faq', async (req, res) => {
 })
 
 app.get('/api/instagram', async (req, res) => {
-  const posts = await prisma.instagramPost.findMany({
-    where: { isActive: true },
-    orderBy: { createdAt: 'desc' },
-    take: parseLimit(req.query.limit, 30),
+	  const posts = await prisma.instagramPost.findMany({
+	    where: { isActive: true },
+	    orderBy: { createdAt: 'desc' },
+	    take: parseLimit(req.query.limit, 30),
+	  })
+	  res.json(posts.map(toApiInstagramPost))
+})
+
+// Support (customer)
+app.get('/api/support/tickets', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const tickets = await prisma.supportTicket.findMany({
+    where: { userId: user.id },
+    orderBy: { updatedAt: 'desc' },
+    take: parseLimit(req.query.limit, 200),
+    include: {
+      _count: { select: { messages: true } },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+    },
   })
-  res.json(posts.map(toApiInstagramPost))
+
+  res.json(tickets.map(toApiSupportTicket))
+})
+
+app.post('/api/support/tickets', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const parsed = supportTicketCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const created = await prisma.supportTicket.create({
+    data: {
+      userId: user.id,
+      customerName: user.fullName ?? null,
+      customerEmail: user.email ?? null,
+      subject: parsed.data.subject.trim(),
+      status: 'open',
+      messages: {
+        create: {
+          authorType: 'customer',
+          authorId: user.id,
+          message: parsed.data.message,
+        },
+      },
+    },
+    include: {
+      messages: { orderBy: { createdAt: 'asc' } },
+      _count: { select: { messages: true } },
+    },
+  })
+
+  await writeAuditLog({ actorId: user.id, action: 'create', entityType: 'SupportTicket', entityId: created.id, meta: { subject: created.subject } })
+
+  res.status(201).json({ ticket: toApiSupportTicket({ ...created, messages: [] }), messages: created.messages.map(toApiSupportMessage) })
+})
+
+app.get('/api/support/tickets/:id', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: req.params.id },
+    include: { messages: { orderBy: { createdAt: 'asc' } }, _count: { select: { messages: true } } },
+  })
+
+  if (!ticket || ticket.userId !== user.id) return res.status(404).json({ error: 'not_found' })
+
+  res.json({ ticket: toApiSupportTicket({ ...ticket, messages: ticket.messages.slice(-1) }), messages: ticket.messages.map(toApiSupportMessage) })
+})
+
+app.post('/api/support/tickets/:id/messages', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const parsed = supportMessageCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const existing = await prisma.supportTicket.findUnique({ where: { id: req.params.id } })
+  if (!existing || existing.userId !== user.id) return res.status(404).json({ error: 'not_found' })
+
+  const updated = await prisma.supportTicket.update({
+    where: { id: existing.id },
+    data: {
+      messages: {
+        create: {
+          authorType: 'customer',
+          authorId: user.id,
+          message: parsed.data.message,
+        },
+      },
+    },
+    include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+  })
+
+  await writeAuditLog({ actorId: user.id, action: 'create', entityType: 'SupportMessage', entityId: updated.messages?.[0]?.id ?? null, meta: { ticket_id: updated.id } })
+
+  res.status(201).json(toApiSupportMessage(updated.messages[0]))
+})
+
+// Notifications (customer)
+app.get('/api/notifications', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const userEmail = user.email ? String(user.email).trim().toLowerCase() : ''
+
+  const supportMessages = await prisma.supportMessage.findMany({
+    where: { authorType: 'admin', ticket: { userId: user.id } },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    include: { ticket: true },
+  })
+
+  const blogReplies = await prisma.blogCommentReply.findMany({
+    where: {
+      authorType: 'admin',
+      comment: {
+        OR: [
+          { userId: user.id },
+          ...(userEmail ? [{ userId: null, authorEmail: userEmail }] : []),
+        ],
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+    include: { comment: { include: { post: true } } },
+  })
+
+  const items = [
+    ...supportMessages.map((m) => ({
+      id: `support:${m.id}`,
+      type: 'support',
+      title: 'Nova resposta no suporte',
+      text: m.message,
+      link: '/suporte',
+      created_date: m.createdAt,
+    })),
+    ...blogReplies.map((r) => ({
+      id: `blog:${r.id}`,
+      type: 'blog_comment_reply',
+      title: `Resposta ao seu comentário${r.comment?.post?.title ? ` em “${r.comment.post.title}”` : ''}`,
+      text: r.message,
+      link: r.comment?.post?.id ? `/blog/${r.comment.post.id}` : '/blog',
+      created_date: r.createdAt,
+    })),
+  ]
+    .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+    .slice(0, 20)
+
+  res.json(items)
 })
 
 app.post('/api/orders', async (req, res) => {
@@ -1359,8 +1796,8 @@ app.patch('/api/admin/blog-posts/:id', async (req, res) => {
 })
 
 app.delete('/api/admin/blog-posts/:id', async (req, res) => {
-  const admin = await requireAdmin(req, res)
-  if (!admin) return
+	  const admin = await requireAdmin(req, res)
+	  if (!admin) return
 
   try {
     await prisma.blogPost.delete({ where: { id: req.params.id } })
@@ -1560,16 +1997,17 @@ app.post('/api/admin/instagram', async (req, res) => {
   const parsed = instagramPayloadSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
-  const created = await prisma.instagramPost.create({
-    data: {
-      url: parsed.data.url,
-      caption: parsed.data.caption ?? null,
-      isActive: parsed.data.is_active ?? true,
-    },
-  })
-  await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'InstagramPost', entityId: created.id })
-  res.status(201).json(toApiInstagramPost(created))
-})
+	  const created = await prisma.instagramPost.create({
+	    data: {
+	      url: parsed.data.url,
+	      caption: parsed.data.caption ?? null,
+	      coverUrl: parsed.data.cover_url ?? null,
+	      isActive: parsed.data.is_active ?? true,
+	    },
+	  })
+	  await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'InstagramPost', entityId: created.id })
+	  res.status(201).json(toApiInstagramPost(created))
+	})
 
 app.patch('/api/admin/instagram/:id', async (req, res) => {
   const admin = await requireAdmin(req, res)
@@ -1579,29 +2017,212 @@ app.patch('/api/admin/instagram/:id', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
   try {
-    const updated = await prisma.instagramPost.update({
+	    const updated = await prisma.instagramPost.update({
+	      where: { id: req.params.id },
+	      data: {
+	        url: parsed.data.url,
+	        caption: parsed.data.caption,
+	        coverUrl: parsed.data.cover_url,
+	        isActive: parsed.data.is_active,
+	      },
+	    })
+	    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'InstagramPost', entityId: updated.id, meta: { patch: req.body } })
+	    res.json(toApiInstagramPost(updated))
+	  } catch {
+	    res.status(404).json({ error: 'not_found' })
+	  }
+	})
+
+// Blog comments moderation
+app.get('/api/admin/blog-comments', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const where = {}
+  if (req.query.post_id) where.postId = String(req.query.post_id)
+  const approved = String(req.query.approved ?? 'false')
+  if (approved === 'true') where.isApproved = true
+  if (approved === 'false') where.isApproved = false
+
+  const comments = await prisma.blogComment.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+    take: parseLimit(req.query.limit, 500),
+    include: { post: true },
+  })
+
+  res.json(comments.map(toAdminBlogComment))
+})
+
+app.patch('/api/admin/blog-comments/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = blogCommentAdminPatchSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  try {
+    const updated = await prisma.blogComment.update({
       where: { id: req.params.id },
-      data: {
-        url: parsed.data.url,
-        caption: parsed.data.caption,
-        isActive: parsed.data.is_active,
-      },
+      data: { isApproved: parsed.data.is_approved },
+      include: { post: true },
     })
-    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'InstagramPost', entityId: updated.id, meta: { patch: req.body } })
-    res.json(toApiInstagramPost(updated))
+    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'BlogComment', entityId: updated.id, meta: { is_approved: parsed.data.is_approved } })
+    res.json(toAdminBlogComment(updated))
   } catch {
     res.status(404).json({ error: 'not_found' })
   }
 })
 
-app.delete('/api/admin/instagram/:id', async (req, res) => {
+app.delete('/api/admin/blog-comments/:id', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
+
+  try {
+    await prisma.blogComment.delete({ where: { id: req.params.id } })
+    await writeAuditLog({ actorId: admin.id, action: 'delete', entityType: 'BlogComment', entityId: req.params.id })
+    res.status(204).send()
+  } catch {
+    res.status(404).json({ error: 'not_found' })
+  }
+})
+
+app.get('/api/admin/blog-comments/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const comment = await prisma.blogComment.findUnique({
+    where: { id: req.params.id },
+    include: { post: true, replies: { orderBy: { createdAt: 'asc' } } },
+  })
+
+  if (!comment) return res.status(404).json({ error: 'not_found' })
+
+  res.json({
+    comment: toAdminBlogComment(comment),
+    replies: (comment.replies ?? []).map((r) => ({
+      id: r.id,
+      comment_id: r.commentId,
+      author_type: r.authorType,
+      author_id: r.authorId ?? null,
+      message: r.message,
+      created_date: r.createdAt,
+    })),
+  })
+})
+
+app.post('/api/admin/blog-comments/:id/replies', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = supportMessageCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const comment = await prisma.blogComment.findUnique({ where: { id: req.params.id } })
+  if (!comment) return res.status(404).json({ error: 'not_found' })
+
+  const reply = await prisma.blogCommentReply.create({
+    data: {
+      commentId: comment.id,
+      authorType: 'admin',
+      authorId: admin.id,
+      message: parsed.data.message,
+    },
+  })
+
+  await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'BlogCommentReply', entityId: reply.id, meta: { comment_id: comment.id, post_id: comment.postId } })
+
+  res.status(201).json({ ok: true })
+})
+
+	app.delete('/api/admin/instagram/:id', async (req, res) => {
+	  const admin = await requireAdmin(req, res)
+	  if (!admin) return
 
   try {
     await prisma.instagramPost.delete({ where: { id: req.params.id } })
     await writeAuditLog({ actorId: admin.id, action: 'delete', entityType: 'InstagramPost', entityId: req.params.id })
     res.status(204).send()
+  } catch {
+    res.status(404).json({ error: 'not_found' })
+	  }
+	})
+
+// Support (admin)
+app.get('/api/admin/support/tickets', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const tickets = await prisma.supportTicket.findMany({
+    orderBy: { updatedAt: 'desc' },
+    take: parseLimit(req.query.limit, 500),
+    include: {
+      _count: { select: { messages: true } },
+      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+    },
+  })
+
+  res.json(tickets.map(toApiSupportTicket))
+})
+
+app.get('/api/admin/support/tickets/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: req.params.id },
+    include: { messages: { orderBy: { createdAt: 'asc' } }, _count: { select: { messages: true } } },
+  })
+
+  if (!ticket) return res.status(404).json({ error: 'not_found' })
+
+  res.json({ ticket: toApiSupportTicket({ ...ticket, messages: ticket.messages.slice(-1) }), messages: ticket.messages.map(toApiSupportMessage) })
+})
+
+app.post('/api/admin/support/tickets/:id/messages', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = supportMessageCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  try {
+    const updated = await prisma.supportTicket.update({
+      where: { id: req.params.id },
+      data: {
+        messages: {
+          create: {
+            authorType: 'admin',
+            authorId: admin.id,
+            message: parsed.data.message,
+          },
+        },
+      },
+      include: { messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    })
+
+    await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'SupportMessage', entityId: updated.messages?.[0]?.id ?? null, meta: { ticket_id: updated.id } })
+
+    res.status(201).json(toApiSupportMessage(updated.messages[0]))
+  } catch {
+    res.status(404).json({ error: 'not_found' })
+  }
+})
+
+app.patch('/api/admin/support/tickets/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = supportTicketAdminUpdateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  try {
+    const updated = await prisma.supportTicket.update({
+      where: { id: req.params.id },
+      data: { status: parsed.data.status },
+    })
+    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SupportTicket', entityId: updated.id, meta: { patch: req.body } })
+    res.json(toApiSupportTicket({ ...updated, messages: [] }))
   } catch {
     res.status(404).json({ error: 'not_found' })
   }
@@ -1772,138 +2393,148 @@ app.get('/api/admin/purchases', async (req, res) => {
 })
 
 app.post('/api/admin/purchases', async (req, res) => {
-  const admin = await requireAdmin(req, res)
-  if (!admin) return
+	  const admin = await requireAdmin(req, res)
+	  if (!admin) return
 
-  const parsed = purchasePayloadSchema.safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+	  const parsed = purchasePayloadSchema.safeParse(req.body)
+	  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
-  const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : new Date()
-  const status = parsed.data.status ?? 'draft'
+	  try {
+	    const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : new Date()
+	    const status = parsed.data.status ?? 'draft'
 
-  const sanitized = await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id, items: parsed.data.items })
-  const items = sanitized.items.filter((it) => it.productName && it.quantity > 0)
-  if (items.length === 0) return res.status(400).json({ error: 'invalid_items' })
+	    const sanitized = await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id, items: parsed.data.items })
+	    const items = sanitized.items.filter((it) => it.productName && it.quantity > 0)
+	    if (items.length === 0) return res.status(400).json({ error: 'invalid_items' })
 
-  const total = items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0)
+	    const total = items.reduce((sum, it) => sum + it.unitCost * it.quantity, 0)
 
-  let created
-  try {
-    created = await prisma.purchase.create({
-      data: {
-        supplierId: sanitized.supplierId,
-        reference: parsed.data.reference ?? null,
-        status,
-        purchasedAt,
-        notes: parsed.data.notes ?? null,
-        total: String(total),
-        items: {
-          create: items.map((it) => ({
-            productId: it.productId,
-            productName: it.productName,
-            unitCost: String(it.unitCost),
-            quantity: it.quantity,
-          })),
-        },
-      },
-      include: { supplier: true, items: true },
-    })
-  } catch (err) {
-    console.error('purchase create failed', err)
-    return res.status(500).json({ error: 'purchase_create_failed' })
-  }
+	    const created = await prisma.purchase.create({
+	      data: {
+	        supplierId: sanitized.supplierId,
+	        reference: parsed.data.reference ?? null,
+	        status,
+	        purchasedAt,
+	        notes: parsed.data.notes ?? null,
+	        total: String(total),
+	        items: {
+	          create: items.map((it) => ({
+	            productId: it.productId,
+	            productName: it.productName,
+	            unitCost: String(it.unitCost),
+	            quantity: it.quantity,
+	          })),
+	        },
+	      },
+	      include: { supplier: true, items: true },
+	    })
 
-  await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'Purchase', entityId: created.id })
+	    await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'Purchase', entityId: created.id })
 
-  if (created.status === 'received') {
-    await applyPurchaseToInventory({ purchaseId: created.id, actorId: admin.id })
-    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Inventory', entityId: created.id, meta: { source: 'purchase_received' } })
-  }
+	    if (created.status === 'received') {
+	      try {
+	        await applyPurchaseToInventory({ purchaseId: created.id, actorId: admin.id })
+	        await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Inventory', entityId: created.id, meta: { source: 'purchase_received' } })
+	      } catch (err) {
+	        return sendInternalError(res, err, 'inventory_apply_failed')
+	      }
+	    }
 
-  res.status(201).json(toApiPurchase(created))
-})
+	    res.status(201).json(toApiPurchase(created))
+	  } catch (err) {
+	    return sendInternalError(res, err, 'purchase_create_failed')
+	  }
+	})
 
 app.patch('/api/admin/purchases/:id', async (req, res) => {
-  const admin = await requireAdmin(req, res)
-  if (!admin) return
+	  const admin = await requireAdmin(req, res)
+	  if (!admin) return
 
-  const existing = await prisma.purchase.findUnique({ where: { id: req.params.id }, include: { items: true, supplier: true } })
-  if (!existing) return res.status(404).json({ error: 'not_found' })
+	  const parsed = purchasePayloadSchema.partial().safeParse(req.body)
+	  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
-  const parsed = purchasePayloadSchema.partial().safeParse(req.body)
-  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+	  try {
+	    const existing = await prisma.purchase.findUnique({ where: { id: req.params.id }, include: { items: true, supplier: true } })
+	    if (!existing) return res.status(404).json({ error: 'not_found' })
 
-  if (existing.status === 'received') {
-    // Don't allow editing received purchase lines to avoid stock inconsistencies.
-    if (parsed.data.items || parsed.data.status === 'draft') {
-      return res.status(409).json({ error: 'purchase_locked' })
-    }
-  }
+	    if (existing.status === 'received') {
+	      // Don't allow editing received purchase lines to avoid stock inconsistencies.
+	      if (parsed.data.items || parsed.data.status === 'draft') {
+	        return res.status(409).json({ error: 'purchase_locked' })
+	      }
+	    }
 
-  const nextStatus = parsed.data.status ?? existing.status
-  const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : undefined
+	    const nextStatus = parsed.data.status ?? existing.status
+	    const purchasedAt = parsed.data.purchased_at ? new Date(parsed.data.purchased_at) : undefined
 
-  const sanitized = parsed.data.items
-    ? await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id ?? existing.supplierId, items: parsed.data.items })
-    : null
+	    const sanitized = parsed.data.items
+	      ? await sanitizePurchaseInput({ supplierId: parsed.data.supplier_id ?? existing.supplierId, items: parsed.data.items })
+	      : null
 
-  const updated = await prisma.$transaction(async (tx) => {
-    if (existing.status !== 'received' && parsed.data.items) {
-      const cleanItems = (sanitized?.items ?? [])
-        .filter((it) => it.productName && it.quantity > 0)
-        .map((it) => ({
-          id: crypto.randomUUID(),
-          purchaseId: existing.id,
-          productId: it.productId,
-          productName: it.productName,
-          unitCost: String(it.unitCost),
-          quantity: it.quantity,
-        }))
+	    const updated = await prisma.$transaction(async (tx) => {
+	      if (existing.status !== 'received' && parsed.data.items) {
+	        const cleanItems = (sanitized?.items ?? [])
+	          .filter((it) => it.productName && it.quantity > 0)
+	          .map((it) => ({
+	            id: crypto.randomUUID(),
+	            purchaseId: existing.id,
+	            productId: it.productId,
+	            productName: it.productName,
+	            unitCost: String(it.unitCost),
+	            quantity: it.quantity,
+	          }))
 
-      if (cleanItems.length === 0) {
-        throw Object.assign(new Error('invalid_items'), { code: 'INVALID_ITEMS' })
-      }
+	        if (cleanItems.length === 0) {
+	          throw Object.assign(new Error('invalid_items'), { code: 'INVALID_ITEMS' })
+	        }
 
-      await tx.purchaseItem.deleteMany({ where: { purchaseId: existing.id } })
-      await tx.purchaseItem.createMany({ data: cleanItems })
-    }
+	        await tx.purchaseItem.deleteMany({ where: { purchaseId: existing.id } })
+	        await tx.purchaseItem.createMany({ data: cleanItems })
+	      }
 
-    const itemsForTotal = parsed.data.items
-      ? (sanitized?.items ?? [])
-      : existing.items.map((it) => ({ unitCost: Number(it.unitCost), quantity: it.quantity }))
+	      const itemsForTotal = parsed.data.items
+	        ? (sanitized?.items ?? [])
+	        : existing.items.map((it) => ({ unitCost: Number(it.unitCost), quantity: it.quantity }))
 
-    const total = itemsForTotal.reduce((sum, it) => sum + (Number(it.unitCost) || 0) * (Number(it.quantity) || 0), 0)
+	      const total = itemsForTotal.reduce((sum, it) => sum + (Number(it.unitCost) || 0) * (Number(it.quantity) || 0), 0)
 
-    return tx.purchase.update({
-      where: { id: existing.id },
-      data: {
-        supplierId: parsed.data.supplier_id === undefined ? undefined : (sanitized?.supplierId ?? null),
-        reference: parsed.data.reference === undefined ? undefined : parsed.data.reference,
-        status: nextStatus,
-        purchasedAt: purchasedAt ?? undefined,
-        notes: parsed.data.notes === undefined ? undefined : parsed.data.notes,
-        total: String(total),
-      },
-      include: { supplier: true, items: true },
-    })
-  }).catch((err) => {
-    if (err?.code === 'INVALID_ITEMS') {
-      return null
-    }
-    throw err
-  })
+	      return tx.purchase.update({
+	        where: { id: existing.id },
+	        data: {
+	          supplierId: parsed.data.supplier_id === undefined ? undefined : (sanitized?.supplierId ?? null),
+	          reference: parsed.data.reference === undefined ? undefined : parsed.data.reference,
+	          status: nextStatus,
+	          purchasedAt: purchasedAt ?? undefined,
+	          notes: parsed.data.notes === undefined ? undefined : parsed.data.notes,
+	          total: String(total),
+	        },
+	        include: { supplier: true, items: true },
+	      })
+	    }).catch((err) => {
+	      if (err?.code === 'INVALID_ITEMS') {
+	        return null
+	      }
+	      throw err
+	    })
 
-  if (!updated) return res.status(400).json({ error: 'invalid_items' })
+	    if (!updated) return res.status(400).json({ error: 'invalid_items' })
 
-  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Purchase', entityId: updated.id, meta: { patch: req.body } })
+	    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Purchase', entityId: updated.id, meta: { patch: req.body } })
 
-  if (existing.status !== 'received' && updated.status === 'received') {
-    await applyPurchaseToInventory({ purchaseId: updated.id, actorId: admin.id })
-    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Inventory', entityId: updated.id, meta: { source: 'purchase_received' } })
-  }
+	    if (existing.status !== 'received' && updated.status === 'received') {
+	      try {
+	        await applyPurchaseToInventory({ purchaseId: updated.id, actorId: admin.id })
+	        await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Inventory', entityId: updated.id, meta: { source: 'purchase_received' } })
+	      } catch (err) {
+	        return sendInternalError(res, err, 'inventory_apply_failed')
+	      }
+	    }
 
-  res.json(toApiPurchase(updated))
-})
+	    res.json(toApiPurchase(updated))
+	  } catch (err) {
+	    return sendInternalError(res, err, 'purchase_update_failed')
+	  }
+	})
 
 // Inventory
 app.get('/api/admin/inventory', async (req, res) => {
@@ -2142,13 +2773,43 @@ app.post('/api/admin/inventory/adjust', async (req, res) => {
 })
 
 app.use((err, req, res, next) => {
-  console.error(err)
-  res.status(500).json({ error: 'internal_error' })
+  sendInternalError(res, err, 'internal_error')
 })
 
-await ensureSchema()
-await ensureAdminUser()
+async function bootstrapAndListen() {
+  try {
+    await prisma.$connect()
+  } catch (err) {
+    console.error('❌ Não foi possível ligar à base de dados.')
+    console.error('   - Confirme `backend/.env` (DATABASE_URL).')
+    console.error('   - Se estiver a usar Docker: `docker compose up -d` (porta 5433).')
+    console.error(err)
+    process.exit(1)
+  }
 
-app.listen(port, () => {
-  console.log(`backend listening on http://localhost:${port}`)
-})
+  try {
+    await ensureSchema()
+    await ensureAdminUser()
+    await ensureMockContent()
+  } catch (err) {
+    console.error('❌ Falha no bootstrap do backend (schema/seed).')
+    console.error(err)
+    process.exit(1)
+  }
+
+  const server = app.listen(port, () => {
+    console.log(`backend listening on http://localhost:${port}`)
+  })
+
+  server.on('error', (err) => {
+    if (err?.code === 'EADDRINUSE') {
+      console.error(`❌ Porta ${port} já está em uso. Feche o processo que está a usar a porta ou mude PORT no backend/.env.`)
+      process.exit(1)
+    }
+    console.error('❌ Erro ao iniciar o servidor HTTP.')
+    console.error(err)
+    process.exit(1)
+  })
+}
+
+bootstrapAndListen()

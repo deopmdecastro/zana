@@ -36,30 +36,33 @@ const Cart = lazy(() => import('@/pages/Cart'));
 const Checkout = lazy(() => import('@/pages/Checkout'));
 const About = lazy(() => import('@/pages/About'));
 const Blog = lazy(() => import('@/pages/Blog'));
-const BlogPostPage = lazy(() => import('@/pages/BlogPostPage'));
-const Contact = lazy(() => import('@/pages/Contact'));
-const WishlistPage = lazy(() => import('@/pages/Wishlist'));
-const Account = lazy(() => import('@/pages/Account'));
+	const BlogPostPage = lazy(() => import('@/pages/BlogPostPage'));
+	const Support = lazy(() => import('@/pages/Support'));
+	const Contact = lazy(() => import('@/pages/Contact'));
+	const WishlistPage = lazy(() => import('@/pages/Wishlist'));
+	const Account = lazy(() => import('@/pages/Account'));
 
 	// Admin
 	const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
 	const AdminProducts = lazy(() => import('@/pages/admin/Products'));
 	const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
 	const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
-	const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
-	const AdminSuppliers = lazy(() => import('@/pages/admin/Suppliers'));
-	const AdminPurchases = lazy(() => import('@/pages/admin/Purchases'));
-	const AdminInventory = lazy(() => import('@/pages/admin/Inventory'));
+		const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
+		const SupportAdmin = lazy(() => import('@/pages/admin/SupportAdmin'));
+		const AdminSuppliers = lazy(() => import('@/pages/admin/Suppliers'));
+		const AdminPurchases = lazy(() => import('@/pages/admin/Purchases'));
+		const AdminInventory = lazy(() => import('@/pages/admin/Inventory'));
 	const AdminReports = lazy(() => import('@/pages/admin/Reports'));
 	const AdminReviews = lazy(() => import('@/pages/admin/ReviewsAdmin'));
 	const ContentLayout = lazy(() => import('@/pages/admin/ContentLayout'));
 	const SettingsLayout = lazy(() => import('@/pages/admin/SettingsLayout'));
 	const LandingAdmin = lazy(() => import('@/pages/admin/LandingAdmin'));
 	const PaymentSettingsAdmin = lazy(() => import('@/pages/admin/PaymentSettingsAdmin'));
-	const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
-	const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
-	const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
-	const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
+		const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
+		const BlogCommentsAdmin = lazy(() => import('@/pages/admin/BlogCommentsAdmin'));
+		const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
+		const InstagramAdmin = lazy(() => import('@/pages/admin/InstagramAdmin'));
+		const FAQAdmin = lazy(() => import('@/pages/admin/FAQAdmin'));
 
 const FAQPage = lazy(() => import('@/pages/FAQ'));
 
@@ -96,11 +99,12 @@ const AuthenticatedApp = () => {
         <Route path="/carrinho" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/sobre" element={<About />} />
-        <Route path="/blog" element={<Blog />} />
-        <Route path="/blog/:id" element={<BlogPostPage />} />
-        <Route path="/contacto" element={<Contact />} />
-        <Route path="/faq" element={<FAQPage />} />
-        <Route path="/favoritos" element={<WishlistPage />} />
+	        <Route path="/blog" element={<Blog />} />
+	        <Route path="/blog/:id" element={<BlogPostPage />} />
+	        <Route path="/suporte" element={<Support />} />
+	        <Route path="/contacto" element={<Contact />} />
+	        <Route path="/faq" element={<FAQPage />} />
+	        <Route path="/favoritos" element={<WishlistPage />} />
         <Route path="/conta" element={<Account />} />
       </Route>
 
@@ -115,17 +119,19 @@ const AuthenticatedApp = () => {
 	        <Route path="/admin" element={<Dashboard />} />
 	        <Route path="/admin/produtos" element={<AdminProducts />} />
 	        <Route path="/admin/encomendas" element={<AdminOrders />} />
-	        <Route path="/admin/clientes" element={<AdminCustomers />} />
-	        <Route path="/admin/logs" element={<AdminLogs />} />
+		        <Route path="/admin/clientes" element={<AdminCustomers />} />
+		        <Route path="/admin/suporte" element={<SupportAdmin />} />
+		        <Route path="/admin/logs" element={<AdminLogs />} />
 	        <Route path="/admin/blog" element={<Navigate to="/admin/conteudo/blog" replace />} />
-	        <Route path="/admin/conteudo" element={<ContentLayout />}>
-	          <Route index element={<Navigate to="landing" replace />} />
-	          <Route path="landing" element={<LandingAdmin />} />
-	          <Route path="blog" element={<BlogAdmin />} />
-	          <Route path="sobre" element={<AboutAdmin />} />
-	          <Route path="instagram" element={<InstagramAdmin />} />
-	          <Route path="faq" element={<FAQAdmin />} />
-	        </Route>
+		        <Route path="/admin/conteudo" element={<ContentLayout />}>
+		          <Route index element={<Navigate to="landing" replace />} />
+		          <Route path="landing" element={<LandingAdmin />} />
+		          <Route path="blog" element={<BlogAdmin />} />
+		          <Route path="blog-comentarios" element={<BlogCommentsAdmin />} />
+		          <Route path="sobre" element={<AboutAdmin />} />
+		          <Route path="instagram" element={<InstagramAdmin />} />
+		          <Route path="faq" element={<FAQAdmin />} />
+		        </Route>
 	        <Route path="/admin/definicoes" element={<SettingsLayout />}>
 	          <Route index element={<Navigate to="pagamentos" replace />} />
 	          <Route path="pagamentos" element={<PaymentSettingsAdmin />} />
