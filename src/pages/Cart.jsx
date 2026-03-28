@@ -1,9 +1,10 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Minus, Plus, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Minus, Plus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useCart } from '@/lib/CartContext';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 export default function Cart() {
   const { items, updateQuantity, removeItem, subtotal, itemCount } = useCart();
@@ -60,8 +61,8 @@ export default function Cart() {
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
-                  <button onClick={() => removeItem(item.product_id, item.color)} className="text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
+                  <button onClick={() => removeItem(item.product_id, item.color)} className="text-muted-foreground hover:text-destructive" title="Remover">
+                    <DeleteIcon className="text-current" />
                   </button>
                 </div>
               </div>

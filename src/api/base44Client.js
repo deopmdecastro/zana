@@ -441,6 +441,16 @@ export const base44 = {
             authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'PATCH', body: { is_approved } }),
           delete: async (id) => authedJsonRequest(`/api/admin/reviews/${id}`, { method: 'DELETE' }),
         },
+        faqQuestions: {
+          list: async ({ status = 'pending', public: isPublic = 'all', limit = 200 } = {}) => {
+            const params = new URLSearchParams();
+            if (status) params.set('status', String(status));
+            if (isPublic) params.set('public', String(isPublic));
+            if (limit) params.set('limit', String(limit));
+            return authedJsonRequest(`/api/admin/faq/questions?${params.toString()}`);
+          },
+          update: async (id, patch) => authedJsonRequest(`/api/admin/faq/questions/${id}`, { method: 'PATCH', body: patch }),
+        },
 			    content: {
 			      about: {
 			        get: async () => authedJsonRequest('/api/admin/content/about'),
@@ -512,9 +522,12 @@ export const base44 = {
 		      close: async () => authedJsonRequest('/api/support/chat/close', { method: 'POST' }),
 		    },
 		  },
-		  faq: {
-		    list: async () => jsonRequest('/api/faq'),
-		  },
+			  faq: {
+			    list: async () => jsonRequest('/api/faq'),
+          questions: {
+            create: async (data) => jsonRequest('/api/faq/questions', { method: 'POST', body: data, token: getToken() }),
+          },
+			  },
 	  instagram: {
 	    list: async (limit = 30) => {
 	      const params = new URLSearchParams();

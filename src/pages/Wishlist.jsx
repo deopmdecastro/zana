@@ -2,10 +2,11 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Heart, Trash2, ShoppingBag } from 'lucide-react';
+import { Heart, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCart } from '@/lib/CartContext';
 import { toastApiPromise } from '@/lib/toast';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 export default function WishlistPage() {
   const queryClient = useQueryClient();
@@ -62,8 +63,9 @@ export default function WishlistPage() {
                   <button
                     onClick={(e) => handleDelete(e, item.id)}
                     className="w-7 h-7 bg-card/90 rounded-full flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    title="Remover"
                   >
-                    <Trash2 className="w-3 h-3" />
+                    <DeleteIcon className="text-current" />
                   </button>
                 </div>
               </div>

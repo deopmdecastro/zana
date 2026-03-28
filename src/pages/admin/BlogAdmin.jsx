@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 
@@ -74,7 +75,7 @@ export default function BlogAdmin() {
             </div>
             <div className="flex gap-1">
               <Button variant="ghost" size="icon" onClick={() => openEdit(post)}><Pencil className="w-3.5 h-3.5" /></Button>
-              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(post.id)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
+              <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(post.id)} title="Remover"><DeleteIcon className="text-destructive" /></Button>
             </div>
           </div>
         ))}

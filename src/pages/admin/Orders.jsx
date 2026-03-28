@@ -10,13 +10,14 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Check, ChevronDown, Eye, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Eye, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage } from '@/lib/images';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -719,9 +720,9 @@ export default function AdminOrders() {
 	                          }}
 	                          disabled={saleLines.length <= 1}
 	                        >
-	                          <Trash2 className="w-4 h-4 text-destructive" />
-	                        </Button>
-	                      </div>
+                          <DeleteIcon className="text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   );
                 })}

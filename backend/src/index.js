@@ -361,6 +361,22 @@ const faqPayloadSchema = z
   })
   .passthrough()
 
+const faqQuestionCreateSchema = z
+  .object({
+    question: z.string().min(5).max(2000),
+    author_name: z.string().max(120).optional().nullable(),
+    author_email: z.string().email().max(320).optional().nullable(),
+  })
+  .passthrough()
+
+const faqQuestionAdminPatchSchema = z
+  .object({
+    question: z.string().min(5).max(2000).optional(),
+    answer: z.string().max(10000).optional().nullable(),
+    is_public: z.boolean().optional(),
+  })
+  .passthrough()
+
 const instagramPayloadSchema = z
 	  .object({
 	    url: z.string().url().max(4000),
@@ -684,6 +700,24 @@ function toApiFaqItem(f) {
     is_active: Boolean(f.isActive),
     created_date: f.createdAt,
     updated_date: f.updatedAt,
+  }
+}
+
+function toApiFaqQuestion(q) {
+  const userFullName = q.user?.fullName ?? q.userFullName ?? null
+  const userEmail = q.user?.email ?? q.userEmail ?? null
+  return {
+    id: q.id,
+    user_id: q.userId ?? null,
+    author_name: q.authorName ?? userFullName ?? null,
+    author_email: q.authorEmail ?? userEmail ?? null,
+    question: q.question,
+    answer: q.answer ?? null,
+    is_public: Boolean(q.isPublic),
+    faq_item_id: q.faqItemId ?? null,
+    answered_date: q.answeredAt ?? null,
+    created_date: q.createdAt,
+    updated_date: q.updatedAt,
   }
 }
 
@@ -1315,10 +1349,41 @@ app.get('/api/faq', async (req, res) => {
   res.json(items.map(toApiFaqItem))
 })
 
+app.post('/api/faq/questions', async (req, res) => {
+  const parsed = faqQuestionCreateSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const token = getBearerToken(req)
+  const payload = token ? verifyToken(token) : null
+  const userId = typeof payload?.sub === 'string' ? payload.sub : null
+
+  const question = parsed.data.question.trim()
+  const authorName = parsed.data.author_name ? String(parsed.data.author_name).trim() : ''
+  const authorEmail = parsed.data.author_email ? String(parsed.data.author_email).trim().toLowerCase() : ''
+
+  const id = crypto.randomUUID()
+  const rows = await prisma.$queryRaw`
+    INSERT INTO "FaqQuestion" ("id","userId","authorName","authorEmail","question","answer","isPublic","faqItemId","answeredAt","createdAt","updatedAt")
+    VALUES (${id}, ${userId}, ${authorName || null}, ${authorEmail || null}, ${question}, ${null}, ${false}, ${null}, ${null}, NOW(), NOW())
+    RETURNING "id","userId","authorName","authorEmail","question","answer","isPublic","faqItemId","answeredAt","createdAt","updatedAt";
+  `
+  const created = Array.isArray(rows) ? rows[0] : null
+
+  await writeAuditLog({
+    actorId: userId,
+    action: 'create',
+    entityType: 'FaqQuestion',
+    entityId: created?.id ?? id,
+    meta: { is_public: false },
+  })
+
+  res.status(201).json(toApiFaqQuestion(created ?? { id, userId, authorName: authorName || null, authorEmail: authorEmail || null, question, answer: null, isPublic: false, faqItemId: null, answeredAt: null, createdAt: new Date(), updatedAt: new Date() }))
+})
+
 app.get('/api/instagram', async (req, res) => {
-	  const posts = await prisma.instagramPost.findMany({
-	    where: { isActive: true },
-	    orderBy: { createdAt: 'desc' },
+		  const posts = await prisma.instagramPost.findMany({
+		    where: { isActive: true },
+		    orderBy: { createdAt: 'desc' },
 	    take: parseLimit(req.query.limit, 30),
 	  })
 	  res.json(posts.map(toApiInstagramPost))
@@ -2374,6 +2439,137 @@ app.delete('/api/admin/faq/:id', async (req, res) => {
     res.status(204).send()
   } catch {
     res.status(404).json({ error: 'not_found' })
+  }
+})
+
+// FAQ Questions (customer-submitted)
+app.get('/api/admin/faq/questions', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const status = String(req.query.status ?? 'pending')
+  const publicFilter = String(req.query.public ?? 'all')
+
+  const conditions = []
+  const values = []
+  const add = (sql, value) => {
+    values.push(value)
+    conditions.push(sql.replace('?', `$${values.length}`))
+  }
+
+  if (status === 'pending') conditions.push(`q."answeredAt" IS NULL`)
+  if (status === 'answered') conditions.push(`q."answeredAt" IS NOT NULL`)
+
+  if (publicFilter === 'true') add(`q."isPublic" = ?`, true)
+  if (publicFilter === 'false') add(`q."isPublic" = ?`, false)
+
+  const whereSql = conditions.length ? `WHERE ${conditions.join(' AND ')}` : ''
+  const limit = parseLimit(req.query.limit, 500)
+  const sql = `
+    SELECT
+      q."id", q."userId", q."authorName", q."authorEmail", q."question", q."answer", q."isPublic", q."faqItemId",
+      q."answeredAt", q."createdAt", q."updatedAt",
+      u."fullName" as "userFullName", u."email" as "userEmail"
+    FROM "FaqQuestion" q
+    LEFT JOIN "User" u ON u."id" = q."userId"
+    ${whereSql}
+    ORDER BY q."createdAt" DESC
+    LIMIT ${Number(limit)}
+  `
+
+  const questions = await prisma.$queryRawUnsafe(sql, ...values)
+  res.json((Array.isArray(questions) ? questions : []).map(toApiFaqQuestion))
+})
+
+app.patch('/api/admin/faq/questions/:id', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = faqQuestionAdminPatchSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const patch = parsed.data ?? {}
+
+  const id = String(req.params.id)
+  try {
+    const updated = await prisma.$transaction(async (tx) => {
+      const existingRows = await tx.$queryRaw`
+        SELECT "id","userId","authorName","authorEmail","question","answer","isPublic","faqItemId","answeredAt","createdAt","updatedAt"
+        FROM "FaqQuestion"
+        WHERE "id" = ${id}
+        LIMIT 1;
+      `
+      const existing = Array.isArray(existingRows) ? existingRows[0] : null
+      if (!existing) return null
+
+      const nextAnswer = patch.answer === undefined ? existing.answer : patch.answer === null ? null : String(patch.answer)
+      const nextQuestion = patch.question === undefined ? existing.question : String(patch.question)
+      const willBeAnswered = typeof nextAnswer === 'string' && nextAnswer.trim().length > 0
+      const nextAnsweredAt = patch.answer === undefined ? existing.answeredAt : willBeAnswered ? new Date() : null
+      const nextIsPublic = patch.is_public === undefined ? existing.isPublic : Boolean(patch.is_public)
+
+      const updatedRows = await tx.$queryRaw`
+        UPDATE "FaqQuestion"
+        SET
+          "question" = ${nextQuestion},
+          "answer" = ${nextAnswer},
+          "answeredAt" = ${nextAnsweredAt},
+          "isPublic" = ${nextIsPublic},
+          "updatedAt" = NOW()
+        WHERE "id" = ${id}
+        RETURNING "id","userId","authorName","authorEmail","question","answer","isPublic","faqItemId","answeredAt","createdAt","updatedAt";
+      `
+      const q = Array.isArray(updatedRows) ? updatedRows[0] : null
+      if (!q) return null
+
+      const linkedItemId = existing.faqItemId ? String(existing.faqItemId) : null
+
+      if (nextIsPublic && willBeAnswered) {
+        if (linkedItemId) {
+          await tx.$executeRaw`
+            UPDATE "FaqItem"
+            SET "question" = ${nextQuestion}, "answer" = ${String(nextAnswer)}, "isActive" = ${true}, "updatedAt" = NOW()
+            WHERE "id" = ${linkedItemId};
+          `
+          q.faqItemId = linkedItemId
+        } else {
+          const maxRows = await tx.$queryRaw`SELECT COALESCE(MAX("order"), 0) AS "maxOrder" FROM "FaqItem";`
+          const maxOrder = Number(Array.isArray(maxRows) ? maxRows[0]?.maxOrder ?? 0 : 0)
+          const order = maxOrder + 1
+          const newItemId = crypto.randomUUID()
+          await tx.$executeRaw`
+            INSERT INTO "FaqItem" ("id","question","answer","order","isActive","createdAt","updatedAt")
+            VALUES (${newItemId}, ${nextQuestion}, ${String(nextAnswer)}, ${order}, ${true}, NOW(), NOW());
+          `
+          await tx.$executeRaw`UPDATE "FaqQuestion" SET "faqItemId" = ${newItemId}, "updatedAt" = NOW() WHERE "id" = ${id};`
+          q.faqItemId = newItemId
+        }
+      } else if (linkedItemId) {
+        await tx.$executeRaw`UPDATE "FaqItem" SET "isActive" = ${false}, "updatedAt" = NOW() WHERE "id" = ${linkedItemId};`
+      }
+
+      return q
+    })
+
+    if (!updated) return res.status(404).json({ error: 'not_found' })
+
+    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'FaqQuestion', entityId: updated.id, meta: { patch: req.body ?? {} } })
+
+    const rows = await prisma.$queryRaw`
+      SELECT
+        q."id", q."userId", q."authorName", q."authorEmail", q."question", q."answer", q."isPublic", q."faqItemId",
+        q."answeredAt", q."createdAt", q."updatedAt",
+        u."fullName" as "userFullName", u."email" as "userEmail"
+      FROM "FaqQuestion" q
+      LEFT JOIN "User" u ON u."id" = q."userId"
+      WHERE q."id" = ${String(updated.id)}
+      LIMIT 1;
+    `
+    const withUser = Array.isArray(rows) ? rows[0] : null
+    res.json(toApiFaqQuestion(withUser ?? updated))
+  } catch (err) {
+    console.error('faq question update failed', err)
+    res.status(500).json({ error: 'internal_error' })
   }
 })
 

@@ -8,7 +8,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Code, Eye, Plus, Pencil, Trash2, Truck } from 'lucide-react';
+import { Code, Eye, Plus, Pencil, Truck } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const emptySupplier = { name: '', email: '', phone: '', link: '', address: '', notes: '' };
 
@@ -267,15 +268,15 @@ export default function AdminSuppliers() {
 	                  <Button variant="ghost" size="icon" onClick={() => openView(s)} title="Ver">
 	                    <Eye className="w-4 h-4" />
 	                  </Button>
-	                  <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Editar">
-	                    <Pencil className="w-4 h-4" />
-	                  </Button>
-	                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(s.id)} title="Remover">
-	                    <Trash2 className="w-4 h-4" />
-	                  </Button>
-	                </td>
-              </tr>
-            ))}
+		                  <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Editar">
+		                    <Pencil className="w-4 h-4" />
+		                  </Button>
+		                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(s.id)} title="Remover">
+		                    <DeleteIcon className="text-destructive" />
+		                  </Button>
+		                </td>
+	              </tr>
+	            ))}
           </tbody>
         </table>
         {suppliers.length === 0 && (

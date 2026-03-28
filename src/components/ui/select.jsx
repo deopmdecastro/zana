@@ -5,6 +5,7 @@ import * as SelectPrimitive from "@radix-ui/react-select"
 import { Check, ChevronDown, ChevronUp } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { Input } from "@/components/ui/input"
 
 const Select = SelectPrimitive.Root
 
@@ -49,30 +50,6 @@ const SelectScrollDownButton = React.forwardRef(({ className, ...props }, ref) =
 SelectScrollDownButton.displayName =
   SelectPrimitive.ScrollDownButton.displayName
 
-const SelectContent = React.forwardRef(({ className, children, position = "popper", ...props }, ref) => (
-  <SelectPrimitive.Portal>
-    <SelectPrimitive.Content
-      ref={ref}
-      className={cn(
-        "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-        position === "popper" &&
-          "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
-        className
-      )}
-      position={position}
-      {...props}>
-      <SelectScrollUpButton />
-      <SelectPrimitive.Viewport
-        className={cn("p-1", position === "popper" &&
-          "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]")}>
-        {children}
-      </SelectPrimitive.Viewport>
-      <SelectScrollDownButton />
-    </SelectPrimitive.Content>
-  </SelectPrimitive.Portal>
-))
-SelectContent.displayName = SelectPrimitive.Content.displayName
-
 const SelectLabel = React.forwardRef(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
@@ -98,6 +75,133 @@ const SelectItem = React.forwardRef(({ className, children, ...props }, ref) => 
   </SelectPrimitive.Item>
 ))
 SelectItem.displayName = SelectPrimitive.Item.displayName
+
+function normalizeSearchValue(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+}
+
+function textFromNode(node) {
+  if (node === null || node === undefined) return ""
+  if (typeof node === "string" || typeof node === "number") return String(node)
+  if (Array.isArray(node)) return node.map(textFromNode).join(" ")
+  if (React.isValidElement(node)) return textFromNode(node.props?.children)
+  return ""
+}
+
+function countSelectItems(children) {
+  let count = 0
+  React.Children.forEach(children, (child) => {
+    if (!React.isValidElement(child)) return
+    if (child.type === SelectItem) {
+      count += 1
+      return
+    }
+    if (child.props?.children) count += countSelectItems(child.props.children)
+  })
+  return count
+}
+
+function filterSelectChildren(children, query) {
+  const q = normalizeSearchValue(query)
+  if (!q) return children
+
+  const filterNode = (node) => {
+    if (!React.isValidElement(node)) return node
+
+    if (node.type === SelectItem) {
+      const label = textFromNode(node.props?.children)
+      const matches = normalizeSearchValue(label).includes(q)
+      return matches ? node : null
+    }
+
+    const childArray = React.Children.toArray(node.props?.children)
+    if (childArray.length === 0) return node
+
+    const nextChildren = childArray.map(filterNode).filter(Boolean)
+
+    // If this subtree contained items but none matched, drop it (keeps labels/groups tidy).
+    const subtreeHasItems = countSelectItems(node.props?.children) > 0
+    if (subtreeHasItems && nextChildren.length === 0) return null
+
+    return React.cloneElement(node, node.props, nextChildren)
+  }
+
+  const root = React.Children.toArray(children).map(filterNode).filter(Boolean)
+  return root.length ? root : children
+}
+
+const SelectContent = React.forwardRef(
+  (
+    {
+      className,
+      children,
+      position = "popper",
+      searchable,
+      searchPlaceholder = "Pesquisar…",
+      ...props
+    },
+    ref
+  ) => {
+    const itemCount = React.useMemo(() => countSelectItems(children), [children])
+    const shouldSearch = typeof searchable === "boolean" ? searchable : itemCount > 10
+    const [query, setQuery] = React.useState("")
+
+    const filteredChildren = React.useMemo(() => {
+      if (!shouldSearch) return children
+      if (!query.trim()) return children
+      return filterSelectChildren(children, query)
+    }, [children, query, shouldSearch])
+
+    React.useEffect(() => {
+      if (shouldSearch) return
+      if (!query) return
+      setQuery("")
+    }, [query, shouldSearch])
+
+    return (
+      <SelectPrimitive.Portal>
+        <SelectPrimitive.Content
+          ref={ref}
+          className={cn(
+            "relative z-50 max-h-96 min-w-[8rem] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+            position === "popper" &&
+              "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
+            className
+          )}
+          position={position}
+          {...props}>
+          <SelectScrollUpButton />
+          <SelectPrimitive.Viewport
+            className={cn(
+              "p-1",
+              position === "popper" &&
+                "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]"
+            )}>
+            {shouldSearch ? (
+              <div className="p-1 pb-2">
+                <Input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={searchPlaceholder}
+                  className="h-8 text-sm"
+                  onKeyDown={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
+                />
+              </div>
+            ) : null}
+            {filteredChildren}
+          </SelectPrimitive.Viewport>
+          <SelectScrollDownButton />
+        </SelectPrimitive.Content>
+      </SelectPrimitive.Portal>
+    )
+  }
+)
+SelectContent.displayName = SelectPrimitive.Content.displayName
 
 const SelectSeparator = React.forwardRef(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator

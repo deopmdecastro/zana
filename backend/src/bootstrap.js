@@ -287,13 +287,36 @@ const ddl = [
     "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   `,
-  `CREATE INDEX IF NOT EXISTS "FaqItem_isActive_idx" ON "FaqItem" ("isActive");`,
-  `CREATE INDEX IF NOT EXISTS "FaqItem_order_idx" ON "FaqItem" ("order");`,
-  `CREATE INDEX IF NOT EXISTS "FaqItem_createdAt_idx" ON "FaqItem" ("createdAt");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqItem_isActive_idx" ON "FaqItem" ("isActive");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqItem_order_idx" ON "FaqItem" ("order");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqItem_createdAt_idx" ON "FaqItem" ("createdAt");`,
 
 	  `
-	  CREATE TABLE IF NOT EXISTS "InstagramPost" (
+	  CREATE TABLE IF NOT EXISTS "FaqQuestion" (
 	    "id" TEXT PRIMARY KEY,
+	    "userId" TEXT,
+	    "authorName" TEXT,
+	    "authorEmail" TEXT,
+	    "question" TEXT NOT NULL,
+	    "answer" TEXT,
+	    "isPublic" BOOLEAN NOT NULL DEFAULT FALSE,
+	    "faqItemId" TEXT,
+	    "answeredAt" TIMESTAMPTZ,
+	    "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    "updatedAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	    CONSTRAINT "FaqQuestion_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE SET NULL,
+	    CONSTRAINT "FaqQuestion_faqItemId_fkey" FOREIGN KEY ("faqItemId") REFERENCES "FaqItem"("id") ON DELETE SET NULL
+	  );
+	  `,
+	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_isPublic_idx" ON "FaqQuestion" ("isPublic");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_createdAt_idx" ON "FaqQuestion" ("createdAt");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_answeredAt_idx" ON "FaqQuestion" ("answeredAt");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_userId_idx" ON "FaqQuestion" ("userId");`,
+	  `CREATE INDEX IF NOT EXISTS "FaqQuestion_faqItemId_idx" ON "FaqQuestion" ("faqItemId");`,
+
+		  `
+		  CREATE TABLE IF NOT EXISTS "InstagramPost" (
+		    "id" TEXT PRIMARY KEY,
 	    "url" TEXT NOT NULL,
 	    "caption" TEXT,
 	    "coverUrl" TEXT,

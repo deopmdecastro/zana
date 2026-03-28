@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Code, Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
+import { Code, Plus, Pencil, Package, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import { entityCode } from '@/utils/entityCode';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const emptyProduct = {
   name: '', description: '', price: '', acquisition_cost: '', original_price: '', category: 'colares',
@@ -295,9 +296,9 @@ export default function AdminProducts() {
                 <td className="p-3 font-body text-sm">{p.stock || 0}</td>
                 <td className="p-3"><Badge variant="secondary" className="text-[10px]">{p.status}</Badge></td>
                 <td className="p-3 text-right">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
-                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(p.id)}><Trash2 className="w-3.5 h-3.5 text-destructive" /></Button>
-                </td>
+	                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
+	                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(p.id)} title="Remover"><DeleteIcon className="text-destructive" /></Button>
+	                </td>
               </tr>
             ))}
           </tbody>

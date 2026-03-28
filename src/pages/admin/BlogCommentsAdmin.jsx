@@ -8,7 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { MessageSquare, Trash2 } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 export default function BlogCommentsAdmin() {
   const queryClient = useQueryClient();
@@ -116,8 +117,8 @@ export default function BlogCommentsAdmin() {
                   >
                     {c.is_approved ? 'Reprovar' : 'Aprovar'}
                   </Button>
-                  <Button variant="destructive" className="rounded-none font-body text-xs" onClick={() => deleteMutation.mutate(c.id)}>
-                    <Trash2 className="w-4 h-4" />
+                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(c.id)} title="Remover">
+                    <DeleteIcon className="text-destructive" />
                   </Button>
                 </td>
               </tr>

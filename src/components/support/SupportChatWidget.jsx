@@ -10,6 +10,32 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { getErrorMessage } from '@/lib/toast';
 
+const SUPPORT_SUGGESTIONS = [
+  { value: 'encomendas', label: 'Encomendas' },
+  { value: 'pagamentos', label: 'Pagamentos' },
+  { value: 'envios', label: 'Envios' },
+  { value: 'trocas', label: 'Trocas / Devoluções' },
+  { value: 'produto', label: 'Produto' },
+  { value: 'outro', label: 'Outro' },
+];
+
+let supportChatApiSupported = null;
+try {
+  if (typeof window !== 'undefined' && window?.localStorage?.getItem) {
+    const saved = window.localStorage.getItem('zana_supportChatApiSupported');
+    if (saved === 'true') supportChatApiSupported = true;
+    if (saved === 'false') supportChatApiSupported = false;
+  }
+} catch {}
+function markSupportChatApiSupported(next) {
+  supportChatApiSupported = typeof next === 'boolean' ? next : null;
+  try {
+    if (typeof window === 'undefined' || !window?.localStorage) return;
+    if (supportChatApiSupported === null) window.localStorage.removeItem('zana_supportChatApiSupported');
+    else window.localStorage.setItem('zana_supportChatApiSupported', supportChatApiSupported ? 'true' : 'false');
+  } catch {}
+}
+
 function formatWhen(value) {
   try {
     return new Date(value).toLocaleString('pt-PT');
@@ -19,10 +45,20 @@ function formatWhen(value) {
 }
 
 async function fetchSupportChatThread() {
+  if (supportChatApiSupported === false) {
+    const tickets = await base44.support.tickets.list(50);
+    const openTicket = (Array.isArray(tickets) ? tickets : []).find((t) => String(t?.status ?? '') !== 'closed');
+    if (!openTicket?.id) return { ticket: null, messages: [] };
+    return await base44.support.tickets.get(openTicket.id);
+  }
+
   try {
-    return await base44.support.chat.get();
+    const thread = await base44.support.chat.get();
+    markSupportChatApiSupported(true);
+    return thread;
   } catch (err) {
     if (err?.status !== 404) throw err;
+    markSupportChatApiSupported(false);
 
     // Fallback: older backend without /api/support/chat endpoints.
     const tickets = await base44.support.tickets.list(50);
@@ -40,6 +76,8 @@ export default function SupportChatWidget() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const scrollRef = useRef(null);
+  const inputRef = useRef(null);
+  const [showOther, setShowOther] = useState(false);
 
   const path = location.pathname ?? '';
   const hidden = path.startsWith('/admin') || path.startsWith('/suporte');
@@ -60,12 +98,30 @@ export default function SupportChatWidget() {
     el.scrollTop = el.scrollHeight;
   }, [open, messages.length]);
 
+  useEffect(() => {
+    if (!open) return;
+    const t = window.setTimeout(() => inputRef.current?.focus?.(), 0);
+    return () => window.clearTimeout(t);
+  }, [open]);
+
   const sendMutation = useMutation({
     mutationFn: async (message) => {
+      if (supportChatApiSupported === false) {
+        const ticketId = data?.ticket?.id;
+        if (ticketId) {
+          const msg = await base44.support.tickets.addMessage(ticketId, message);
+          return { ticket_id: ticketId, created_ticket: false, message: msg };
+        }
+        const created = await base44.support.tickets.create({ subject: 'Chat / Suporte', message });
+        return { ticket_id: created?.ticket?.id ?? null, created_ticket: true, message: null };
+      }
       try {
-        return await base44.support.chat.send(message);
+        const result = await base44.support.chat.send(message);
+        markSupportChatApiSupported(true);
+        return result;
       } catch (err) {
         if (err?.status !== 404) throw err;
+        markSupportChatApiSupported(false);
 
         const ticketId = data?.ticket?.id;
         if (ticketId) {
@@ -86,15 +142,19 @@ export default function SupportChatWidget() {
 
   const openMutation = useMutation({
     mutationFn: async () => {
+      if (supportChatApiSupported === false) {
+        // Older backend: ticket is created on first message.
+        return { ok: true, ticket_id: null, created_ticket: false };
+      }
       try {
-        return await base44.support.chat.open();
+        const result = await base44.support.chat.open();
+        markSupportChatApiSupported(true);
+        return result;
       } catch (err) {
         if (err?.status !== 404) throw err;
-        const created = await base44.support.tickets.create({
-          subject: 'Chat / Suporte',
-          message: 'Iniciei um pedido de suporte pelo chat.',
-        });
-        return { ok: true, ticket_id: created?.ticket?.id ?? null, created_ticket: true };
+        markSupportChatApiSupported(false);
+        // Older backend without /api/support/chat/open; ticket will be created on first message.
+        return { ok: true, ticket_id: null, created_ticket: false };
       }
     },
     onSuccess: async () => {
@@ -107,10 +167,14 @@ export default function SupportChatWidget() {
 
   const closeMutation = useMutation({
     mutationFn: async () => {
+      if (supportChatApiSupported === false) return { ok: true };
       try {
-        return await base44.support.chat.close();
+        const result = await base44.support.chat.close();
+        markSupportChatApiSupported(true);
+        return result;
       } catch (err) {
         if (err?.status !== 404) throw err;
+        markSupportChatApiSupported(false);
         const ticketId = data?.ticket?.id;
         if (!ticketId) return { ok: true };
         // Fallback: no chat close endpoint yet; just collapse the widget.
@@ -148,6 +212,27 @@ export default function SupportChatWidget() {
   if (hidden) return null;
 
   const hasTicket = !!data?.ticket?.id;
+  const hasMessages = messages.length > 0;
+  const displayNameRaw = user?.full_name || user?.email || 'Cliente';
+  const displayName = String(displayNameRaw).includes('@') ? String(displayNameRaw).split('@')[0] : String(displayNameRaw);
+
+  const handleSuggestion = (value) => {
+    if (!user) {
+      toast.error('Inicie sessão para enviar mensagem.');
+      return;
+    }
+
+    if (value === 'outro') {
+      setShowOther(true);
+      window.setTimeout(() => inputRef.current?.focus?.(), 0);
+      return;
+    }
+
+    const label = SUPPORT_SUGGESTIONS.find((s) => s.value === value)?.label ?? value;
+    const msg = `Olá, sou ${displayName}. Preciso de ajuda com ${String(label).toLowerCase()}.`;
+    sendMutation.mutate(msg);
+    setShowOther(false);
+  };
 
   return (
     <div className="fixed right-5 z-50" style={{ bottom: 'calc(20px + var(--zana-cookie-banner-offset, 0px))' }}>
@@ -213,9 +298,44 @@ export default function SupportChatWidget() {
               <div ref={scrollRef} className="flex-1 p-4 overflow-y-auto space-y-3 bg-background">
                 {isLoading ? (
                   <div className="font-body text-sm text-muted-foreground">A carregar…</div>
-                ) : messages.length === 0 ? (
-                  <div className="font-body text-sm text-muted-foreground">
-                    Escreva a primeira mensagem para abrir um ticket de suporte.
+                ) : !hasMessages ? (
+                  <div className="space-y-3">
+                    <div className="border border-border rounded-lg p-3 bg-secondary/10">
+                      <div className="font-body text-sm">
+                        Olá, <span className="font-medium">{displayName}</span>. Em que podemos ajudar?
+                      </div>
+                      <div className="font-body text-[11px] text-muted-foreground mt-1">
+                        Escolha uma opção ou escreva a sua dúvida.
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {SUPPORT_SUGGESTIONS.filter((s) => s.value !== 'outro').map((s) => (
+                        <Button
+                          key={s.value}
+                          variant="outline"
+                          className="rounded-md font-body text-xs justify-start"
+                          disabled={sendMutation.isPending}
+                          onClick={() => handleSuggestion(s.value)}
+                        >
+                          {s.label}
+                        </Button>
+                      ))}
+                      <Button
+                        variant="outline"
+                        className="rounded-md font-body text-xs justify-start col-span-2"
+                        disabled={sendMutation.isPending}
+                        onClick={() => handleSuggestion('outro')}
+                      >
+                        Outro (escrever dúvida)
+                      </Button>
+                    </div>
+
+                    {showOther ? (
+                      <div className="font-body text-xs text-muted-foreground">
+                        Escreva a sua dúvida abaixo e carregue Enter para enviar.
+                      </div>
+                    ) : null}
                   </div>
                 ) : (
                   messages.map((m) => {
@@ -241,6 +361,7 @@ export default function SupportChatWidget() {
               <div className="p-3 border-t border-border bg-card">
                 <div className="flex items-end gap-2">
                   <Textarea
+                    ref={inputRef}
                     value={draft}
                     onChange={(e) => setDraft(e.target.value)}
                     className="rounded-md min-h-[44px] max-h-[120px]"

@@ -8,14 +8,7 @@ import { Mail, Instagram, MapPin, Send } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
-const faqs = [
-  { q: 'Quanto tempo demora o envio?', a: 'Os envios são processados em 1-3 dias úteis. A entrega demora entre 2-5 dias úteis para Portugal continental.' },
-  { q: 'Posso devolver um produto?', a: 'Sim, acetiamos devoluções até 14 dias após a receção, desde que o produto esteja em perfeitas condições e na embalagem original.' },
-  { q: 'Os preços incluem IVA?', a: 'Sim, todos os preços apresentados já incluem IVA.' },
-  { q: 'O envio está incluído no preço?', a: 'O valor do envio não está incluído no preço do produto. Envio grátis para encomendas acima de 50€.' },
-  { q: 'Quais são os métodos de pagamento?', a: 'Aceitamos MB WAY, Transferência Bancária, Multibanco e PayPal.' },
-  { q: 'As peças são resistentes à água?', a: 'As peças em aço inoxidável são resistentes à água. No entanto, recomendamos evitar o contacto prolongado com água para manter o brilho.' },
-];
+import { contactFaqs } from '@/lib/contactFaqs';
 
 export default function Contact() {
   const [form, setForm] = useState({ name: '', email: '', subject: '', message: '' });
@@ -28,8 +21,7 @@ export default function Contact() {
       return;
     }
     setSending(true);
-    // Simulate sending
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1000));
     toast.success('Mensagem enviada com sucesso!');
     setForm({ name: '', email: '', subject: '', message: '' });
     setSending(false);
@@ -46,7 +38,6 @@ export default function Contact() {
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Contact Form */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
             <h2 className="font-heading text-2xl mb-6">Envie-nos uma Mensagem</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -72,14 +63,18 @@ export default function Contact() {
             </form>
           </motion.div>
 
-          {/* Info + FAQ */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
             <h2 className="font-heading text-2xl mb-6">Informações</h2>
             <div className="space-y-4 mb-10">
               <a href="mailto:info@zanaacessorios.com" className="flex items-center gap-3 font-body text-sm text-muted-foreground hover:text-primary">
                 <Mail className="w-5 h-5" /> info@zanaacessorios.com
               </a>
-              <a href="https://instagram.com/zanaacessorios" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 font-body text-sm text-muted-foreground hover:text-primary">
+              <a
+                href="https://instagram.com/zanaacessorios"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 font-body text-sm text-muted-foreground hover:text-primary"
+              >
                 <Instagram className="w-5 h-5" /> @zanaacessorios
               </a>
               <div className="flex items-center gap-3 font-body text-sm text-muted-foreground">
@@ -89,7 +84,7 @@ export default function Contact() {
 
             <h2 className="font-heading text-2xl mb-4">Perguntas Frequentes</h2>
             <Accordion type="single" collapsible className="w-full">
-              {faqs.map((faq, i) => (
+              {contactFaqs.map((faq, i) => (
                 <AccordionItem key={i} value={`faq-${i}`}>
                   <AccordionTrigger className="font-body text-sm text-left">{faq.q}</AccordionTrigger>
                   <AccordionContent className="font-body text-sm text-muted-foreground">{faq.a}</AccordionContent>
@@ -102,3 +97,4 @@ export default function Contact() {
     </div>
   );
 }
+

@@ -9,7 +9,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SearchableSelect from '@/components/ui/searchable-select';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const defaults = {
   default_method_id: 'standard',
@@ -176,7 +177,7 @@ export default function ShippingSettingsAdmin() {
                       methods: (p.methods ?? []).map((x) => (x.id === m.id ? { ...x, enabled: v } : x)),
                     }))} />
                     <Button variant="ghost" size="icon" onClick={() => removeMethod(m.id)} title="Remover">
-                      <Trash2 className="w-4 h-4 text-destructive" />
+                      <DeleteIcon className="text-destructive" />
                     </Button>
                   </div>
                 </div>

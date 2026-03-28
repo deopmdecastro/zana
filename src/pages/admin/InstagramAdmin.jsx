@@ -9,8 +9,9 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, Trash2, Instagram } from 'lucide-react';
+import { Plus, Pencil, Instagram } from 'lucide-react';
 import ImageUpload from '@/components/uploads/ImageUpload';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const emptyPost = { url: '', caption: '', cover_url: '', is_active: true };
 
@@ -114,7 +115,7 @@ export default function InstagramAdmin() {
                     <Pencil className="w-4 h-4" />
                   </Button>
                   <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(p.id)} title="Remover">
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="text-destructive" />
                   </Button>
                 </td>
               </tr>

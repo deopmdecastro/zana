@@ -7,9 +7,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, Trash2, HelpCircle } from 'lucide-react';
+import { Plus, Pencil, HelpCircle } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 const emptyItem = { question: '', answer: '', order: 0, is_active: true };
 
@@ -18,10 +20,19 @@ export default function FAQAdmin() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyItem);
+  const [questionStatus, setQuestionStatus] = useState('pending');
+  const [selectedQuestion, setSelectedQuestion] = useState(null);
+  const [answerDraft, setAnswerDraft] = useState('');
+  const [publish, setPublish] = useState(false);
 
   const { data: items = [] } = useQuery({
     queryKey: ['admin-faq'],
     queryFn: () => base44.entities.FaqItem.list(500),
+  });
+
+  const { data: questions = [], isLoading: isLoadingQuestions } = useQuery({
+    queryKey: ['admin-faq-questions', questionStatus],
+    queryFn: () => base44.admin.faqQuestions.list({ status: questionStatus, public: 'all', limit: 500 }),
   });
 
   const sorted = useMemo(() => {
@@ -57,6 +68,20 @@ export default function FAQAdmin() {
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover.')),
   });
 
+  const answerQuestionMutation = useMutation({
+    mutationFn: ({ id, patch }) => base44.admin.faqQuestions.update(id, patch),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-faq-questions'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-faq'] });
+      await queryClient.invalidateQueries({ queryKey: ['faq'] });
+      toast.success('Resposta guardada');
+      setSelectedQuestion(null);
+      setAnswerDraft('');
+      setPublish(false);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível guardar.')),
+  });
+
   const openCreate = () => {
     setEditing(null);
     setForm(emptyItem);
@@ -74,6 +99,12 @@ export default function FAQAdmin() {
     setDialogOpen(true);
   };
 
+  const openAnswer = (q) => {
+    setSelectedQuestion(q);
+    setAnswerDraft(q?.answer ?? '');
+    setPublish(!!q?.is_public);
+  };
+
   const submit = () => {
     if (!form.question.trim() || !form.answer.trim()) {
       toast.error('Preencha pergunta e resposta');
@@ -86,8 +117,69 @@ export default function FAQAdmin() {
 
   return (
     <div>
+      <div className="mb-10">
+        <div className="flex items-center justify-between mb-4 gap-4 flex-wrap">
+          <div>
+            <h1 className="font-heading text-3xl">FAQ</h1>
+            <p className="font-body text-sm text-muted-foreground mt-1">Perguntas enviadas pelos clientes e conteúdo do FAQ.</p>
+          </div>
+          <Select value={questionStatus} onValueChange={setQuestionStatus}>
+            <SelectTrigger className="w-56 rounded-none">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Perguntas pendentes</SelectItem>
+              <SelectItem value="answered">Respondidas</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="bg-card rounded-lg border border-border overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border bg-secondary/30">
+                <th className="text-left p-3 font-body text-xs text-muted-foreground">Pergunta</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground">Contacto</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
+                <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(isLoadingQuestions ? [] : questions).map((q) => (
+                <tr key={q.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
+                  <td className="p-3 font-body text-sm">
+                    <div className="font-medium line-clamp-2">{q.question}</div>
+                    {q.answer ? <div className="text-xs text-muted-foreground line-clamp-1 mt-1">{q.answer}</div> : null}
+                  </td>
+                  <td className="p-3 font-body text-xs text-muted-foreground">
+                    <div>{q.author_name ?? '—'}</div>
+                    <div className="mt-1">{q.author_email ?? '—'}</div>
+                  </td>
+                  <td className="p-3 font-body text-xs">
+                    {q.answered_date ? <span className="text-green-700">Respondida</span> : <span className="text-muted-foreground">Pendente</span>}
+                    {q.is_public ? <span className="ml-2 text-primary">• Pública</span> : null}
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    <Button variant="outline" className="rounded-none font-body text-xs" onClick={() => openAnswer(q)}>
+                      Responder
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!isLoadingQuestions && (questions ?? []).length === 0 ? (
+            <div className="text-center py-10">
+              <HelpCircle className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="font-body text-sm text-muted-foreground">Sem perguntas</p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Perguntas & Respostas</h1>
+        <h2 className="font-heading text-2xl">Perguntas Frequentes</h2>
         <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2">
           <Plus className="w-4 h-4" /> Nova
         </Button>
@@ -119,7 +211,7 @@ export default function FAQAdmin() {
                     onClick={() => deleteMutation.mutate(item.id)}
                     title="Remover"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <DeleteIcon className="text-destructive" />
                   </Button>
                 </td>
               </tr>
@@ -164,7 +256,66 @@ export default function FAQAdmin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={!!selectedQuestion}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedQuestion(null);
+            setAnswerDraft('');
+            setPublish(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Responder pergunta</DialogTitle>
+          </DialogHeader>
+          {selectedQuestion ? (
+            <div className="space-y-4">
+              <div className="font-body text-sm">
+                <div className="text-xs text-muted-foreground">
+                  {new Date(selectedQuestion.created_date).toLocaleString('pt-PT')} • {selectedQuestion.author_email ?? '—'}
+                </div>
+                <div className="mt-2 whitespace-pre-wrap">{selectedQuestion.question}</div>
+              </div>
+
+              <div>
+                <Label className="font-body text-xs">Resposta</Label>
+                <Textarea
+                  value={answerDraft}
+                  onChange={(e) => setAnswerDraft(e.target.value)}
+                  className="rounded-none mt-1 min-h-[140px]"
+                  placeholder="Escreva a resposta…"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch checked={publish} onCheckedChange={setPublish} />
+                <Label className="font-body text-xs">Publicar no FAQ para clientes</Label>
+              </div>
+
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setSelectedQuestion(null)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="rounded-none font-body text-sm tracking-wider"
+                  disabled={answerQuestionMutation.isPending}
+                  onClick={() => {
+                    if (!selectedQuestion?.id) return;
+                    const answer = String(answerDraft ?? '').trim();
+                    if (!answer) return toast.error('Escreva uma resposta');
+                    answerQuestionMutation.mutate({ id: selectedQuestion.id, patch: { answer, is_public: publish } });
+                  }}
+                >
+                  {answerQuestionMutation.isPending ? 'A guardar…' : 'Guardar'}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

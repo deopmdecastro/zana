@@ -34,6 +34,7 @@ model User {
   inventoryMovements  InventoryMovement[] @relation("InventoryActor")
   supportTickets      SupportTicket[]
   blogComments        BlogComment[]
+  faqQuestions        FaqQuestion[]
 
   @@index([createdAt])
 }
@@ -265,9 +266,34 @@ model FaqItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  submissions FaqQuestion[]
+
   @@index([isActive])
   @@index([order])
   @@index([createdAt])
+}
+
+model FaqQuestion {
+  id          String   @id @default(cuid())
+  userId      String?
+  authorName  String?
+  authorEmail String?
+  question    String
+  answer      String?
+  isPublic    Boolean  @default(false)
+  faqItemId   String?
+  answeredAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  faqItem     FaqItem? @relation(fields: [faqItemId], references: [id], onDelete: SetNull)
+
+  @@index([isPublic])
+  @@index([createdAt])
+  @@index([answeredAt])
+  @@index([userId])
+  @@index([faqItemId])
 }
 
 model InstagramPost {

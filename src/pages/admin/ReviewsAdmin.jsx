@@ -7,7 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { MessageSquare, Trash2 } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
+import DeleteIcon from '@/components/ui/delete-icon';
 
 export default function AdminReviews() {
   const queryClient = useQueryClient();
@@ -102,8 +103,8 @@ export default function AdminReviews() {
                   >
                     {r.is_approved ? 'Reprovar' : 'Aprovar'}
                   </Button>
-                  <Button variant="destructive" className="rounded-none font-body text-xs" onClick={() => deleteMutation.mutate(r.id)}>
-                    <Trash2 className="w-4 h-4" />
+                  <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate(r.id)} title="Remover">
+                    <DeleteIcon className="text-destructive" />
                   </Button>
                 </td>
               </tr>
