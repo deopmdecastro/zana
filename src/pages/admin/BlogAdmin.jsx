@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 
@@ -64,7 +65,16 @@ export default function BlogAdmin() {
         {posts.map(post => (
           <div key={post.id} className="bg-card p-4 rounded-lg border border-border flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {post.image_url && <div className="w-16 h-10 rounded overflow-hidden"><img src={post.image_url} alt="" className="w-full h-full object-cover" /></div>}
+              {post.image_url && (
+                <div className="w-16 h-10 rounded overflow-hidden">
+                  <ImageWithFallback
+                    src={post.image_url}
+                    alt=""
+                    className="w-full h-full object-cover"
+                    iconClassName="w-6 h-6 text-muted-foreground/40"
+                  />
+                </div>
+              )}
               <div>
                 <p className="font-body text-sm font-medium">{post.title}</p>
                 <div className="flex gap-2 mt-1">

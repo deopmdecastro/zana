@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Instagram, Play } from 'lucide-react';
 import zIcon from '@/img/Z.svg';
 import { base44 } from '@/api/base44Client';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 
 const instagramHandle = 'zana.acessorios_';
 const instagramUrl = `https://www.instagram.com/${instagramHandle}/`;
@@ -84,9 +85,21 @@ export default function InstagramSection() {
 	              >
 	                <div className={`relative ${card.type === 'reel' ? 'aspect-[9/16]' : 'aspect-square'} bg-secondary/30`}>
 	                  {card.cover_url ? (
-	                    <img src={card.cover_url} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+	                    <ImageWithFallback
+                      src={card.cover_url}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                      wrapperClassName="absolute inset-0"
+                      iconClassName="w-16 h-16 opacity-[0.10] text-white/20"
+                    />
 	                  ) : (
-	                    <img src={zIcon} alt="" className="absolute inset-0 m-auto w-16 opacity-[0.10]" />
+	                    <ImageWithFallback
+                      src={zIcon}
+                      alt=""
+                      className="absolute inset-0 m-auto w-16 opacity-[0.10]"
+                      wrapperClassName="absolute inset-0"
+                      iconClassName="w-16 h-16 opacity-[0.10] text-white"
+                    />
 	                  )}
 	                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
 	                  {card.type === 'reel' && (

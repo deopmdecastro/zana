@@ -122,25 +122,34 @@ export default function AdminCashClosures() {
               />
             </div>
             <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="font-body text-xs">Saldo inicial</label>
+                <Input
+                  value={cashClosureForm.opening_balance}
+                  onChange={(e) => setCashClosureForm((prev) => ({ ...prev, opening_balance: e.target.value }))}
+                  placeholder="Saldo inicial"
+                  className="rounded-none mt-1"
+                />
+              </div>
+              <div>
+                <label className="font-body text-xs">Saldo final</label>
+                <Input
+                  value={moneyPt(closingBalanceNumber)}
+                  placeholder="Saldo final"
+                  className="rounded-none mt-1"
+                  disabled
+                />
+              </div>
+            </div>
+            <div>
+              <label className="font-body text-xs">Total de vendas</label>
               <Input
-                value={cashClosureForm.opening_balance}
-                onChange={(e) => setCashClosureForm((prev) => ({ ...prev, opening_balance: e.target.value }))}
-                placeholder="Saldo inicial"
-                className="rounded-none"
-              />
-              <Input
-                value={moneyPt(closingBalanceNumber)}
-                placeholder="Saldo final"
-                className="rounded-none"
+                value={moneyPt(totalSalesNumber)}
+                placeholder="Total de vendas"
+                className="rounded-none mt-1"
                 disabled
               />
             </div>
-            <Input
-              value={moneyPt(totalSalesNumber)}
-              placeholder="Total de vendas"
-              className="rounded-none"
-              disabled
-            />
             <textarea
               value={cashClosureForm.notes}
               onChange={(e) => setCashClosureForm((prev) => ({ ...prev, notes: e.target.value }))}

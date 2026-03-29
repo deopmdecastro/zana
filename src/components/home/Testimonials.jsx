@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import StarRating from '@/components/ui/star-rating';
 import SearchableSelect from '@/components/ui/searchable-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { getErrorMessage } from '@/lib/toast';
 
 const fallbackTestimonials = [
@@ -147,25 +148,22 @@ export default function Testimonials() {
                       searchPlaceholder="Pesquisar produto..."
                     />
                   ) : (
-                    <select
+                    <Select
                       value={form.product_id}
-                      onChange={(e) => setForm((p) => ({ ...p, product_id: e.target.value }))}
-                      className="w-full border border-border bg-background px-3 py-2 text-sm font-body rounded-none"
+                      onValueChange={(value) => setForm((p) => ({ ...p, product_id: value }))}
                       disabled={productOptions.length === 0}
                     >
-                      {productOptions.length === 0 ? (
-                        <option value="">Sem dados ainda</option>
-                      ) : (
-                        <>
-                          <option value="">Selecionar...</option>
-                          {productOptions.map((p) => (
-                            <option key={p.value} value={p.value}>
-                              {p.label}
-                            </option>
-                          ))}
-                        </>
-                      )}
-                    </select>
+                      <SelectTrigger className="w-full rounded-none mt-1">
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productOptions.map((p) => (
+                          <SelectItem key={p.value} value={p.value}>
+                            {p.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
               </div>

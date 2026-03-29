@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { motion } from 'framer-motion';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -58,7 +59,12 @@ export default function Blog() {
                 <Link to={`/blog/${post.id}`}>
                   {post.image_url && (
                     <div className="aspect-[16/9] rounded-lg overflow-hidden mb-4">
-                      <img src={post.image_url} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <ImageWithFallback
+                        src={post.image_url}
+                        alt={post.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        iconClassName="w-12 h-12 text-muted-foreground/40"
+                      />
                     </div>
                   )}
                   <div className="flex items-center gap-3 mb-2">

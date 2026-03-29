@@ -2816,9 +2816,13 @@ app.get('/api/orders/my', async (req, res) => {
       tracking_url: o.trackingUrl ?? null,
       tracking_carrier: o.trackingCarrier ?? null,
       items: o.items.map((it) => ({
+        id: it.id,
+        product_id: it.productId ?? null,
         product_name: it.productName,
         product_image: it.productImage ?? null,
+        price: it.price?.toString?.() ?? String(it.price),
         quantity: it.quantity,
+        color: it.color ?? null,
       })),
     })),
   })
@@ -3737,6 +3741,18 @@ app.post('/api/orders', async (req, res) => {
   const subtotalValue = Number(data.subtotal ?? 0) || 0
   const shippingCostValue = Number(data.shipping_cost ?? 0) || 0
 
+  const productIds = Array.from(
+    new Set(
+      (data.items ?? [])
+        .map((it) => (it?.product_id ? String(it.product_id) : null))
+        .filter(Boolean),
+    ),
+  )
+  const validProductIds = productIds.length
+    ? (await prisma.product.findMany({ where: { id: { in: productIds } } })).map((p) => p.id)
+    : []
+  const validProductIdSet = new Set(validProductIds)
+
   let coupon = null
   let appliedDiscount = 0
   let couponId = null
@@ -3802,7 +3818,8 @@ app.post('/api/orders', async (req, res) => {
         notes: data.notes ?? null,
         items: {
           create: data.items.map((it) => ({
-            productId: it.product_id ?? null,
+            productId:
+              it.product_id && validProductIdSet.has(String(it.product_id)) ? String(it.product_id) : null,
             productName: it.product_name,
             productImage: it.product_image ?? null,
             price: String(it.price),

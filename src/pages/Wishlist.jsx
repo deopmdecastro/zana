@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Heart, ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { useCart } from '@/lib/CartContext';
 import { toastApiPromise } from '@/lib/toast';
 import DeleteIcon from '@/components/ui/delete-icon';
@@ -56,11 +57,12 @@ export default function WishlistPage() {
           <div key={item.id} className="group">
             <Link to={`/produto/${item.product_id}`}>
               <div className="relative aspect-square rounded-lg overflow-hidden bg-secondary/30 mb-3">
-                {item.product_image ? (
-                  <img src={item.product_image} alt={item.product_name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-12 h-12 opacity-30" /></div>
-                )}
+                <ImageWithFallback
+                  src={item.product_image}
+                  alt={item.product_name}
+                  className="group-hover:scale-105 transition-transform duration-500"
+                  iconClassName="w-12 h-12 opacity-30 text-muted-foreground"
+                />
                 <div className="absolute top-2 right-2 flex flex-col gap-1">
                   <button
                     onClick={(e) => handleDelete(e, item.id)}

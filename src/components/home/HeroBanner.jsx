@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Button } from '@/components/ui/button';
 import { base44 } from '@/api/base44Client';
 
@@ -43,10 +44,11 @@ export default function HeroBanner({ content } = {}) {
   return (
     <section className="relative overflow-hidden bg-primary min-h-[80vh] md:min-h-[90vh] flex items-center">
       <div className="absolute inset-0">
-        <img
+        <ImageWithFallback
           src={hero.image_url}
           alt="Zana Acessórios - Coleção"
           className="w-full h-full object-cover opacity-30"
+          iconClassName="w-16 h-16 text-white/20"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-primary/40" />
       </div>

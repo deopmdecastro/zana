@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Heart, Gem, Sparkles } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 
@@ -64,10 +65,11 @@ export default function About() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center mb-20">
           <motion.div initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>
-            <img
+            <ImageWithFallback
               src={storyImageUrl}
               alt="Zana Acessórios"
               className="rounded-lg w-full aspect-[4/3] object-cover"
+              iconClassName="w-12 h-12 text-muted-foreground/40"
             />
           </motion.div>
           <motion.div initial={{ opacity: 0, x: 20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }}>

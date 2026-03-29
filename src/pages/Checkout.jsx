@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle, ShoppingBag } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -63,6 +65,7 @@ export default function Checkout() {
   const { user } = useAuth();
   const [step, setStep] = useState('form');
   const [submitting, setSubmitting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
@@ -108,11 +111,16 @@ export default function Checkout() {
 
   useEffect(() => {
     if (!user) return;
+    const userAddress = user.address || {};
+    const defaultShippingAddress = [userAddress.line1, userAddress.line2].filter(Boolean).join(', ');
     setForm((prev) => ({
       ...prev,
       customer_email: prev.customer_email || user.email || '',
       customer_name: prev.customer_name || user.full_name || '',
       customer_phone: prev.customer_phone || user.phone || '',
+      shipping_address: prev.shipping_address || defaultShippingAddress || '',
+      shipping_city: prev.shipping_city || userAddress.city || '',
+      shipping_postal_code: prev.shipping_postal_code || userAddress.postal_code || '',
     }));
   }, [user]);
 
@@ -195,7 +203,7 @@ export default function Checkout() {
     setCouponError('Cupom removido')
   }
 
-  const handleSubmit = async (e) => {
+  const handleConfirm = (e) => {
     e.preventDefault();
     if (
       !form.customer_name ||
@@ -208,6 +216,11 @@ export default function Checkout() {
       return;
     }
 
+    setConfirmOpen(true);
+  };
+
+  const handleSubmit = async () => {
+    setConfirmOpen(false);
     setSubmitting(true);
     try {
       await toastApiPromise(
@@ -315,7 +328,7 @@ export default function Checkout() {
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
       <h1 className="font-heading text-3xl md:text-4xl mb-8">Checkout</h1>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleConfirm}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-card p-6 rounded-lg border border-border">
@@ -402,17 +415,20 @@ export default function Checkout() {
             <div className="bg-card p-6 rounded-lg border border-border">
               <h2 className="font-heading text-xl mb-4">Cupom de Desconto</h2>
               <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
-                  <Input
-                    value={couponCode}
-                    onChange={(e) => setCouponCode(e.target.value)}
-                    placeholder="Código do cupom"
-                    className="rounded-none"
-                  />
-                  <Button type="button" onClick={handleApplyCoupon} disabled={couponLoading} className="rounded-none">
-                    {couponLoading ? 'A aplicar...' : 'Aplicar'}
-                  </Button>
-                </div>
+                <div>
+              <Label className="font-body text-xs">Código do cupom</Label>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 mt-1">
+                <Input
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value)}
+                  placeholder="Código do cupom"
+                  className="rounded-none"
+                />
+                <Button type="button" onClick={handleApplyCoupon} disabled={couponLoading} className="rounded-none">
+                  {couponLoading ? 'A aplicar...' : 'Aplicar'}
+                </Button>
+              </div>
+            </div>
                 {coupon ? (
                   <div className="rounded-sm border border-green-200 bg-green-50 p-3 text-sm text-green-700">
                     Cupom <span className="font-semibold">{coupon.code}</span> aplicado. Desconto de {Number(coupon.discount_amount ?? 0).toFixed(2)} €.
@@ -452,7 +468,12 @@ export default function Checkout() {
               {items.map((item) => (
                 <div key={`${item.product_id}-${item.color}`} className="flex gap-3">
                   <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
-                    {item.product_image ? <img src={item.product_image} alt="" className="w-full h-full object-cover" /> : null}
+                    <ImageWithFallback
+                      src={item.product_image}
+                      alt={item.product_name || ''}
+                      className="w-full h-full"
+                      iconClassName="w-6 h-6 text-muted-foreground/40"
+                    />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-body text-xs font-medium truncate">{item.product_name}</p>
@@ -482,8 +503,8 @@ export default function Checkout() {
                 <div className="pt-2">
                   <div className="flex items-end justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="text-muted-foreground">Pontos</div>
-                      <div className="text-[11px] text-muted-foreground">
+                        <Label className="font-body text-xs">Pontos a Usar</Label>
+                        <div className="text-[11px] text-muted-foreground mt-1">
                         Disponíveis: {pointsAvailable} • 1 ponto = {pointValue.toFixed(3)}€
                       </div>
                     </div>
@@ -502,7 +523,7 @@ export default function Checkout() {
               ) : null}
               {pointsUsed > 0 ? (
                 <div className="flex justify-between text-sm text-green-700">
-                  <span className="text-muted-foreground">Pontos ({pointsUsed})</span>
+                  <span>Pontos ({pointsUsed})</span>
                   <span>-{pointsDiscount.toFixed(2)} €</span>
                 </div>
               ) : null}
@@ -511,6 +532,9 @@ export default function Checkout() {
                 <span>Total</span>
                 <span>{totalAfterPoints.toFixed(2)} €</span>
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Estes valores incluem subtotal, custos de envio, descontos de cupom e descontos por pontos. O total final é o valor a pagar.
+              </p>
             </div>
             <Button type="submit" disabled={submitting} className="w-full rounded-none py-6 font-body text-sm tracking-wider mt-6">
               {submitting ? 'A processar...' : 'Confirmar Encomenda'}
@@ -518,6 +542,77 @@ export default function Checkout() {
           </div>
         </div>
       </form>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Confirmar Encomenda</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <div className="font-body text-sm text-muted-foreground mb-2">Verifique os detalhes antes de finalizar a compra.</div>
+              <div className="rounded-lg border border-border bg-secondary/10 p-4 space-y-2">
+                <div className="text-sm">
+                  <span className="font-semibold">Nome:</span> {form.customer_name || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Email:</span> {form.customer_email || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Telefone:</span> {form.customer_phone || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Morada:</span> {form.shipping_address || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Cidade:</span> {form.shipping_city || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Código Postal:</span> {form.shipping_postal_code || '-'}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Envio:</span> {shipping === 0 ? 'Grátis' : `${shipping.toFixed(2)} €`}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Pagamento:</span> {form.payment_method}
+                </div>
+                <div className="text-sm">
+                  <span className="font-semibold">Total:</span> {totalAfterPoints.toFixed(2)} €
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border bg-secondary/10 p-4">
+              <div className="font-body text-sm font-semibold mb-3">Itens</div>
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <div key={`${item.product_id}-${item.color}`} className="flex items-center justify-between gap-3 text-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
+                        <ImageWithFallback
+                          src={item.product_image}
+                          alt={item.product_name || 'Produto'}
+                          className="w-full h-full object-cover"
+                          iconClassName="w-4 h-4 text-muted-foreground/60"
+                        />
+                      </div>
+                      <span className="min-w-0 truncate">{item.product_name} x{item.quantity}</span>
+                    </div>
+                    <span>{(item.price * item.quantity).toFixed(2)} €</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setConfirmOpen(false)} className="rounded-none">
+              Voltar
+            </Button>
+            <Button type="button" onClick={handleSubmit} disabled={submitting} className="rounded-none">
+              {submitting ? 'A processar...' : 'Confirmar encomenda'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

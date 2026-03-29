@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { UploadCloud, X, Image as ImageIcon } from 'lucide-react';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Button } from '@/components/ui/button';
 import { toastApiPromise } from '@/lib/toast';
 import { base44 } from '@/api/base44Client';
@@ -75,7 +76,12 @@ export default function ImageUpload({
         <div className="p-4 flex items-center gap-4">
           <div className="w-16 h-16 rounded-md overflow-hidden bg-secondary/30 border border-border flex items-center justify-center shrink-0">
             {preview ? (
-              <img src={preview} alt="" className="w-full h-full object-cover" />
+              <ImageWithFallback
+                src={preview}
+                alt=""
+                className="w-full h-full object-cover"
+                iconClassName="w-6 h-6 text-muted-foreground/50"
+              />
             ) : (
               <ImageIcon className="w-6 h-6 text-muted-foreground/50" />
             )}

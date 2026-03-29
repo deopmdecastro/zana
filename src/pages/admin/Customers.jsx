@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
@@ -420,9 +421,12 @@ export default function AdminCustomers() {
 	                    {(userWishlistQuery.data ?? []).map((w) => (
 	                      <div key={w.id} className="flex gap-3 p-3 rounded-md border border-border bg-secondary/20">
                         <div className="w-14 h-14 rounded-md overflow-hidden bg-secondary/40 shrink-0">
-                          {w.product_image ? (
-                            <img src={w.product_image} alt="" className="w-full h-full object-cover" />
-                          ) : null}
+                          <ImageWithFallback
+                            src={w.product_image}
+                            alt={w.product_name || ''}
+                            className="w-full h-full"
+                            iconClassName="w-6 h-6 text-muted-foreground/40"
+                          />
                         </div>
 	                        <div className="min-w-0">
 	                          <p className="font-body text-sm font-medium truncate">{w.product_name ?? w.product_id}</p>

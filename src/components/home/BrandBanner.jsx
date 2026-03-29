@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 
 const fallbackBrand = {
   image_url: 'https://media.base44.com/images/public/69c68e1a7672ae1454387e62/0912c9232_generated_fe47a609.png',
@@ -32,10 +33,11 @@ export default function BrandBanner({ content } = {}) {
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
         >
-          <img
+          <ImageWithFallback
             src={brand.image_url}
             alt="Zana Acessórios - A nossa história"
             className="rounded-lg w-full aspect-[4/3] object-cover"
+            iconClassName="w-12 h-12 text-muted-foreground/40"
           />
         </motion.div>
 

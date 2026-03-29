@@ -4,7 +4,6 @@ import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, CalendarClock, Clock, Heart, LogOut, Package, Save, Sparkles, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -14,25 +13,11 @@ import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
+import { useCart } from '@/lib/CartContext';
 import { confirmDestructive } from '@/lib/confirm';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
+import OrderStatusCard from '@/components/orders/OrderStatusCard';
 
-const statusLabels = {
-  pending: 'Pendente',
-  confirmed: 'Confirmada',
-  processing: 'Em preparação',
-  shipped: 'Enviada',
-  delivered: 'Entregue',
-  cancelled: 'Cancelada',
-};
-
-const statusColors = {
-  pending: 'bg-secondary text-secondary-foreground',
-  confirmed: 'bg-accent/20 text-accent-foreground',
-  processing: 'bg-accent/30 text-accent-foreground',
-  shipped: 'bg-primary/10 text-primary',
-  delivered: 'bg-green-100 text-green-700',
-  cancelled: 'bg-destructive/10 text-destructive',
-};
 
 function normalizeFormValue(value) {
   if (value === null || value === undefined) return '';
@@ -62,6 +47,50 @@ export default function Account() {
     queryFn: () => base44.content.loyalty(),
     staleTime: 60_000,
   });
+
+  const { addItem, clearCart } = useCart();
+
+  const handleRepeatOrder = async (order) => {
+    if (!order?.items?.length) {
+      toast.error('Não é possível repetir esta encomenda.');
+      return;
+    }
+
+    const productsById = {};
+    const productIds = Array.from(
+      new Set(order.items.map((item) => String(item.product_id || '')).filter(Boolean))
+    );
+
+    await Promise.all(
+      productIds.map(async (productId) => {
+        try {
+          const products = await base44.entities.Product.filter({ id: productId, limit: 1 });
+          if (Array.isArray(products) && products.length > 0) {
+            productsById[productId] = products[0];
+          }
+        } catch {
+          // fallback to item price if current product lookup fails
+        }
+      })
+    );
+
+    clearCart();
+
+    order.items.forEach((item) => {
+      const currentProduct = item.product_id ? productsById[String(item.product_id)] : null;
+      const product = {
+        id: item.product_id || item.id || item.product_name,
+        name: item.product_name,
+        images: item.product_image ? [item.product_image] : [],
+        price: Number(currentProduct?.price ?? item.price) || 0,
+      };
+
+      addItem(product, item.quantity || 1, item.color || '');
+    });
+
+    toast.success('Itens da encomenda adicionados ao carrinho. Complete o checkout para finalizar.');
+    navigate('/checkout');
+  };
 
   const { data: apptSettingsRes } = useQuery({
     queryKey: ['appointments-settings'],
@@ -415,61 +444,9 @@ export default function Account() {
         </div>
       ) : (
         <div className="space-y-4">
-          {orders.map((order) => {
-            const totalNumber = Number.parseFloat(order.total);
-            return (
-              <div key={order.id} className="bg-card p-5 rounded-lg border border-border">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div>
-                    <p className="font-body text-xs text-muted-foreground">
-                      {format(new Date(order.created_at), 'd MMM yyyy', { locale: pt })}
-                    </p>
-                    <p className="font-body text-sm font-semibold">
-                      {Number.isFinite(totalNumber) ? totalNumber.toFixed(2) : order.total} €
-                    </p>
-                    {order.shipping_method_label ? (
-                      <p className="font-body text-xs text-muted-foreground mt-1">Envio: {order.shipping_method_label}</p>
-                    ) : null}
-                  </div>
-                  <Badge className={statusColors[order.status] || 'bg-secondary'}>
-                    {statusLabels[order.status] || order.status}
-                  </Badge>
-                </div>
-
-                {order.tracking_url || order.tracking_code ? (
-                  <div className="flex flex-wrap items-center justify-between gap-2 bg-secondary/20 border border-border rounded-md p-3">
-                    <div className="min-w-0">
-                      <div className="font-body text-xs text-muted-foreground">Rastreamento</div>
-                      <div className="font-body text-sm font-medium truncate">
-                        {order.tracking_carrier ? `${order.tracking_carrier} · ` : ''}
-                        {order.tracking_code ? order.tracking_code : 'Link disponível'}
-                      </div>
-                    </div>
-                    {order.tracking_url ? (
-                      <a href={order.tracking_url} target="_blank" rel="noreferrer" className="font-body text-xs text-primary hover:underline">
-                        Ver rastreamento
-                      </a>
-                    ) : null}
-                  </div>
-                ) : null}
-                <Separator className="my-3" />
-                <div className="flex flex-wrap gap-2">
-                  {order.items?.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      {item.product_image && (
-                        <div className="w-10 h-10 rounded bg-secondary/30 overflow-hidden">
-                          <img src={item.product_image} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      )}
-                      <span className="font-body text-xs text-muted-foreground">
-                        {item.product_name} x{item.quantity}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {orders.map((order) => (
+            <OrderStatusCard key={order.id} order={order} onRepeat={handleRepeatOrder} />
+          ))}
         </div>
       )}
 

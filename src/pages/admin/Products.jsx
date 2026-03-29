@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Code, Plus, Pencil, Package, Search } from 'lucide-react';
+import { Code, Plus, Pencil, Search } from 'lucide-react';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
@@ -281,7 +282,12 @@ export default function AdminProducts() {
                 <td className="p-3">
 	                  <div className="flex items-center gap-3">
 	                    <div className="w-10 h-10 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
-	                      {getPrimaryImage(p.images) ? <img src={getPrimaryImage(p.images)} alt="" className="w-full h-full object-cover" /> : <Package className="w-5 h-5 m-auto mt-2.5 text-muted-foreground/30" />}
+                        <ImageWithFallback
+                          src={getPrimaryImage(p.images)}
+                          alt={p.name || ''}
+                          className="w-full h-full"
+                          iconClassName="w-5 h-5 text-muted-foreground/30"
+                        />
 	                    </div>
 	                    <div className="min-w-0">
 	                      <div className="font-body text-sm font-medium truncate">{p.name}</div>
@@ -389,7 +395,12 @@ export default function AdminProducts() {
               <div className="flex gap-2 mt-1 flex-wrap">
                 {form.images?.map((img, i) => (
                   <div key={i} className="relative w-16 h-16 rounded overflow-hidden">
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <ImageWithFallback
+                      src={img}
+                      alt=""
+                      className="w-full h-full object-cover"
+                      iconClassName="w-6 h-6 text-muted-foreground/40"
+                    />
                     <button onClick={() => setForm({ ...form, images: form.images.filter((_, j) => j !== i) })} className="absolute top-0 right-0 bg-destructive text-destructive-foreground w-4 h-4 text-[10px] flex items-center justify-center">×</button>
                   </div>
                 ))}

@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Minus, Plus, ShoppingBag, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Separator } from '@/components/ui/separator';
 import { useCart } from '@/lib/CartContext';
 import DeleteIcon from '@/components/ui/delete-icon';
@@ -37,13 +38,12 @@ export default function Cart() {
           {items.map((item) => (
             <div key={`${item.product_id}-${item.color}`} className="flex gap-4 bg-card p-4 rounded-lg border border-border">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded overflow-hidden bg-secondary/30 flex-shrink-0">
-                {item.product_image ? (
-                  <img src={item.product_image} alt={item.product_name} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <ShoppingBag className="w-6 h-6 text-muted-foreground/30" />
-                  </div>
-                )}
+                <ImageWithFallback
+                  src={item.product_image}
+                  alt={item.product_name}
+                  className="w-full h-full"
+                  iconClassName="w-6 h-6 text-muted-foreground/30"
+                />
               </div>
 
               <div className="flex-1 min-w-0">

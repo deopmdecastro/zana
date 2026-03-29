@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { base44 } from '@/api/base44Client';
 import { getErrorMessage } from '@/lib/toast';
 import { useAuth } from '@/lib/AuthContext';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import QuickAppointmentDialog from '@/components/appointments/QuickAppointmentDialog';
 import HeroBanner from '@/components/home/HeroBanner';
 import CategoryGrid from '@/components/home/CategoryGrid';
@@ -117,15 +118,15 @@ export default function Home() {
               <div className="lg:col-span-5">
                 <div className="bg-card rounded-lg border border-border overflow-hidden shadow-sm h-full flex flex-col">
                   <div className="aspect-[16/9] bg-secondary/30">
-                    <img
-                      src={nextAppointment?.service?.image_url || '/appointments-cover.svg'}
+                    <ImageWithFallback
+                      src={nextAppointment?.service?.image_url}
                       alt={
                         nextAppointment?.service?.name
                           ? `Capa do serviço ${nextAppointment.service.name}`
                           : 'Capa de marcações'
                       }
                       className="w-full h-full object-cover select-none pointer-events-none"
-                      loading="lazy"
+                      iconClassName="w-16 h-16 text-muted-foreground/40"
                     />
                   </div>
                   <div className="p-6 flex-1 flex flex-col">
@@ -153,7 +154,7 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <div className="mt-5 mt-auto">
+                    <div className="mt-auto">
                       <Button
                         asChild
                         variant="default"
@@ -174,11 +175,11 @@ export default function Home() {
                       className="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
                     >
                       <div className="aspect-[16/9] bg-secondary/30">
-                        <img
-                          src={s.image_url || '/appointments-cover.svg'}
+                        <ImageWithFallback
+                          src={s.image_url}
                           alt=""
                           className="w-full h-full object-cover opacity-95 select-none pointer-events-none"
-                          loading="lazy"
+                          iconClassName="w-16 h-16 text-muted-foreground/40"
                         />
                       </div>
                       <div className="p-6 text-center flex-1 flex flex-col">
@@ -189,9 +190,6 @@ export default function Home() {
                         <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground font-body mb-4">
                           <span className="inline-flex items-center gap-2">
                             <Clock className="w-4 h-4" /> {s.duration_minutes ?? 30} min
-                          </span>
-                          <span className="inline-flex items-center gap-2">
-                            <Calendar className="w-4 h-4" /> Data & hora à escolha
                           </span>
                         </div>
                         <p className="text-2xl font-bold text-primary mb-5">{s.price ? `€${s.price}` : 'Grátis'}</p>

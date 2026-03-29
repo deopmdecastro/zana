@@ -2,6 +2,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Package, ShoppingCart, Euro, TrendingUp } from 'lucide-react';
 import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -34,6 +35,8 @@ export default function Dashboard() {
     value: orders.filter((o) => o.status === status).length,
     fill: STATUS_META[status]?.color ?? 'hsl(var(--chart-1))',
   }));
+
+  const latestProducts = products.slice(0, 5);
 
   const stats = [
     { title: 'Receita Total', value: `${totalRevenue.toFixed(2)} €`, icon: Euro, color: 'text-green-600' },
@@ -91,13 +94,56 @@ export default function Dashboard() {
             <p className="font-body text-sm text-muted-foreground text-center py-6">Sem encomendas ainda</p>
           ) : (
             <div className="space-y-3">
-              {orders.slice(0, 5).map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-md">
-                  <div>
-                    <p className="font-body text-sm font-medium">{order.customer_name}</p>
-                    <p className="font-body text-xs text-muted-foreground">{order.items?.length || 0} itens</p>
+              {orders.slice(0, 5).map((order) => {
+                const item = Array.isArray(order.items) && order.items.length > 0 ? order.items[0] : null;
+                return (
+                  <div key={order.id} className="flex items-center justify-between p-3 bg-secondary/30 rounded-md gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
+                        <ImageWithFallback
+                          src={item?.product_image}
+                          alt={item?.product_name || 'Produto'}
+                          className="w-full h-full object-cover"
+                          iconClassName="w-4 h-4 text-muted-foreground/60"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-body text-sm font-medium truncate">{order.customer_name}</p>
+                        <p className="font-body text-xs text-muted-foreground">{order.items?.length || 0} itens</p>
+                      </div>
+                    </div>
+                    <p className="font-body text-sm font-semibold">{order.total?.toFixed(2)} €</p>
                   </div>
-                  <p className="font-body text-sm font-semibold">{order.total?.toFixed(2)} €</p>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="font-heading text-xl">Produtos Recentes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {latestProducts.length === 0 ? (
+            <p className="font-body text-sm text-muted-foreground text-center py-6">Sem produtos cadastrados</p>
+          ) : (
+            <div className="space-y-3">
+              {latestProducts.map((product) => (
+                <div key={product.id} className="flex items-center gap-3 p-3 bg-secondary/30 rounded-md">
+                  <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
+                    <ImageWithFallback
+                      src={Array.isArray(product.images) ? product.images[0] : ''}
+                      alt={product.name || 'Produto'}
+                      className="w-full h-full object-cover"
+                      iconClassName="w-4 h-4 text-muted-foreground/60"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-body text-sm font-medium truncate">{product.name}</p>
+                    <p className="font-body text-xs text-muted-foreground">{product.status || 'sem estado'}</p>
+                  </div>
                 </div>
               ))}
             </div>

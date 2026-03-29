@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Instagram, Mail, MapPin } from 'lucide-react';
 import zanaLogo from '@/img/zana_logo.svg';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { useBranding } from '@/lib/useBranding';
 
 export default function Footer() {
@@ -13,7 +14,13 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="md:col-span-1">
-            <img src={logoSrc} alt={String(branding?.site_name ?? 'Zana')} className="h-10 w-auto mb-4" loading="lazy" />
+            <ImageWithFallback
+              src={logoSrc}
+              alt={String(branding?.site_name ?? 'Zana')}
+              className="h-10 w-auto mb-4"
+              loading="lazy"
+              iconClassName="w-10 h-10 text-muted-foreground/40"
+            />
             <p className="text-sm opacity-80 leading-relaxed">
               Elegância em cada detalhe. Bijuterias que celebram a essência da mulher moderna.
             </p>

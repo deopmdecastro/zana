@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage } from '@/lib/images';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import DeleteIcon from '@/components/ui/delete-icon';
 
 const statusLabels = {
@@ -306,6 +307,7 @@ export default function AdminOrders() {
           <thead>
             <tr className="border-b border-border bg-secondary/30">
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Total</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
@@ -318,6 +320,26 @@ export default function AdminOrders() {
                 <td className="p-3">
                   <p className="font-body text-sm font-medium">{order.customer_name}</p>
                   <p className="font-body text-xs text-muted-foreground">{order.customer_email}</p>
+                </td>
+                <td className="p-3">
+                  {order.items && order.items.length > 0 ? (
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded overflow-hidden bg-secondary/20 flex-shrink-0">
+                        <ImageWithFallback
+                          src={order.items[0].product_image}
+                          alt={order.items[0].product_name || 'Produto'}
+                          className="w-full h-full object-cover"
+                          iconClassName="w-4 h-4 text-muted-foreground/60"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-body text-sm truncate">{order.items[0].product_name}</p>
+                        <p className="font-body text-xs text-muted-foreground">x{order.items[0].quantity}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <span className="font-body text-xs text-muted-foreground">Sem itens</span>
+                  )}
                 </td>
                 <td className="p-3 font-body text-xs whitespace-nowrap">
                   {format(new Date(order.created_date), 'd MMM yyyy', { locale: pt })}
@@ -444,11 +466,14 @@ export default function AdminOrders() {
                 {selected.items?.map((item, i) => (
                   <div key={i} className="flex items-center justify-between">
                     <div className="flex items-center gap-3 min-w-0">
-                      {item.product_image ? (
-                        <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
-                          <img src={item.product_image} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      ) : null}
+                      <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0">
+                        <ImageWithFallback
+                          src={item.product_image}
+                          alt={item.product_name || ''}
+                          className="w-full h-full"
+                          iconClassName="w-5 h-5 text-muted-foreground/40"
+                        />
+                      </div>
                       <div className="min-w-0">
                         <p className="font-body text-sm truncate">{item.product_name}</p>
                         <p className="font-body text-xs text-muted-foreground">x{item.quantity}</p>

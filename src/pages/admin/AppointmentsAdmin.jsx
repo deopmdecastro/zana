@@ -1,15 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { CalendarClock, Plus } from 'lucide-react';
+import { CalendarClock, Check, CheckCheck, Pencil, Plus, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
@@ -195,8 +198,66 @@ export default function AppointmentsAdmin() {
   };
 
   const upcoming = useMemo(() => {
-    return appointments.slice().sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
+    return appointments.slice().sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
   }, [appointments]);
+
+  const statusMeta = {
+    pending: { label: 'Pendente', variant: 'secondary' },
+    confirmed: { label: 'Confirmada', variant: 'default' },
+    cancelled: { label: 'Cancelada', variant: 'destructive' },
+    completed: { label: 'Concluída', variant: 'outline' },
+  };
+
+  const toLocalDateTimeInput = (value) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const min = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+  };
+
+  const formatPtDateTime = (value) => {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (!Number.isFinite(d.getTime())) return '-';
+    return d.toLocaleString('pt-PT', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({
+    start_at: '',
+    service_id: '',
+    staff_id: '',
+    status: 'pending',
+    duration_minutes: '',
+    observations: '',
+  });
+
+  const openEdit = (a) => {
+    if (!a) return;
+    setEditing(a);
+    setEditForm({
+      start_at: toLocalDateTimeInput(a.start_at),
+      service_id: a.service?.id ? String(a.service.id) : '',
+      staff_id: a.staff?.id ? String(a.staff.id) : '',
+      status: a.status ?? 'pending',
+      duration_minutes: a.duration_minutes ? String(a.duration_minutes) : '',
+      observations: a.observations ?? '',
+    });
+    setEditOpen(true);
+  };
 
   return (
     <div>
@@ -682,7 +743,24 @@ export default function AppointmentsAdmin() {
 
         <TabsContent value="marcacoes" className="pt-4 space-y-4">
           <div className="bg-card p-6 rounded-lg border border-border">
-            <h2 className="font-heading text-xl mb-4">Marcações</h2>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <h2 className="font-heading text-xl">Marcações</h2>
+              <div className="flex items-center gap-2">
+                <span className="font-body text-xs text-muted-foreground">Mostrar</span>
+                <Select value={String(apptLimit)} onValueChange={(v) => setApptLimit(Math.max(5, Number(v) || 5))}>
+                  <SelectTrigger className="rounded-none h-9 w-[110px] font-body text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[5, 10, 20, 50, 100].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -696,106 +774,215 @@ export default function AppointmentsAdmin() {
                   </tr>
                 </thead>
                 <tbody>
-                  {upcoming.map((a) => (
-                    <tr key={a.id} className="border-b border-border last:border-0">
-                      <td className="p-3 font-body text-sm">{new Date(a.start_at).toLocaleString('pt-PT')}</td>
-                      <td className="p-3 font-body text-sm">{a.service?.name ?? '-'}</td>
-                      <td className="p-3 font-body text-sm">{a.staff?.name ?? '-'}</td>
-                      <td className="p-3 font-body text-sm text-muted-foreground">{a.customer_email ?? '-'}</td>
-                      <td className="p-3 font-body text-sm text-muted-foreground">{a.status}</td>
-                      <td className="p-3 text-right space-x-2">
-                        {a.status === 'pending' ? (
-                          <Button
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'confirmed' } })}
-                          >
-                            Confirmar
-                          </Button>
-                        ) : null}
-                        {(a.status === 'pending' || a.status === 'confirmed') ? (
-                          <Button
-                            variant="outline"
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'cancelled' } })}
-                          >
-                            Cancelar
-                          </Button>
-                        ) : null}
-                        {a.status === 'confirmed' ? (
-                          <Button
-                            variant="outline"
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'completed' } })}
-                          >
-                            Concluir
-                          </Button>
-                        ) : null}
+                  {upcoming.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center font-body text-sm text-muted-foreground">
+                        Sem marcações
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    upcoming.map((a) => {
+                      const meta = statusMeta[a.status] ?? { label: a.status, variant: 'outline' };
+                      return (
+                        <tr key={a.id} className="border-b border-border last:border-0 hover:bg-secondary/10">
+                          <td className="p-3 font-body text-sm whitespace-nowrap">{formatPtDateTime(a.start_at)}</td>
+                          <td className="p-3 font-body text-sm">{a.service?.name ?? '-'}</td>
+                          <td className="p-3 font-body text-sm">{a.staff?.name ?? '-'}</td>
+                          <td className="p-3 font-body text-sm text-muted-foreground">{a.customer_email ?? '-'}</td>
+                          <td className="p-3">
+                            <Badge variant={meta.variant} className="rounded-none font-body">
+                              {meta.label}
+                            </Badge>
+                          </td>
+                          <td className="p-3 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2">
+                              {a.status === 'pending' ? (
+                                <Button
+                                  size="icon"
+                                  className="h-9 w-9 rounded-none"
+                                  disabled={updateAppointmentMutation.isPending}
+                                  onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'confirmed' } })}
+                                  title="Confirmar"
+                                  aria-label="Confirmar"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </Button>
+                              ) : null}
+                              {a.status === 'confirmed' ? (
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-9 w-9 rounded-none"
+                                  disabled={updateAppointmentMutation.isPending}
+                                  onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'completed' } })}
+                                  title="Concluir"
+                                  aria-label="Concluir"
+                                >
+                                  <CheckCheck className="w-4 h-4" />
+                                </Button>
+                              ) : null}
+                              {a.status === 'pending' || a.status === 'confirmed' ? (
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-9 w-9 rounded-none"
+                                  disabled={updateAppointmentMutation.isPending}
+                                  onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'cancelled' } })}
+                                  title="Cancelar"
+                                  aria-label="Cancelar"
+                                >
+                                  <X className="w-4 h-4" />
+                                </Button>
+                              ) : null}
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-9 w-9 rounded-none"
+                                onClick={() => openEdit(a)}
+                                title="Editar"
+                                aria-label="Editar"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
-              {upcoming.length === 0 ? (
-                <p className="font-body text-sm text-muted-foreground py-4">Sem marcações</p>
-              ) : (
-                <>
-                  {upcoming.map((a) => (
-                    <tr key={a.id} className="border-b border-border last:border-0">
-                      <td className="p-3 font-body text-sm">{new Date(a.start_at).toLocaleString('pt-PT')}</td>
-                      <td className="p-3 font-body text-sm">{a.service?.name ?? '-'}</td>
-                      <td className="p-3 font-body text-sm">{a.staff?.name ?? '-'}</td>
-                      <td className="p-3 font-body text-sm text-muted-foreground">{a.customer_email ?? '-'}</td>
-                      <td className="p-3 font-body text-sm text-muted-foreground">{a.status}</td>
-                      <td className="p-3 text-right space-x-2">
-                        {a.status === 'pending' ? (
-                          <Button
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'confirmed' } })}
-                          >
-                            Confirmar
-                          </Button>
-                        ) : null}
-                        {(a.status === 'pending' || a.status === 'confirmed') ? (
-                          <Button
-                            variant="outline"
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'cancelled' } })}
-                          >
-                            Cancelar
-                          </Button>
-                        ) : null}
-                        {a.status === 'confirmed' ? (
-                          <Button
-                            variant="outline"
-                            className="rounded-none h-9 font-body text-xs"
-                            disabled={updateAppointmentMutation.isPending}
-                            onClick={() => updateAppointmentMutation.mutate({ id: a.id, patch: { status: 'completed' } })}
-                          >
-                            Concluir
-                          </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                  {apptRes.appointments?.length >= apptLimit && (
-                    <div className="p-4 text-center border-t border-border">
-                      <Button
-                        variant="outline"
-                        className="rounded-none font-body text-sm"
-                        onClick={() => setApptLimit((l) => l * 2)}
-                      >
-                        Ver mais marcações ({apptLimit} mostradas)
-                      </Button>
-                    </div>
-                  )}
-                </>
-              )}
+              {appointments.length >= apptLimit ? (
+                <div className="p-4 text-center border-t border-border">
+                  <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setApptLimit((l) => l * 2)}>
+                    Ver mais marcações
+                  </Button>
+                </div>
+              ) : null}
             </div>
+
+            <Dialog open={editOpen} onOpenChange={setEditOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="font-heading text-xl">Editar marcação</DialogTitle>
+                </DialogHeader>
+
+                {editing ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label className="font-body text-xs">Cliente</Label>
+                      <div className="font-body text-sm text-muted-foreground mt-1">{editing.customer_email ?? '-'}</div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-body text-xs">Data e hora</Label>
+                        <Input
+                          type="datetime-local"
+                          value={editForm.start_at}
+                          onChange={(e) => setEditForm((p) => ({ ...p, start_at: e.target.value }))}
+                          className="rounded-none mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="font-body text-xs">Duração (min)</Label>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={24 * 60}
+                          inputMode="numeric"
+                          value={editForm.duration_minutes}
+                          onChange={(e) => setEditForm((p) => ({ ...p, duration_minutes: e.target.value }))}
+                          className="rounded-none mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label className="font-body text-xs">Serviço</Label>
+                        <Select value={editForm.service_id} onValueChange={(v) => setEditForm((p) => ({ ...p, service_id: v }))}>
+                          <SelectTrigger className="rounded-none mt-1 font-body text-sm">
+                            <SelectValue placeholder={services.length ? 'Selecione...' : 'Sem serviços'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {services.map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="font-body text-xs">Atendente</Label>
+                        <Select value={editForm.staff_id} onValueChange={(v) => setEditForm((p) => ({ ...p, staff_id: v }))}>
+                          <SelectTrigger className="rounded-none mt-1 font-body text-sm">
+                            <SelectValue placeholder={staff.length ? 'Selecione...' : 'Sem atendentes'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staff.map((s) => (
+                              <SelectItem key={s.id} value={String(s.id)}>
+                                {s.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label className="font-body text-xs">Status</Label>
+                      <Select value={editForm.status} onValueChange={(v) => setEditForm((p) => ({ ...p, status: v }))}>
+                        <SelectTrigger className="rounded-none mt-1 font-body text-sm">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['pending', 'confirmed', 'cancelled', 'completed'].map((s) => (
+                            <SelectItem key={s} value={s}>
+                              {statusMeta[s]?.label ?? s}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label className="font-body text-xs">Observações</Label>
+                      <Textarea
+                        value={editForm.observations}
+                        onChange={(e) => setEditForm((p) => ({ ...p, observations: e.target.value }))}
+                        className="rounded-none mt-1 min-h-[90px]"
+                      />
+                    </div>
+                  </div>
+                ) : null}
+
+                <DialogFooter>
+                  <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setEditOpen(false)}>
+                    Fechar
+                  </Button>
+                  <Button
+                    className="rounded-none font-body text-sm tracking-wider"
+                    disabled={!editing || updateAppointmentMutation.isPending}
+                    onClick={() => {
+                      if (!editing) return;
+                      const patch = {
+                        status: editForm.status || undefined,
+                        start_at: editForm.start_at || undefined,
+                        service_id: editForm.service_id || undefined,
+                        staff_id: editForm.staff_id || undefined,
+                        duration_minutes: editForm.duration_minutes ? Number(editForm.duration_minutes) || undefined : undefined,
+                        observations: String(editForm.observations ?? '').trim() ? String(editForm.observations).trim() : null,
+                      };
+                      updateAppointmentMutation.mutate({ id: editing.id, patch }, { onSuccess: () => setEditOpen(false) });
+                    }}
+                  >
+                    {updateAppointmentMutation.isPending ? 'A guardar...' : 'Guardar'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         </TabsContent>
       </Tabs>

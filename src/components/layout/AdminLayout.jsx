@@ -24,6 +24,7 @@ import {
   Users,
 } from 'lucide-react';
 import zanaLogo from '@/img/zana_logo_primary.svg';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
@@ -124,7 +125,13 @@ export default function AdminLayout() {
               </SheetTrigger>
               <SheetContent side="left" className="p-0 w-[280px]">
                 <div className="px-4 py-3 border-b border-border flex items-center gap-3">
-                  <img src={logoSrc} alt="Zana" className="h-6 w-auto brightness-0" loading="eager" />
+                  <ImageWithFallback
+                    src={logoSrc}
+                    alt="Zana"
+                    className="h-6 w-auto brightness-0"
+                    loading="eager"
+                    iconClassName="w-6 h-6 text-muted-foreground/40"
+                  />
                   <div className="min-w-0">
                     <div className="font-heading text-base">Admin</div>
                     <div className="font-body text-xs text-muted-foreground truncate">{user?.email ?? ''}</div>
@@ -135,7 +142,13 @@ export default function AdminLayout() {
             </Sheet>
           </div>
 
-	          <img src={logoSrc} alt="Zana" className="h-7 w-auto" loading="eager" />
+	          <ImageWithFallback
+	            src={logoSrc}
+	            alt="Zana"
+	            className="h-7 w-auto"
+	            loading="eager"
+	            iconClassName="w-7 h-7 text-muted-foreground/40"
+	          />
         </div>
 
         <div className="flex items-center gap-2">

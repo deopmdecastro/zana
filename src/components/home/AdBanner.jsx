@@ -1,5 +1,6 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 
 export default function AdBanner({ banner, className }) {
   const enabled = banner?.enabled !== false;
@@ -10,11 +11,11 @@ export default function AdBanner({ banner, className }) {
   const alt = String(banner?.alt ?? 'Publicidade').trim() || 'Publicidade';
 
   const img = (
-    <img
+    <ImageWithFallback
       src={imageUrl}
       alt={alt}
       className="w-full h-full object-cover"
-      loading="lazy"
+      iconClassName="w-12 h-12 text-muted-foreground/40"
     />
   );
 

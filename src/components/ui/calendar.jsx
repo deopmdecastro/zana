@@ -29,7 +29,7 @@ function Calendar({
         ),
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
-        table: "w-full border-collapse",
+        table: "w-full table-fixed border-collapse",
         head_row: "grid grid-cols-7 gap-2",
         head_cell:
           "text-muted-foreground/80 rounded-md text-center font-medium text-[0.70rem] uppercase tracking-widest h-7 flex items-center justify-center",
@@ -42,7 +42,7 @@ function Calendar({
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "relative h-[clamp(2.25rem,9vw,2.75rem)] w-[clamp(2.25rem,9vw,2.75rem)] p-0 font-normal aria-selected:opacity-100 rounded-md leading-none"
+          "relative w-full aspect-square p-0 font-normal aria-selected:opacity-100 rounded-md leading-none min-w-0"
         ),
         day_range_start: "day-range-start",
         day_range_end: "day-range-end",

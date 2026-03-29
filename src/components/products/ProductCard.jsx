@@ -1,10 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Heart, ShoppingBag } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/lib/CartContext';
 import { base44 } from '@/api/base44Client';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage } from '@/lib/images';
@@ -54,17 +55,12 @@ export default function ProductCard({ product }) {
     >
       <Link to={`/produto/${product.id}`} className="group block">
         <div className="relative overflow-hidden rounded-lg bg-secondary/50 aspect-square mb-3">
-          {primaryImage ? (
-            <img
-              src={primaryImage}
-              alt={product.name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-              <ShoppingBag className="w-12 h-12 opacity-30" />
-            </div>
-          )}
+          <ImageWithFallback
+            src={primaryImage}
+            alt={product.name}
+            className="group-hover:scale-105 transition-transform duration-500"
+            iconClassName="w-12 h-12 opacity-30 text-muted-foreground"
+          />
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1">

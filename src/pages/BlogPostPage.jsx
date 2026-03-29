@@ -6,6 +6,7 @@ import { ChevronLeft, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import ReactMarkdown from 'react-markdown';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { useAuth } from '@/lib/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -85,7 +86,12 @@ export default function BlogPostPage() {
 
       {post.image_url && (
         <div className="aspect-[16/9] rounded-lg overflow-hidden mb-8">
-          <img src={post.image_url} alt={post.title} className="w-full h-full object-cover" />
+          <ImageWithFallback
+            src={post.image_url}
+            alt={post.title}
+            className="w-full h-full object-cover"
+            iconClassName="w-12 h-12 text-muted-foreground/40"
+          />
         </div>
       )}
 

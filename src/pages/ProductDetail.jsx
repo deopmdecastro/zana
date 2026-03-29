@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Heart, Minus, Plus, ChevronLeft, Star, X } from 'lucide-react';
+import { ShoppingBag, Heart, Minus, Plus, ChevronLeft, Star, X, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -32,6 +33,8 @@ export default function ProductDetail() {
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [reviewImages, setReviewImages] = useState([]);
   const [reviewVideos, setReviewVideos] = useState([]);
+  const imageInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const { addItem } = useCart();
 
   const { data: product, isLoading } = useQuery({
@@ -191,13 +194,12 @@ export default function ProductDetail() {
           {/* Images */}
           <div>
             <div className="aspect-square rounded-lg overflow-hidden bg-secondary/30 mb-3">
-              {images?.[selectedImage] ? (
-                <img src={images[selectedImage]} alt={product.name} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingBag className="w-16 h-16 text-muted-foreground/30" />
-                </div>
-              )}
+              <ImageWithFallback
+                src={images?.[selectedImage]}
+                alt={product.name}
+                className="w-full h-full"
+                iconClassName="w-16 h-16 text-muted-foreground/30"
+              />
             </div>
             {images?.length > 1 && (
               <div className="flex gap-2">
@@ -209,7 +211,12 @@ export default function ProductDetail() {
                       selectedImage === i ? 'border-primary' : 'border-transparent'
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <ImageWithFallback
+                      src={img}
+                      alt=""
+                      className="w-full h-full"
+                      iconClassName="w-10 h-10 text-muted-foreground/40"
+                    />
                   </button>
                 ))}
               </div>
@@ -366,7 +373,12 @@ export default function ProductDetail() {
                     <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
                       {review.images.slice(0, 8).map((src, idx) => (
                         <div key={idx} className="aspect-square rounded-md overflow-hidden border border-border bg-secondary/20">
-                          <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                          <ImageWithFallback
+                            src={src}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            iconClassName="w-6 h-6 text-muted-foreground/40"
+                          />
                         </div>
                       ))}
                     </div>
@@ -411,18 +423,36 @@ export default function ProductDetail() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
               <div>
                 <Label className="font-body text-xs">Fotos (até 3)</Label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleSelectReviewImages(e.target.files)}
-                  className="mt-2 block w-full text-sm font-body"
-                />
+                <div className="mt-2 rounded-md border border-border bg-card p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-sm text-foreground/90">
+                      {reviewImages.length > 0 ? `${reviewImages.length} imagem${reviewImages.length === 1 ? '' : 'ens'} selecionada${reviewImages.length === 1 ? '' : 's'}` : 'Nenhuma imagem selecionada'}
+                    </p>
+                    <Button type="button" variant="outline" onClick={() => imageInputRef.current?.click()} className="rounded-none font-body text-sm gap-2">
+                      <UploadCloud className="w-4 h-4" />
+                      Selecionar fotos
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Aceita imagens JPG, PNG ou GIF. Até 3 imagens.</p>
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => handleSelectReviewImages(e.target.files)}
+                  />
+                </div>
                 {reviewImages.length > 0 ? (
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {reviewImages.map((src, idx) => (
                       <div key={idx} className="relative aspect-square rounded-md overflow-hidden border border-border bg-secondary/20">
-                        <img src={src} alt="" className="w-full h-full object-cover" />
+                        <ImageWithFallback
+                          src={src}
+                          alt=""
+                          className="w-full h-full object-cover"
+                          iconClassName="w-6 h-6 text-muted-foreground/40"
+                        />
                         <button
                           type="button"
                           onClick={() => setReviewImages((p) => p.filter((_, i) => i !== idx))}
@@ -438,12 +468,25 @@ export default function ProductDetail() {
               </div>
               <div>
                 <Label className="font-body text-xs">Vídeo (opcional)</Label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={(e) => handleSelectReviewVideo(e.target.files?.[0] || null)}
-                  className="mt-2 block w-full text-sm font-body"
-                />
+                <div className="mt-2 rounded-md border border-border bg-card p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <p className="text-sm text-foreground/90">
+                      {reviewVideos.length > 0 ? 'Vídeo selecionado' : 'Nenhum vídeo selecionado'}
+                    </p>
+                    <Button type="button" variant="outline" onClick={() => videoInputRef.current?.click()} className="rounded-none font-body text-sm gap-2">
+                      <UploadCloud className="w-4 h-4" />
+                      Selecionar vídeo
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">Aceita arquivos de vídeo MP4, WebM ou MOV.</p>
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    onChange={(e) => handleSelectReviewVideo(e.target.files?.[0] || null)}
+                  />
+                </div>
                 {reviewVideos.length > 0 ? (
                   <div className="mt-3 relative">
                     <video src={reviewVideos[0]} controls playsInline className="w-full rounded-md border border-border bg-black/5" />
