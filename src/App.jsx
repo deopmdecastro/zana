@@ -46,6 +46,7 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 			const WishlistPage = lazy(() => import('@/pages/Wishlist'));
 			const Account = lazy(() => import('@/pages/Account'));
       const Appointments = lazy(() => import('@/pages/Appointments'));
+      const MyAppointments = lazy(() => import('@/pages/MyAppointments'));
 
 	// Admin
 	const Dashboard = lazy(() => import('@/pages/admin/Dashboard'));
@@ -124,6 +125,7 @@ const AuthenticatedApp = () => {
 		        <Route path="/faq" element={<FAQPage />} />
 	        <Route path="/favoritos" element={<WishlistPage />} />
 	        <Route path="/conta" element={<Account />} />
+          <Route path="/conta/marcacoes" element={<MyAppointments />} />
           <Route path="/marcacoes" element={<Appointments />} />
 	      </Route>
 

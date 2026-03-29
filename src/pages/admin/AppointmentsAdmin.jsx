@@ -3,14 +3,26 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { CalendarClock, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import ImageUpload from '@/components/uploads/ImageUpload';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
+
+const WEEKDAYS = [
+  { value: 1, label: 'Seg' },
+  { value: 2, label: 'Ter' },
+  { value: 3, label: 'Qua' },
+  { value: 4, label: 'Qui' },
+  { value: 5, label: 'Sex' },
+  { value: 6, label: 'Sáb' },
+  { value: 0, label: 'Dom' },
+];
 
 export default function AppointmentsAdmin() {
   const queryClient = useQueryClient();
@@ -39,7 +51,7 @@ export default function AppointmentsAdmin() {
   });
 
   const services = servicesRes?.services ?? [];
-const staff = staffRes?.staff ?? [];
+  const staff = staffRes?.staff ?? [];
   const activeStaff = useMemo(() => staff.filter((s) => s.is_active !== false), [staff]);
   const appointments = apptRes?.appointments ?? [];
   const [selectedServiceId, setSelectedServiceId] = useState('');
@@ -124,8 +136,43 @@ const staff = staffRes?.staff ?? [];
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível atualizar a marcação.')),
   });
 
-const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30', price: '', staff_id: '', is_active: true });
-  const [staffForm, setStaffForm] = useState({ name: '', email: '', phone: '', is_active: true });
+  const [serviceForm, setServiceForm] = useState({
+    name: '',
+    image_url: '',
+    duration_minutes: '30',
+    price: '',
+    staff_id: '',
+    is_active: true,
+  });
+
+  const [staffForm, setStaffForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    is_active: true,
+    availability_days: [1, 2, 3, 4, 5],
+    availability_start_time: '09:00',
+    availability_end_time: '18:00',
+  });
+
+  const staffAvailabilityText = useMemo(() => {
+    const start = String(staffForm.availability_start_time ?? '').trim();
+    const end = String(staffForm.availability_end_time ?? '').trim();
+    const days = Array.isArray(staffForm.availability_days) ? staffForm.availability_days : [];
+    const labels = WEEKDAYS.filter((d) => days.includes(d.value)).map((d) => d.label);
+    if (!labels.length || !start || !end) return '';
+    return `${labels.join(', ')} • ${start}–${end}`;
+  }, [staffForm.availability_days, staffForm.availability_end_time, staffForm.availability_start_time]);
+
+  const formatStaffAvailability = (availability) => {
+    if (!availability || typeof availability !== 'object') return '-';
+    const days = Array.isArray(availability.days) ? availability.days : [];
+    const start = typeof availability.start_time === 'string' ? availability.start_time : '';
+    const end = typeof availability.end_time === 'string' ? availability.end_time : '';
+    const labels = WEEKDAYS.filter((d) => days.includes(d.value)).map((d) => d.label);
+    if (!labels.length || !start || !end) return '-';
+    return `${labels.join(', ')} • ${start}–${end}`;
+  };
 
   const upcoming = useMemo(() => {
     return appointments.slice().sort((a, b) => new Date(b.start_at).getTime() - new Date(a.start_at).getTime());
@@ -168,20 +215,29 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
               <h2 className="font-heading text-xl">Serviços</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
-              <div className="md:col-span-2">
-                <Label className="font-body text-xs">Nome</Label>
-                <Input
-                  value={serviceForm.name}
-                  onChange={(e) => setServiceForm((p) => ({ ...p, name: e.target.value }))}
-                  className="rounded-none mt-1"
-                />
-              </div>
-              <div>
-                <Label className="font-body text-xs">Duração (min)</Label>
-                <Input
-                  type="number"
-                  inputMode="numeric"
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4"> 
+              <div className="md:col-span-2"> 
+                <Label className="font-body text-xs">Nome</Label> 
+                <Input 
+                  value={serviceForm.name} 
+                  onChange={(e) => setServiceForm((p) => ({ ...p, name: e.target.value }))} 
+                  className="rounded-none mt-1" 
+                /> 
+              </div> 
+              <div className="md:col-span-2"> 
+                <ImageUpload 
+                  value={serviceForm.image_url} 
+                  onChange={(v) => setServiceForm((p) => ({ ...p, image_url: v }))} 
+                  label="Imagem do serviço" 
+                  helper="Esta imagem será mostrada nos cards do site." 
+                  recommended="1200×675"
+                /> 
+              </div> 
+              <div> 
+                <Label className="font-body text-xs">Duração (min)</Label> 
+                <Input 
+                  type="number" 
+                  inputMode="numeric" 
                   min={1}
                   step={1}
                   value={serviceForm.duration_minutes}
@@ -217,21 +273,22 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
               </div>
             </div>
 
-            <Button
-              className="rounded-none font-body text-sm tracking-wider"
-              disabled={createServiceMutation.isPending || !serviceForm.name.trim()}
-              onClick={() => {
-                createServiceMutation.mutate({
-                  name: serviceForm.name.trim(),
-                  duration_minutes: Number(serviceForm.duration_minutes) || 30,
-                  price: serviceForm.price.trim() ? Number(serviceForm.price) : null,
-                  is_active: true,
-                });
-                setServiceForm((p) => ({ ...p, name: '', staff_id: '' }));
-              }}
-            >
-              <Plus className="w-4 h-4 mr-2" /> Adicionar serviço
-            </Button>
+            <Button 
+              className="rounded-none font-body text-sm tracking-wider" 
+              disabled={createServiceMutation.isPending || !serviceForm.name.trim()} 
+              onClick={() => { 
+                createServiceMutation.mutate({ 
+                  name: serviceForm.name.trim(), 
+                  image_url: serviceForm.image_url?.trim() || null,
+                  duration_minutes: Number(serviceForm.duration_minutes) || 30, 
+                  price: serviceForm.price.trim() ? Number(serviceForm.price) : null, 
+                  is_active: true, 
+                }); 
+                setServiceForm((p) => ({ ...p, name: '', image_url: '', staff_id: '' })); 
+              }} 
+            > 
+              <Plus className="w-4 h-4 mr-2" /> Adicionar serviço 
+            </Button> 
 
             <Separator className="my-5" />
 
@@ -279,7 +336,7 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
 
               <div className="bg-secondary/10 border border-border rounded-lg p-4">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <div className="font-heading text-base">Atendentes</div>
+                  <div className="font-heading text-base">Detalhes do serviço</div>
                   {selectedServiceId ? (
                     <Button variant="ghost" className="h-8 px-2 rounded-none font-body text-xs" onClick={() => setSelectedServiceId('')}>
                       Limpar
@@ -292,6 +349,16 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
                 ) : (
                   <div className="space-y-3">
                     <div className="font-body text-sm font-medium">{selectedService.name}</div>
+                    <div className="font-heading text-base">Atendentes</div>
+
+                    <ImageUpload
+                      value={selectedService.image_url || ''}
+                      onChange={(v) => updateServiceMutation.mutate({ id: selectedService.id, patch: { image_url: v || null } })}
+                      label="Imagem do serviço"
+                      helper="Atualiza o card no site."
+                      recommended="1200×675"
+                    />
+
                     <p className="font-body text-xs text-muted-foreground">
                       Se nenhum atendente estiver selecionado, qualquer atendente ativo poderá ser escolhido pelo cliente.
                     </p>
@@ -304,11 +371,11 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
                           return (
                             <label key={s.id} className="flex items-center justify-between gap-3 text-sm font-body">
                               <span className="truncate">{s.name}</span>
-                              <input
-                                type="checkbox"
+                              <Checkbox
                                 checked={checked}
-                                onChange={(e) => {
-                                  const next = e.target.checked
+                                onCheckedChange={(value) => {
+                                  const isChecked = value === true;
+                                  const next = isChecked
                                     ? Array.from(new Set([...serviceStaffIds, s.id]))
                                     : serviceStaffIds.filter((id) => id !== s.id);
                                   setServiceStaffIds(next);
@@ -367,17 +434,97 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
               </div>
             </div>
 
+            <div className="bg-secondary/20 border border-border rounded-lg p-4 mb-4">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <div className="font-heading text-base">Disponibilidade</div>
+                  <div className="font-body text-xs text-muted-foreground">
+                    Defina os dias e o horário em que este atendente pode receber marcações.
+                  </div>
+                </div>
+                <div className="font-body text-xs text-muted-foreground">{staffAvailabilityText || '—'}</div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="md:col-span-2">
+                  <Label className="font-body text-xs">Dias</Label>
+                  <div className="mt-2 flex items-center gap-4 flex-wrap">
+                    {WEEKDAYS.map((d) => (
+                      <label key={d.value} className="inline-flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                          checked={staffForm.availability_days.includes(d.value)}
+                          onCheckedChange={(checked) => {
+                            setStaffForm((p) => {
+                              const current = Array.isArray(p.availability_days) ? p.availability_days : [];
+                              const has = current.includes(d.value);
+                              const nextDays = checked
+                                ? (has ? current : [...current, d.value])
+                                : current.filter((x) => x !== d.value);
+                              return { ...p, availability_days: nextDays };
+                            });
+                          }}
+                        />
+                        <span className="font-body text-xs">{d.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="font-body text-xs">Início</Label>
+                    <Input
+                      type="time"
+                      value={staffForm.availability_start_time}
+                      onChange={(e) => setStaffForm((p) => ({ ...p, availability_start_time: e.target.value }))}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs">Fim</Label>
+                    <Input
+                      type="time"
+                      value={staffForm.availability_end_time}
+                      onChange={(e) => setStaffForm((p) => ({ ...p, availability_end_time: e.target.value }))}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <Button
               className="rounded-none font-body text-sm tracking-wider"
-              disabled={createStaffMutation.isPending || !staffForm.name.trim()}
+              disabled={
+                createStaffMutation.isPending ||
+                !staffForm.name.trim() ||
+                staffForm.availability_days.length === 0 ||
+                !staffForm.availability_start_time ||
+                !staffForm.availability_end_time ||
+                String(staffForm.availability_end_time) <= String(staffForm.availability_start_time)
+              }
               onClick={() => {
                 createStaffMutation.mutate({
                   name: staffForm.name.trim(),
                   email: staffForm.email.trim() || null,
                   phone: staffForm.phone.trim() || null,
+                  availability: {
+                    days: staffForm.availability_days,
+                    start_time: staffForm.availability_start_time,
+                    end_time: staffForm.availability_end_time,
+                    timezone: 'Europe/Lisbon',
+                  },
                   is_active: true,
                 });
-                setStaffForm((p) => ({ ...p, name: '' }));
+                setStaffForm({
+                  name: '',
+                  email: '',
+                  phone: '',
+                  is_active: true,
+                  availability_days: [1, 2, 3, 4, 5],
+                  availability_start_time: '09:00',
+                  availability_end_time: '18:00',
+                });
               }}
             >
               <Plus className="w-4 h-4 mr-2" /> Adicionar atendente
@@ -392,6 +539,7 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Email</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Telefone</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Disponibilidade</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
                   </tr>
                 </thead>
@@ -401,6 +549,7 @@ const [serviceForm, setServiceForm] = useState({ name: '', duration_minutes: '30
                       <td className="p-3 font-body text-sm">{s.name}</td>
                       <td className="p-3 font-body text-sm text-muted-foreground">{s.email || '-'}</td>
                       <td className="p-3 font-body text-sm text-muted-foreground">{s.phone || '-'}</td>
+                      <td className="p-3 font-body text-sm text-muted-foreground">{formatStaffAvailability(s.availability)}</td>
                       <td className="p-3">
                         <Switch
                           checked={Boolean(s.is_active)}

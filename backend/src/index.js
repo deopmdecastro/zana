@@ -508,24 +508,35 @@ const appointmentsContentSchema = z
   })
   .passthrough()
 
-const appointmentServicePayloadSchema = z
+const appointmentServicePayloadSchema = z 
+  .object({ 
+    name: z.string().min(1).max(120), 
+    description: z.string().max(2000).optional().nullable(), 
+    image_url: z.string().max(10_000).optional().nullable(),
+    duration_minutes: z.union([z.number(), z.string()]).optional(), 
+    price: z.union([z.number(), z.string()]).optional().nullable(), 
+    is_active: z.boolean().optional(), 
+  }) 
+  .passthrough() 
+
+const staffAvailabilitySchema = z
   .object({
-    name: z.string().min(1).max(120),
-    description: z.string().max(2000).optional().nullable(),
-    duration_minutes: z.union([z.number(), z.string()]).optional(),
-    price: z.union([z.number(), z.string()]).optional().nullable(),
-    is_active: z.boolean().optional(),
+    days: z.array(z.number().int().min(0).max(6)).min(1),
+    start_time: z.string().regex(/^\d{2}:\d{2}$/),
+    end_time: z.string().regex(/^\d{2}:\d{2}$/),
+    timezone: z.string().max(80).optional().nullable(),
   })
   .passthrough()
 
-const appointmentStaffPayloadSchema = z
-  .object({
-    name: z.string().min(1).max(120),
-    email: z.string().email().max(320).optional().nullable(),
-    phone: z.string().max(30).optional().nullable(),
-    is_active: z.boolean().optional(),
-  })
-  .passthrough()
+const appointmentStaffPayloadSchema = z 
+  .object({ 
+    name: z.string().min(1).max(120), 
+    email: z.string().email().max(320).optional().nullable(), 
+    phone: z.string().max(30).optional().nullable(), 
+    availability: staffAvailabilitySchema.optional().nullable(),
+    is_active: z.boolean().optional(), 
+  }) 
+  .passthrough() 
 
 const appointmentCreateSchema = z
   .object({
@@ -1052,10 +1063,131 @@ function applyCouponToOrder(data) {
   return { couponCode }
 }
 
-function parseDateInput(value) {
-  if (!value) return null
-  const date = new Date(value)
-  return Number.isFinite(date.getTime()) ? date : null
+function parseDateInput(value) { 
+  if (!value) return null 
+  const date = new Date(value) 
+  return Number.isFinite(date.getTime()) ? date : null 
+} 
+
+function parseTimeHHMM(value) {
+  const raw = String(value ?? '').trim()
+  const m = raw.match(/^(\d{2}):(\d{2})$/)
+  if (!m) return null
+  const hours = Number(m[1])
+  const minutes = Number(m[2])
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null
+  if (hours < 0 || hours > 23) return null
+  if (minutes < 0 || minutes > 59) return null
+  return hours * 60 + minutes
+}
+
+function isAppointmentWithinStaffAvailability(availability, startAt, endAt) {
+  if (!availability || typeof availability !== 'object') return true
+  const days = Array.isArray(availability.days) ? availability.days : null
+  const startMinutes = parseTimeHHMM(availability.start_time)
+  const endMinutes = parseTimeHHMM(availability.end_time)
+  if (!days || startMinutes === null || endMinutes === null) return true
+  if (endMinutes <= startMinutes) return false
+  if (!days.includes(startAt.getDay())) return false
+  if (
+    startAt.getFullYear() !== endAt.getFullYear() ||
+    startAt.getMonth() !== endAt.getMonth() ||
+    startAt.getDate() !== endAt.getDate()
+  ) {
+    return false
+  }
+  const apptStart = startAt.getHours() * 60 + startAt.getMinutes()
+  const apptEnd = endAt.getHours() * 60 + endAt.getMinutes()
+  return apptStart >= startMinutes && apptEnd <= endMinutes
+}
+
+async function maybeSendAppointmentRemindersForUser(user, appointments) {
+  if (!user || !Array.isArray(appointments) || appointments.length === 0) return
+
+  const smtpOk = isSmtpConfigured()
+  const now = Date.now()
+  const windowHours = Math.max(1, Math.min(Number.parseInt(process.env.APPOINTMENT_REMINDER_HOURS ?? '24', 10) || 24, 24 * 14))
+  const windowMs = windowHours * 60 * 60 * 1000
+
+  const remindables = appointments
+    .filter((a) => a && (a.status === 'confirmed' || a.status === 'pending'))
+    .filter((a) => !a.reminderSentAt)
+    .filter((a) => {
+      const startMs = new Date(a.startAt).getTime()
+      return Number.isFinite(startMs) && startMs > now && startMs - now <= windowMs
+    })
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime())
+    .slice(0, 2)
+
+  if (!remindables.length) return
+
+  let emailContent = null
+  if (smtpOk) {
+    try {
+      emailContent = (await getEmailContent())?.content ?? null
+    } catch {}
+  }
+
+  for (const a of remindables) {
+    const to = user.email ? String(user.email).trim().toLowerCase() : ''
+    const startAt = new Date(a.startAt)
+    const dateText = startAt.toLocaleDateString('pt-PT')
+    const timeText = startAt.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+
+    let emailSent = false
+    if (smtpOk && to) {
+      try {
+        const subject = `Lembrete: marcação em ${dateText} às ${timeText}`
+        const serviceName = a.service?.name ? String(a.service.name) : 'Serviço'
+        const staffName = a.staff?.name ? String(a.staff.name) : 'Atendente'
+        const link = `${String(appBaseUrl ?? '').replace(/\/+$/, '')}/marcacoes`
+        const html = [
+          `<p>Olá ${guessFirstName(user.fullName ?? user.email)},</p>`,
+          `<p>Este é um lembrete da sua marcação.</p>`,
+          `<p><strong>${serviceName}</strong> · ${staffName}<br/>${dateText} às ${timeText}</p>`,
+          `<p>Ver detalhes: <a href="${link}">${link}</a></p>`,
+        ].join('')
+        const text = [
+          `Olá ${guessFirstName(user.fullName ?? user.email)},`,
+          '',
+          'Este é um lembrete da sua marcação.',
+          `${serviceName} · ${staffName}`,
+          `${dateText} às ${timeText}`,
+          '',
+          `Ver detalhes: ${link}`,
+        ].join('\n')
+        const fromName = emailContent?.from_name ? String(emailContent.from_name) : undefined
+        emailSent = await sendTemplatedEmail({ to, subject, html, text, fromName })
+      } catch (err) {
+        console.error('appointment reminder email failed', err)
+      }
+    }
+
+    try {
+      await prisma.$transaction(async (tx) => {
+        await tx.appointment.update({ where: { id: a.id }, data: { reminderSentAt: new Date() } })
+        await tx.auditLog.create({
+          data: {
+            actorId: null,
+            action: 'reminder',
+            entityType: 'Appointment',
+            entityId: a.id,
+            meta: {
+              user_id: user.id,
+              customer_email: user.email ?? null,
+              appointment_id: a.id,
+              start_at: a.startAt,
+              service_name: a.service?.name ?? null,
+              staff_name: a.staff?.name ?? null,
+              email_sent: Boolean(emailSent),
+            },
+          },
+        })
+      })
+    } catch (err) {
+      console.error('appointment reminder log failed', err)
+    }
+  }
 }
 
 function parseDecimal(value) {
@@ -2074,6 +2206,7 @@ function toApiAppointmentService(s) {
     id: s.id,
     name: s.name,
     description: s.description ?? null,
+    image_url: s.imageUrl ?? null,
     duration_minutes: s.durationMinutes ?? 30,
     price: s.price === null || s.price === undefined ? null : decimalToNumber(s.price),
     is_active: Boolean(s.isActive),
@@ -2082,34 +2215,36 @@ function toApiAppointmentService(s) {
   }
 }
 
-function toApiStaffMember(s) {
-  return {
-    id: s.id,
-    name: s.name,
-    email: s.email ?? null,
-    phone: s.phone ?? null,
-    is_active: Boolean(s.isActive),
-    created_date: s.createdAt,
-    updated_date: s.updatedAt,
-  }
-}
+function toApiStaffMember(s) { 
+  return { 
+    id: s.id, 
+    name: s.name, 
+    email: s.email ?? null, 
+    phone: s.phone ?? null, 
+    availability: s.availability ?? null,
+    is_active: Boolean(s.isActive), 
+    created_date: s.createdAt, 
+    updated_date: s.updatedAt, 
+  } 
+} 
 
-function toApiAppointment(a) {
-  return {
-    id: a.id,
-    user_id: a.userId,
-    customer_email: a.user?.email ?? null,
-    service: a.service ? toApiAppointmentService(a.service) : null,
-    staff: a.staff ? toApiStaffMember(a.staff) : null,
-    start_at: a.startAt,
-    end_at: a.endAt,
-    duration_minutes: a.durationMinutes,
-    status: a.status,
-    observations: a.observations ?? null,
-    created_date: a.createdAt,
-    updated_date: a.updatedAt,
-  }
-}
+function toApiAppointment(a) { 
+  return { 
+    id: a.id, 
+    user_id: a.userId, 
+    customer_email: a.user?.email ?? null, 
+    service: a.service ? toApiAppointmentService(a.service) : null, 
+    staff: a.staff ? toApiStaffMember(a.staff) : null, 
+    start_at: a.startAt, 
+    end_at: a.endAt, 
+    duration_minutes: a.durationMinutes, 
+    status: a.status, 
+    observations: a.observations ?? null, 
+    reminder_sent_at: a.reminderSentAt ?? null,
+    created_date: a.createdAt, 
+    updated_date: a.updatedAt, 
+  } 
+} 
 
 function toApiWishlistItem(w) {
   return {
@@ -3255,11 +3390,11 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 	})
 
 	// Notifications (customer)
-	app.get('/api/notifications', async (req, res) => {
-	  const user = await requireUser(req, res)
-	  if (!user) return
-
-  const userEmail = user.email ? String(user.email).trim().toLowerCase() : ''
+app.get('/api/notifications', async (req, res) => { 
+  const user = await requireUser(req, res) 
+  if (!user) return 
+ 
+  const userEmail = user.email ? String(user.email).trim().toLowerCase() : '' 
 
   const supportMessages = await prisma.supportMessage.findMany({
     where: { authorType: 'admin', ticket: { userId: user.id } },
@@ -3283,24 +3418,49 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 	    include: { comment: { include: { post: true } } },
 	  })
 
-	  const orderStatusLogs = userEmail
-	    ? await prisma.auditLog.findMany({
-	        where: {
-	          entityType: 'Order',
-	          action: 'update',
-	          meta: { path: ['customer_email'], equals: userEmail },
-	        },
-	        orderBy: { createdAt: 'desc' },
-	        take: 20,
-	      })
-	    : []
-	
-	  const items = [
-    ...supportMessages.map((m) => ({
-      id: `support:${m.id}`,
-      type: 'support',
-      title: 'Nova resposta no suporte',
-      text: m.message,
+	  const orderStatusLogs = userEmail 
+	    ? await prisma.auditLog.findMany({ 
+	        where: { 
+	          entityType: 'Order', 
+	          action: 'update', 
+	          meta: { path: ['customer_email'], equals: userEmail }, 
+	        }, 
+	        orderBy: { createdAt: 'desc' }, 
+	        take: 20, 
+	      }) 
+	    : [] 
+
+    const appointmentReminderLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'Appointment',
+        action: 'reminder',
+        meta: { path: ['user_id'], equals: user.id },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })
+	 
+	  const items = [ 
+    ...appointmentReminderLogs.map((l) => {
+      const serviceName = typeof l.meta?.service_name === 'string' ? l.meta.service_name : null
+      const staffName = typeof l.meta?.staff_name === 'string' ? l.meta.staff_name : null
+      const startAt = l.meta?.start_at ? new Date(l.meta.start_at) : null
+      const when = startAt && Number.isFinite(startAt.getTime()) ? startAt.toLocaleString('pt-PT') : null
+      const text = [serviceName, staffName, when].filter(Boolean).join(' • ') || 'Tem uma marcação em breve.'
+      return {
+        id: `appt:${l.id}`,
+        type: 'appointment_reminder',
+        title: 'Lembrete de marcação',
+        text,
+        link: '/marcacoes',
+        created_date: l.createdAt,
+      }
+    }),
+    ...supportMessages.map((m) => ({ 
+      id: `support:${m.id}`, 
+      type: 'support', 
+      title: 'Nova resposta no suporte', 
+      text: m.message, 
       link: '/suporte',
       created_date: m.createdAt,
     })),
@@ -3539,11 +3699,11 @@ app.get('/api/appointments/services', async (req, res) => {
   res.json({ services: services.map(toApiAppointmentService) })
 })
 
-app.get('/api/appointments/staff', async (req, res) => {
-  const serviceId = req.query.service_id ? String(req.query.service_id) : null
-  if (!serviceId) {
-    const staff = await prisma.staffMember.findMany({
-      where: { isActive: true },
+app.get('/api/appointments/staff', async (req, res) => { 
+  const serviceId = req.query.service_id ? String(req.query.service_id) : null 
+  if (!serviceId) { 
+    const staff = await prisma.staffMember.findMany({ 
+      where: { isActive: true }, 
       orderBy: { name: 'asc' },
       take: 500,
     })
@@ -3568,26 +3728,114 @@ app.get('/api/appointments/staff', async (req, res) => {
     select: { staffId: true },
   })
   const allowedIds = links.map((l) => l.staffId)
-  const staff = await prisma.staffMember.findMany({
-    where: { isActive: true, id: { in: allowedIds } },
+  const staff = await prisma.staffMember.findMany({ 
+    where: { isActive: true, id: { in: allowedIds } }, 
+    orderBy: { name: 'asc' }, 
+    take: 500, 
+  }) 
+  return res.json({ staff: staff.map(toApiStaffMember) }) 
+}) 
+
+app.get('/api/appointments/staff/available', async (req, res) => {
+  const serviceId = req.query.service_id ? String(req.query.service_id) : null
+  const startAtRaw = req.query.start_at ? String(req.query.start_at) : null
+  if (!serviceId || !startAtRaw) return res.status(400).json({ error: 'invalid_body', detail: 'service_id e start_at obrigatórios' })
+
+  const startAt = parseDateInput(startAtRaw)
+  if (!startAt) return res.status(400).json({ error: 'invalid_body', detail: 'start_at inválido' })
+
+  const service = await prisma.service.findUnique({ where: { id: serviceId } })
+  if (!service || !service.isActive) return res.status(404).json({ error: 'service_not_found' })
+
+  const durationMinutes = Math.max(1, Math.min(Number(service.durationMinutes ?? 30) || 30, 24 * 60))
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60_000)
+
+  const linkCount = await prisma.staffService.count({ where: { serviceId } })
+  let allowedIds = null
+  if (linkCount > 0) {
+    const links = await prisma.staffService.findMany({
+      where: { serviceId },
+      select: { staffId: true },
+    })
+    allowedIds = links.map((l) => l.staffId)
+  }
+
+  const baseWhere = allowedIds ? { isActive: true, id: { in: allowedIds } } : { isActive: true }
+  const allStaff = await prisma.staffMember.findMany({
+    where: baseWhere,
     orderBy: { name: 'asc' },
     take: 500,
   })
-  return res.json({ staff: staff.map(toApiStaffMember) })
+
+  const staffWithinAvailability = allStaff.filter((s) => !s.availability || isAppointmentWithinStaffAvailability(s.availability, startAt, endAt))
+  const ids = staffWithinAvailability.map((s) => s.id)
+  if (!ids.length) return res.json({ staff: [] })
+
+  const conflicts = await prisma.appointment.findMany({
+    where: {
+      staffId: { in: ids },
+      status: { in: ['pending', 'confirmed'] },
+      startAt: { lt: endAt },
+      endAt: { gt: startAt },
+    },
+    select: { staffId: true },
+    take: 500,
+  })
+  const busy = new Set(conflicts.map((c) => c.staffId))
+  const available = staffWithinAvailability.filter((s) => !busy.has(s.id))
+  res.json({ staff: available.map(toApiStaffMember) })
 })
 
-app.get('/api/appointments/my', async (req, res) => {
+app.get('/api/appointments/my', async (req, res) => { 
+  const user = await requireUser(req, res) 
+  if (!user) return 
+ 
+  const appointments = await prisma.appointment.findMany({ 
+    where: { userId: user.id }, 
+    include: { user: true, service: true, staff: true }, 
+    orderBy: { startAt: 'desc' }, 
+    take: 200, 
+  }) 
+  
+  // Best-effort reminders (no scheduler needed).
+  maybeSendAppointmentRemindersForUser(user, appointments).catch(() => {})
+ 
+  res.json({ appointments: appointments.map(toApiAppointment) }) 
+}) 
+
+app.get('/api/appointments/:id', async (req, res) => {
   const user = await requireUser(req, res)
   if (!user) return
 
-  const appointments = await prisma.appointment.findMany({
-    where: { userId: user.id },
+  const id = String(req.params.id)
+  const appointment = await prisma.appointment.findFirst({
+    where: { id, userId: user.id },
     include: { user: true, service: true, staff: true },
-    orderBy: { startAt: 'desc' },
-    take: 200,
   })
+  if (!appointment) return res.status(404).json({ error: 'not_found' })
+  res.json({ appointment: toApiAppointment(appointment) })
+})
 
-  res.json({ appointments: appointments.map(toApiAppointment) })
+app.post('/api/appointments/:id/remind', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const id = String(req.params.id)
+  const appointment = await prisma.appointment.findFirst({
+    where: { id, userId: user.id },
+    include: { user: true, service: true, staff: true },
+  })
+  if (!appointment) return res.status(404).json({ error: 'not_found' })
+
+  if (appointment.reminderSentAt) return res.json({ ok: true, sent: false, reason: 'already_sent' })
+  if (appointment.status !== 'pending' && appointment.status !== 'confirmed') {
+    return res.status(400).json({ error: 'invalid_body', detail: 'status inválido' })
+  }
+  const now = new Date()
+  if (appointment.startAt <= now) return res.json({ ok: true, sent: false, reason: 'past' })
+
+  await maybeSendAppointmentRemindersForUser(user, [appointment])
+  res.json({ ok: true, sent: true })
 })
 
 app.post('/api/appointments', async (req, res) => {
@@ -3622,13 +3870,17 @@ app.post('/api/appointments', async (req, res) => {
     if (!allowed) return res.status(400).json({ error: 'staff_not_allowed_for_service' })
   }
 
-  const durationMinutes = Math.max(1, Math.min(Number(service.durationMinutes ?? 30) || 30, 24 * 60))
-  const endAt = new Date(startAt.getTime() + durationMinutes * 60_000)
+  const durationMinutes = Math.max(1, Math.min(Number(service.durationMinutes ?? 30) || 30, 24 * 60)) 
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60_000) 
 
-  const conflict = await prisma.appointment.findFirst({
-    where: {
-      staffId: staff.id,
-      status: { in: ['pending', 'confirmed'] },
+  if (staff.availability && !isAppointmentWithinStaffAvailability(staff.availability, startAt, endAt)) {
+    return res.status(409).json({ error: 'staff_unavailable' })
+  }
+ 
+  const conflict = await prisma.appointment.findFirst({ 
+    where: { 
+      staffId: staff.id, 
+      status: { in: ['pending', 'confirmed'] }, 
       startAt: { lt: endAt },
       endAt: { gt: startAt },
     },
@@ -3913,6 +4165,7 @@ app.post('/api/admin/appointment-services', async (req, res) => {
     data: {
       name: parsed.data.name,
       description: parsed.data.description ?? null,
+      imageUrl: parsed.data.image_url ?? null,
       durationMinutes,
       price,
       isActive: parsed.data.is_active !== false,
@@ -3933,6 +4186,7 @@ app.patch('/api/admin/appointment-services/:id', async (req, res) => {
   const data = {}
   if (parsed.data.name !== undefined) data.name = parsed.data.name
   if (parsed.data.description !== undefined) data.description = parsed.data.description ?? null
+  if (parsed.data.image_url !== undefined) data.imageUrl = parsed.data.image_url ?? null
   if (parsed.data.duration_minutes !== undefined) data.durationMinutes = Math.max(1, Math.min(Number(parsed.data.duration_minutes ?? 30) || 30, 24 * 60))
   if (parsed.data.price !== undefined) data.price = parsed.data.price === null ? null : String(parsed.data.price)
   if (parsed.data.is_active !== undefined) data.isActive = Boolean(parsed.data.is_active)
@@ -4007,43 +4261,65 @@ app.get('/api/admin/appointment-staff', async (req, res) => {
   res.json({ staff: staff.map(toApiStaffMember) })
 })
 
-app.post('/api/admin/appointment-staff', async (req, res) => {
-  const admin = await requireAdmin(req, res)
-  if (!admin) return
+app.post('/api/admin/appointment-staff', async (req, res) => { 
+  const admin = await requireAdmin(req, res) 
+  if (!admin) return 
+ 
+  const parsed = appointmentStaffPayloadSchema.safeParse(req.body ?? {}) 
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues }) 
 
-  const parsed = appointmentStaffPayloadSchema.safeParse(req.body ?? {})
-  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
-
-  const created = await prisma.staffMember.create({
-    data: {
-      name: parsed.data.name,
-      email: parsed.data.email ?? null,
-      phone: parsed.data.phone ?? null,
-      isActive: parsed.data.is_active !== false,
-    },
-  })
+  if (!parsed.data.availability) {
+    return res.status(400).json({ error: 'invalid_body', detail: 'availability obrigatório' })
+  }
+  const startMinutes = parseTimeHHMM(parsed.data.availability.start_time)
+  const endMinutes = parseTimeHHMM(parsed.data.availability.end_time)
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+    return res.status(400).json({ error: 'invalid_body', detail: 'horário inválido' })
+  }
+ 
+  const created = await prisma.staffMember.create({ 
+    data: { 
+      name: parsed.data.name, 
+      email: parsed.data.email ?? null, 
+      phone: parsed.data.phone ?? null, 
+      availability: parsed.data.availability,
+      isActive: parsed.data.is_active !== false, 
+    }, 
+  }) 
 
   await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'StaffMember', entityId: created.id, meta: { name: created.name } })
   res.status(201).json({ staff: toApiStaffMember(created) })
 })
 
-app.patch('/api/admin/appointment-staff/:id', async (req, res) => {
-  const admin = await requireAdmin(req, res)
-  if (!admin) return
-
-  const parsed = appointmentStaffPayloadSchema.partial().safeParse(req.body ?? {})
-  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
-
-  const data = {}
-  if (parsed.data.name !== undefined) data.name = parsed.data.name
-  if (parsed.data.email !== undefined) data.email = parsed.data.email ?? null
-  if (parsed.data.phone !== undefined) data.phone = parsed.data.phone ?? null
-  if (parsed.data.is_active !== undefined) data.isActive = Boolean(parsed.data.is_active)
-
-  const updated = await prisma.staffMember.update({ where: { id: req.params.id }, data })
-  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'StaffMember', entityId: updated.id, meta: { patch: req.body } })
-  res.json({ staff: toApiStaffMember(updated) })
-})
+app.patch('/api/admin/appointment-staff/:id', async (req, res) => { 
+  const admin = await requireAdmin(req, res) 
+  if (!admin) return 
+ 
+  const parsed = appointmentStaffPayloadSchema.partial().safeParse(req.body ?? {}) 
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues }) 
+ 
+  const data = {} 
+  if (parsed.data.name !== undefined) data.name = parsed.data.name 
+  if (parsed.data.email !== undefined) data.email = parsed.data.email ?? null 
+  if (parsed.data.phone !== undefined) data.phone = parsed.data.phone ?? null 
+  if (parsed.data.availability !== undefined) {
+    if (parsed.data.availability === null) {
+      data.availability = null
+    } else {
+      const startMinutes = parseTimeHHMM(parsed.data.availability.start_time)
+      const endMinutes = parseTimeHHMM(parsed.data.availability.end_time)
+      if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) {
+        return res.status(400).json({ error: 'invalid_body', detail: 'horário inválido' })
+      }
+      data.availability = parsed.data.availability
+    }
+  }
+  if (parsed.data.is_active !== undefined) data.isActive = Boolean(parsed.data.is_active) 
+ 
+  const updated = await prisma.staffMember.update({ where: { id: req.params.id }, data }) 
+  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'StaffMember', entityId: updated.id, meta: { patch: req.body } }) 
+  res.json({ staff: toApiStaffMember(updated) }) 
+}) 
 
 app.get('/api/admin/appointments', async (req, res) => {
   const admin = await requireAdmin(req, res)
@@ -4100,17 +4376,21 @@ app.patch('/api/admin/appointments/:id', async (req, res) => {
       : Number(parsed.data.duration_minutes) || 30
   const durationMinutes = Math.max(1, Math.min(durationMinutesRaw, 24 * 60))
 
-  const startAt = nextStartAt ?? existing.startAt
-  const endAt = new Date(startAt.getTime() + durationMinutes * 60_000)
+  const startAt = nextStartAt ?? existing.startAt 
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60_000) 
+ 
+  const statusNext = parsed.data.status ?? existing.status 
+  const shouldCheckConflict = statusNext === 'pending' || statusNext === 'confirmed' 
+ 
+  if (shouldCheckConflict && staff?.availability && !isAppointmentWithinStaffAvailability(staff.availability, startAt, endAt)) {
+    return res.status(409).json({ error: 'staff_unavailable' })
+  }
 
-  const statusNext = parsed.data.status ?? existing.status
-  const shouldCheckConflict = statusNext === 'pending' || statusNext === 'confirmed'
-
-  if (shouldCheckConflict) {
-    const conflict = await prisma.appointment.findFirst({
-      where: {
-        id: { not: existing.id },
-        staffId: staff.id,
+  if (shouldCheckConflict) { 
+    const conflict = await prisma.appointment.findFirst({ 
+      where: { 
+        id: { not: existing.id }, 
+        staffId: staff.id, 
         status: { in: ['pending', 'confirmed'] },
         startAt: { lt: endAt },
         endAt: { gt: startAt },
@@ -4119,19 +4399,23 @@ app.patch('/api/admin/appointments/:id', async (req, res) => {
     if (conflict) return res.status(409).json({ error: 'slot_unavailable' })
   }
 
-  const updated = await prisma.appointment.update({
-    where: { id: existing.id },
-    data: {
-      staffId: staff.id,
-      serviceId: service.id,
-      startAt,
-      endAt,
-      durationMinutes,
-      status: statusNext,
-      observations: parsed.data.observations === undefined ? undefined : parsed.data.observations ?? null,
-    },
-    include: { user: true, service: true, staff: true },
-  })
+  const updated = await prisma.appointment.update({ 
+    where: { id: existing.id }, 
+    data: { 
+      staffId: staff.id, 
+      serviceId: service.id, 
+      startAt, 
+      endAt, 
+      durationMinutes, 
+      status: statusNext, 
+      reminderSentAt:
+        parsed.data.start_at || parsed.data.staff_id || parsed.data.service_id || parsed.data.status
+          ? null
+          : undefined,
+      observations: parsed.data.observations === undefined ? undefined : parsed.data.observations ?? null, 
+    }, 
+    include: { user: true, service: true, staff: true }, 
+  }) 
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Appointment', entityId: updated.id, meta: { patch: req.body } })
   res.json({ appointment: toApiAppointment(updated) })
@@ -6326,7 +6610,7 @@ app.use((err, req, res, next) => {
   sendInternalError(res, err, 'internal_error')
 })
 
-async function bootstrapAndListen() {
+async function bootstrapAndListen() { 
   try {
     await prisma.$connect()
   } catch (err) {
@@ -6347,14 +6631,60 @@ async function bootstrapAndListen() {
     process.exit(1)
   }
 
-  const server = app.listen(port, () => {
-    console.log(`backend listening on http://localhost:${port}`)
-  })
+  const server = app.listen(port, () => { 
+    console.log(`backend listening on http://localhost:${port}`) 
+  }) 
 
-  server.on('error', (err) => {
-    if (err?.code === 'EADDRINUSE') {
-      console.error(`❌ Porta ${port} já está em uso. Feche o processo que está a usar a porta ou mude PORT no backend/.env.`)
-      process.exit(1)
+  // Appointment reminders (email + notification) without external scheduler.
+  let reminderRunning = false
+  const sweepMs = Math.max(60_000, Math.min(Number.parseInt(process.env.APPOINTMENT_REMINDER_SWEEP_MS ?? '300000', 10) || 300000, 60 * 60 * 1000))
+  const runReminderSweep = async () => {
+    if (reminderRunning) return
+    reminderRunning = true
+    try {
+      const now = new Date()
+      const windowHours = Math.max(1, Math.min(Number.parseInt(process.env.APPOINTMENT_REMINDER_HOURS ?? '24', 10) || 24, 24 * 14))
+      const to = new Date(now.getTime() + windowHours * 60 * 60 * 1000)
+
+      const appts = await prisma.appointment.findMany({
+        where: {
+          reminderSentAt: null,
+          status: { in: ['pending', 'confirmed'] },
+          startAt: { gte: now, lte: to },
+        },
+        include: { user: true, service: true, staff: true },
+        orderBy: { startAt: 'asc' },
+        take: 100,
+      })
+
+      const byUser = new Map()
+      for (const a of appts) {
+        if (!a?.user) continue
+        const key = a.userId
+        if (!byUser.has(key)) byUser.set(key, { user: a.user, appointments: [] })
+        byUser.get(key).appointments.push(a)
+      }
+
+      for (const entry of byUser.values()) {
+        await maybeSendAppointmentRemindersForUser(entry.user, entry.appointments)
+      }
+    } catch (err) {
+      console.error('appointment reminder sweep failed', err)
+    } finally {
+      reminderRunning = false
+    }
+  }
+
+  runReminderSweep().catch(() => {})
+  const reminderInterval = setInterval(() => {
+    runReminderSweep().catch(() => {})
+  }, sweepMs)
+  reminderInterval.unref?.()
+ 
+  server.on('error', (err) => { 
+    if (err?.code === 'EADDRINUSE') { 
+      console.error(`❌ Porta ${port} já está em uso. Feche o processo que está a usar a porta ou mude PORT no backend/.env.`) 
+      process.exit(1) 
     }
     console.error('❌ Erro ao iniciar o servidor HTTP.')
     console.error(err)

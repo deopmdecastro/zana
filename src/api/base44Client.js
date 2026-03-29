@@ -611,19 +611,27 @@ export const base44 = {
           return jsonRequest(`/api/coupons/validate?${params.toString()}`);
         },
       },
-      appointments: {
-        settings: async () => jsonRequest('/api/content/appointments'),
-        services: async () => jsonRequest('/api/appointments/services'),
-        staff: async (service_id) => {
+      appointments: { 
+        settings: async () => jsonRequest('/api/content/appointments'), 
+        services: async () => jsonRequest('/api/appointments/services'), 
+        staff: async (service_id) => { 
+          const params = new URLSearchParams(); 
+          if (service_id) params.set('service_id', String(service_id)); 
+          const qs = params.toString(); 
+          return jsonRequest(`/api/appointments/staff${qs ? `?${qs}` : ''}`); 
+        }, 
+        staffAvailable: async (service_id, start_at) => {
           const params = new URLSearchParams();
           if (service_id) params.set('service_id', String(service_id));
-          const qs = params.toString();
-          return jsonRequest(`/api/appointments/staff${qs ? `?${qs}` : ''}`);
+          if (start_at) params.set('start_at', String(start_at));
+          return jsonRequest(`/api/appointments/staff/available?${params.toString()}`);
         },
-        my: async () => authedJsonRequest('/api/appointments/my'),
-        create: async (data) => authedJsonRequest('/api/appointments', { method: 'POST', body: data }),
-        cancel: async (id) => authedJsonRequest(`/api/appointments/${id}/cancel`, { method: 'PATCH' }),
-      },
+        my: async () => authedJsonRequest('/api/appointments/my'), 
+        get: async (id) => authedJsonRequest(`/api/appointments/${encodeURIComponent(String(id ?? ''))}`),
+        create: async (data) => authedJsonRequest('/api/appointments', { method: 'POST', body: data }), 
+        cancel: async (id) => authedJsonRequest(`/api/appointments/${id}/cancel`, { method: 'PATCH' }), 
+        remind: async (id) => authedJsonRequest(`/api/appointments/${encodeURIComponent(String(id ?? ''))}/remind`, { method: 'POST' }),
+      }, 
 	  blog: {
 	    comments: {
 	      list: async (postId, limit = 200) => {

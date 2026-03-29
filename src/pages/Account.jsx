@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
-import { Calendar, Clock, Heart, LogOut, Package, Save, Sparkles, Trash2, User } from 'lucide-react';
+import { Calendar, CalendarClock, Clock, Heart, LogOut, Package, Save, Sparkles, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,32 @@ export default function Account() {
     queryFn: () => base44.content.loyalty(),
     staleTime: 60_000,
   });
+
+  const { data: apptSettingsRes } = useQuery({
+    queryKey: ['appointments-settings'],
+    queryFn: () => base44.appointments.settings(),
+    staleTime: 60_000,
+  });
+
+  const apptEnabled = Boolean(apptSettingsRes?.content?.enabled);
+
+  const { data: myAppointmentsRes, isLoading: isLoadingAppointments } = useQuery({
+    queryKey: ['appointments-my'],
+    queryFn: () => base44.appointments.my(),
+    enabled: apptEnabled && !!user,
+    retry: false,
+    staleTime: 15_000,
+  });
+
+  const nextAppointment = useMemo(() => {
+    const appts = myAppointmentsRes?.appointments ?? [];
+    const now = Date.now();
+    return (
+      appts
+        .filter((a) => (a?.status === 'pending' || a?.status === 'confirmed') && new Date(a.start_at).getTime() >= now - 60_000)
+        .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())[0] ?? null
+    );
+  }, [myAppointmentsRes?.appointments]);
 
   const pointValue = Math.max(0.000001, Number(loyaltyData?.content?.point_value_eur ?? 0.01) || 0.01);
 
@@ -325,6 +351,44 @@ export default function Account() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="bg-card p-6 rounded-lg border border-border mb-10">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-4">
+          <div className="flex items-center gap-3">
+            <CalendarClock className="w-5 h-5 text-primary" />
+            <h2 className="font-heading text-xl">Marcações</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/conta/marcacoes">
+              <Button variant="outline" className="rounded-none font-body text-sm">
+                Ver todas
+              </Button>
+            </Link>
+            <Link to="/marcacoes">
+              <Button className="rounded-none font-body text-sm">Nova</Button>
+            </Link>
+          </div>
+        </div>
+
+        {!apptEnabled ? (
+          <p className="font-body text-sm text-muted-foreground">De momento, as marcações não estão disponíveis.</p>
+        ) : isLoadingAppointments ? (
+          <div className="py-4 text-center">
+            <div className="w-8 h-8 border-4 border-secondary border-t-primary rounded-full animate-spin mx-auto mb-3" />
+            <p className="font-body text-sm text-muted-foreground">A carregar marcações...</p>
+          </div>
+        ) : nextAppointment ? (
+          <div className="bg-secondary/20 border border-border rounded-md p-4">
+            <div className="font-body text-sm font-semibold">{nextAppointment.service?.name ?? 'Serviço'}</div>
+            <div className="font-body text-xs text-muted-foreground mt-1">
+              {new Date(nextAppointment.start_at).toLocaleString('pt-PT')} • {nextAppointment.duration_minutes} min •{' '}
+              {nextAppointment.staff?.name ?? '-'}
+            </div>
+          </div>
+        ) : (
+          <p className="font-body text-sm text-muted-foreground">Ainda não tem marcações.</p>
+        )}
       </div>
 
       {/* Orders */}

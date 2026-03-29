@@ -1,20 +1,26 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link, useLocation } from 'react-router-dom';
+import { Calendar, Clock, MessageSquareText, UserRound } from 'lucide-react';
+import { toast } from 'sonner';
+
 import { base44 } from '@/api/base44Client';
-import { Calendar, Clock } from 'lucide-react';
+import { getErrorMessage } from '@/lib/toast';
+import { useAuth } from '@/lib/AuthContext';
+import Auth from './Auth';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { getErrorMessage } from '@/lib/toast';
-import Auth from './Auth';
-import { useAuth } from '@/lib/AuthContext';
+import { Textarea } from '@/components/ui/textarea';
+import { Calendar as ThemeCalendar } from '@/components/ui/calendar';
 
 export default function Appointments() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const location = useLocation();
 
   const { data: settingsRes } = useQuery({
     queryKey: ['appointments-settings'],
@@ -27,13 +33,7 @@ export default function Appointments() {
   const { data: servicesRes } = useQuery({
     queryKey: ['appointments-services'],
     queryFn: () => base44.appointments.services(),
-    enabled: enabled,
-  });
-
-  const { data: staffRes } = useQuery({
-    queryKey: ['appointments-staff', form.service_id || 'all'],
-    queryFn: () => base44.appointments.staff(form.service_id || null),
-    enabled: enabled,
+    enabled,
   });
 
   const { data: myRes } = useQuery({
@@ -43,7 +43,6 @@ export default function Appointments() {
   });
 
   const services = servicesRes?.services ?? [];
-  const staff = staffRes?.staff ?? [];
   const appointments = myRes?.appointments ?? [];
 
   const [form, setForm] = useState({
@@ -54,7 +53,51 @@ export default function Appointments() {
     observations: '',
   });
 
-  const selectedService = useMemo(() => services.find((s) => s.id === form.service_id) ?? null, [services, form.service_id]);
+  const startAtInput = useMemo(() => {
+    if (!form.date || !form.time) return '';
+    return `${form.date}T${form.time}:00`;
+  }, [form.date, form.time]);
+
+  const selectedDateObj = useMemo(() => {
+    if (!form.date) return null;
+    const d = new Date(`${form.date}T00:00:00`);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }, [form.date]);
+
+  const minDate = useMemo(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }, []);
+
+  const toYMD = (date) => {
+    if (!date) return '';
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  useEffect(() => {
+    const pre = location?.state?.preselectService;
+    if (!pre) return;
+    setForm((p) => (p.service_id ? p : { ...p, service_id: String(pre), staff_id: '' }));
+  }, [location?.state?.preselectService]);
+
+  const selectedService = useMemo(() => services.find((s) => String(s.id) === String(form.service_id)) ?? null, [services, form.service_id]);
+  const durationMinutes = Math.max(1, Number(selectedService?.duration_minutes ?? 30) || 30);
+
+  const { data: staffRes, isLoading: isLoadingStaff } = useQuery({
+    queryKey: ['appointments-staff', form.service_id || 'none', startAtInput || 'none'],
+    queryFn: () =>
+      startAtInput
+        ? base44.appointments.staffAvailable(form.service_id, startAtInput)
+        : base44.appointments.staff(form.service_id || null),
+    enabled: enabled && !!form.service_id,
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const staff = staffRes?.staff ?? [];
 
   const createMutation = useMutation({
     mutationFn: (payload) => base44.appointments.create(payload),
@@ -79,9 +122,16 @@ export default function Appointments() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
-      <div className="flex items-center gap-3 mb-6">
-        <Calendar className="w-6 h-6 text-primary" />
-        <h1 className="font-heading text-3xl">Marcações</h1>
+      <div className="flex items-center justify-between gap-4 flex-wrap mb-6">
+        <div className="flex items-center gap-3">
+          <Calendar className="w-6 h-6 text-primary" />
+          <h1 className="font-heading text-3xl">Marcações</h1>
+        </div>
+        <Link to="/conta/marcacoes">
+          <Button variant="outline" className="rounded-none font-body text-sm">
+            Ver as minhas marcações
+          </Button>
+        </Link>
       </div>
 
       {!enabled ? (
@@ -95,66 +145,100 @@ export default function Appointments() {
 
             <div className="space-y-4">
               <div>
-                <Label className="font-body text-xs">Serviço</Label>
-                <select
-                  className="w-full mt-1 h-10 border border-border bg-background px-3 font-body text-sm rounded-none"
+                <Label className="font-body text-xs flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5" /> Serviço
+                </Label>
+                <Select
                   value={form.service_id}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      service_id: e.target.value,
-                      staff_id: '',
-                    }))
-                  }
+                  onValueChange={(v) => setForm((p) => ({ ...p, service_id: v, staff_id: '' }))}
                 >
-                  <option value="">Selecione...</option>
-                  {services.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.duration_minutes} min)
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <Label className="font-body text-xs">Atendente</Label>
-                <select
-                  className="w-full mt-1 h-10 border border-border bg-background px-3 font-body text-sm rounded-none"
-                  value={form.staff_id}
-                  onChange={(e) => setForm((p) => ({ ...p, staff_id: e.target.value }))}
-                >
-                  <option value="">Selecione...</option>
-                  {staff.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="rounded-none mt-1 font-body text-sm">
+                    <SelectValue placeholder={services.length ? 'Selecione...' : 'Sem serviços disponíveis'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {services.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name} ({s.duration_minutes ?? 30} min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <Label className="font-body text-xs">Data</Label>
-                  <Input
-                    type="date"
-                    value={form.date}
-                    onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-                    className="rounded-none mt-1"
-                  />
+                  <Label className="font-body text-xs flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5" /> Data
+                  </Label>
+                  <div className="mt-2 rounded-md border border-border bg-card">
+                    <ThemeCalendar
+                      mode="single"
+                      selected={selectedDateObj ?? undefined}
+                      onSelect={(d) => {
+                        const next = d ? toYMD(d) : '';
+                        setForm((p) => ({ ...p, date: next, staff_id: '' }));
+                      }}
+                      disabled={(d) => d < minDate}
+                    />
+                  </div>
                 </div>
+
                 <div>
-                  <Label className="font-body text-xs">Hora</Label>
+                  <Label className="font-body text-xs flex items-center gap-2">
+                    <Clock className="w-3.5 h-3.5" /> Hora
+                  </Label>
                   <Input
                     type="time"
                     value={form.time}
-                    onChange={(e) => setForm((p) => ({ ...p, time: e.target.value }))}
+                    onChange={(e) => setForm((p) => ({ ...p, time: e.target.value, staff_id: '' }))}
                     className="rounded-none mt-1"
                   />
                 </div>
               </div>
 
               <div>
-                <Label className="font-body text-xs">Observações (opcional)</Label>
+                <Label className="font-body text-xs flex items-center gap-2">
+                  <UserRound className="w-3.5 h-3.5" /> Atendente
+                </Label>
+                <Select
+                  value={form.staff_id}
+                  onValueChange={(v) => setForm((p) => ({ ...p, staff_id: v }))}
+                  disabled={isLoadingStaff || !form.service_id || !form.date || !form.time}
+                >
+                  <SelectTrigger className="rounded-none mt-1 font-body text-sm">
+                    <SelectValue
+                      placeholder={
+                        !form.service_id
+                          ? 'Escolha um serviço...'
+                          : !form.date || !form.time
+                            ? 'Escolha data e hora...'
+                            : isLoadingStaff
+                              ? 'A carregar...'
+                              : staff.length
+                                ? 'Selecione...'
+                                : 'Sem atendentes disponíveis'
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {staff.map((s) => (
+                      <SelectItem key={s.id} value={String(s.id)}>
+                        {s.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="font-body text-xs text-muted-foreground mt-2">
+                  {form.service_id && form.date && form.time
+                    ? `Disponíveis para ${new Date(startAtInput).toLocaleString('pt-PT')} (${durationMinutes} min).`
+                    : 'Selecione serviço, data e hora para ver apenas os atendentes disponíveis.'}
+                </p>
+              </div>
+
+              <div>
+                <Label className="font-body text-xs flex items-center gap-2">
+                  <MessageSquareText className="w-3.5 h-3.5" /> Observação (opcional)
+                </Label>
                 <Textarea
                   value={form.observations}
                   onChange={(e) => setForm((p) => ({ ...p, observations: e.target.value }))}
@@ -164,13 +248,7 @@ export default function Appointments() {
 
               <Button
                 className="w-full rounded-none font-body text-sm tracking-wider"
-                disabled={
-                  createMutation.isPending ||
-                  !form.service_id ||
-                  !form.staff_id ||
-                  !form.date ||
-                  !form.time
-                }
+                disabled={createMutation.isPending || !form.service_id || !form.staff_id || !form.date || !form.time}
                 onClick={() => {
                   const start_at = `${form.date}T${form.time}:00`;
                   createMutation.mutate({
@@ -181,7 +259,7 @@ export default function Appointments() {
                   });
                 }}
               >
-                {createMutation.isPending ? 'A enviar...' : 'Marcar'}
+                {createMutation.isPending ? 'A enviar...' : 'Confirmar marcação'}
               </Button>
 
               {selectedService ? (
@@ -193,7 +271,7 @@ export default function Appointments() {
           </div>
 
           <div className="bg-card p-6 rounded-lg border border-border">
-            <h2 className="font-heading text-xl mb-4">As minhas marcações</h2>
+            <h2 className="font-heading text-xl mb-4">Últimas marcações</h2>
 
             {appointments.length === 0 ? (
               <p className="font-body text-sm text-muted-foreground">Ainda não tem marcações.</p>
@@ -236,3 +314,4 @@ export default function Appointments() {
     </div>
   );
 }
+

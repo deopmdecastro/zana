@@ -20,6 +20,9 @@ export function getErrorMessage(err, fallback = 'Ocorreu um erro.') {
   if (code === 'invalid_items') return 'Itens inválidos. Confirme nome, custo e quantidade.';
   if (code === 'purchase_locked') return 'Compra recebida: não é possível alterar itens.';
   if (code === 'not_found') return 'Registo não encontrado.';
+  if (code === 'staff_unavailable') return 'O atendente não está disponível nesse dia/horário.';
+  if (code === 'slot_unavailable') return 'Este horário já está ocupado. Escolha outro.';
+  if (code === 'appointments_disabled') return 'As marcações não estão disponíveis de momento.';
 
   if (code === 'internal_error' && /prisma|Invalid `prisma\.|Unknown argument|does not exist|column/i.test(detail)) {
     return 'Backend/BD desatualizados (Prisma). Reinicie o backend e rode prisma generate/migrações.';
