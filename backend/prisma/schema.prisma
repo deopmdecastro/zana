@@ -242,6 +242,7 @@ model Order {
 
   items             OrderItem[]
 
+  @@index([createdAt])
   @@index([status])
   @@index([customerEmail])
 }

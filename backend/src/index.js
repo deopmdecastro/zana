@@ -575,6 +575,11 @@ function isOriginAllowed(origin, allowed) {
 
   for (const entry of allowed) {
     if (entry === origin) return true
+    // Allow simple port wildcard, e.g. "http://localhost:*"
+    if (entry.endsWith(':*')) {
+      const prefix = entry.slice(0, -1) // keep ":"
+      if (origin.startsWith(prefix)) return true
+    }
     if (entry.startsWith('*.')) {
       const suffix = entry.slice(1) // ".vercel.app"
       if (origin.endsWith(suffix)) return true
@@ -7603,7 +7608,15 @@ app.get('/api/admin/analytics/summary', async (req, res) => {
       where: { createdAt: { gte: since } },
       orderBy: { total: 'desc' },
       take: 5,
-      include: { items: true },
+      select: {
+        id: true,
+        customerEmail: true,
+        customerName: true,
+        total: true,
+        status: true,
+        createdAt: true,
+        _count: { select: { items: true } },
+      },
     }),
     prisma.$queryRaw`
       SELECT
@@ -7648,7 +7661,7 @@ app.get('/api/admin/analytics/summary', async (req, res) => {
       total: decimalToNumber(o.total) ?? 0,
       status: o.status,
       created_date: o.createdAt,
-      items: (o.items ?? []).length,
+      items: o._count?.items ?? 0,
     })),
   })
 })

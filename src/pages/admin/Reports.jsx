@@ -48,6 +48,8 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
   const { data: analytics } = useQuery({
     queryKey: ['admin-analytics-summary'],
     queryFn: () => base44.admin.analytics.summary(30),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 
   const stats = useMemo(() => {
