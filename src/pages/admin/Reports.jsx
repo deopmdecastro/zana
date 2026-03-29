@@ -15,6 +15,24 @@ function moneyPt(value) {
   return n.toFixed(2).replace('.', ',');
 }
 
+const orderStatusLabels = {
+  pending: 'Pendente',
+  confirmed: 'Confirmada',
+  processing: 'Em preparação',
+  shipped: 'Enviada',
+  delivered: 'Entregue',
+  cancelled: 'Cancelada',
+};
+
+const orderStatusBadgeClassName = {
+  pending: 'bg-secondary text-secondary-foreground',
+  confirmed: 'bg-accent/20 text-accent-foreground',
+  processing: 'bg-accent/30 text-accent-foreground',
+  shipped: 'bg-primary/10 text-primary',
+  delivered: 'bg-green-100 text-green-700',
+  cancelled: 'bg-destructive/10 text-destructive',
+};
+
 export default function AdminReports({ title = 'Relatórios' } = {}) {
 
   const { data: inventory = [] } = useQuery({
@@ -136,77 +154,131 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
 
         <Card className="mt-6">
           <CardHeader>
-            <CardTitle className="font-heading text-xl">Destaques (30 dias)</CardTitle>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <CardTitle className="font-heading text-xl">Destaques (30 dias)</CardTitle>
+              {(() => {
+                const top = (analytics?.top_sold_products ?? [])[0] ?? null;
+                if (!top?.product_name) return null;
+                const qty = Number(top.quantity ?? 0) || 0;
+                return (
+                  <div className="text-right min-w-0">
+                    <div className="font-body text-xs text-muted-foreground">Mais vendido</div>
+                    <div className="font-body text-sm font-medium truncate max-w-[320px]">{top.product_name}</div>
+                    <div className="font-body text-xs text-muted-foreground tabular-nums">{qty} un.</div>
+                  </div>
+                );
+              })()}
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Eye className="w-4 h-4 text-primary" />
-                  <h3 className="font-heading text-lg">Produtos mais vistos</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-4 rounded-lg border border-border bg-secondary/10 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Eye className="w-4 h-4 text-primary shrink-0" />
+                    <h3 className="font-heading text-lg truncate">Produtos mais vistos</h3>
+                  </div>
+                  <Badge className="bg-secondary text-foreground text-[10px] tabular-nums">
+                    {(analytics?.top_viewed_products ?? []).length}
+                  </Badge>
                 </div>
                 {(analytics?.top_viewed_products ?? []).length === 0 ? (
                   <p className="font-body text-sm text-muted-foreground">Sem dados</p>
                 ) : (
                   <div className="space-y-2">
-                    {(analytics?.top_viewed_products ?? []).slice(0, 6).map((p) => (
-                      <div key={p.product_id} className="flex items-center justify-between font-body text-sm">
-                        <span className="truncate max-w-[320px]">{p.product_name}</span>
-                        <span className="text-muted-foreground">{p.views}</span>
+                    {(analytics?.top_viewed_products ?? []).slice(0, 6).map((p, idx) => (
+                      <div key={p.product_id} className="flex items-start justify-between gap-3 font-body text-sm">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-xs tabular-nums w-6">{idx + 1}.</span>
+                            <span className="truncate">{p.product_name}</span>
+                          </div>
+                        </div>
+                        <span className="text-muted-foreground tabular-nums shrink-0">{p.views}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Search className="w-4 h-4 text-accent" />
-                  <h3 className="font-heading text-lg">Mais pesquisas</h3>
+              <div className="lg:col-span-4 rounded-lg border border-border bg-secondary/10 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Search className="w-4 h-4 text-accent shrink-0" />
+                    <h3 className="font-heading text-lg truncate">Mais pesquisas</h3>
+                  </div>
+                  <Badge className="bg-secondary text-foreground text-[10px] tabular-nums">
+                    {(analytics?.top_searches ?? []).length}
+                  </Badge>
                 </div>
                 {(analytics?.top_searches ?? []).length === 0 ? (
                   <p className="font-body text-sm text-muted-foreground">Sem dados</p>
                 ) : (
                   <div className="space-y-2">
-                    {(analytics?.top_searches ?? []).slice(0, 6).map((q) => (
-                      <div key={q.query} className="flex items-center justify-between font-body text-sm">
-                        <span className="truncate max-w-[320px]">{q.query}</span>
-                        <span className="text-muted-foreground">{q.count}</span>
+                    {(analytics?.top_searches ?? []).slice(0, 6).map((q, idx) => (
+                      <div key={q.query} className="flex items-start justify-between gap-3 font-body text-sm">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground text-xs tabular-nums w-6">{idx + 1}.</span>
+                            <span className="truncate">{q.query}</span>
+                          </div>
+                        </div>
+                        <span className="text-muted-foreground tabular-nums shrink-0">{q.count}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
-              <div className="md:col-span-2">
-                <div className="flex items-center gap-2 mb-3">
-                  <Euro className="w-4 h-4 text-primary" />
-                  <h3 className="font-heading text-lg">Maiores encomendas</h3>
+              <div className="lg:col-span-4 rounded-lg border border-border bg-secondary/10 p-4">
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Euro className="w-4 h-4 text-primary shrink-0" />
+                    <h3 className="font-heading text-lg truncate">Maiores encomendas</h3>
+                  </div>
+                  <Badge className="bg-secondary text-foreground text-[10px] tabular-nums">
+                    {(analytics?.largest_orders ?? []).length}
+                  </Badge>
                 </div>
                 {(analytics?.largest_orders ?? []).length === 0 ? (
                   <p className="font-body text-sm text-muted-foreground">Sem dados</p>
                 ) : (
                   <div className="space-y-2">
-                    {(analytics?.largest_orders ?? []).slice(0, 8).map((o) => (
-                      <div key={o.id} className="flex items-center justify-between gap-3 font-body text-sm">
-                        <span className="truncate max-w-[360px]">{o.customer_email}</span>
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-secondary text-foreground text-[10px]">{o.status}</Badge>
-                          <span className="text-muted-foreground">{Number(o.total ?? 0).toFixed(2)} €</span>
+                    <div className="grid grid-cols-[1fr_auto] gap-3 text-xs text-muted-foreground font-body">
+                      <span>Email</span>
+                      <span className="text-right">Total</span>
+                    </div>
+                    {(analytics?.largest_orders ?? []).slice(0, 8).map((o) => {
+                      const status = String(o.status ?? '');
+                      const statusLabel = orderStatusLabels[status] ?? (status || '—');
+                      const statusCls = orderStatusBadgeClassName[status] ?? 'bg-secondary text-secondary-foreground';
+                      return (
+                        <div key={o.id} className="grid grid-cols-[1fr_auto] items-center gap-3 font-body text-sm">
+                          <div className="min-w-0">
+                            <div className="truncate">{o.customer_email}</div>
+                            <div className="mt-1">
+                              <Badge className={`${statusCls} text-[10px]`}>{statusLabel}</Badge>
+                            </div>
+                          </div>
+                          <div className="text-right tabular-nums text-muted-foreground shrink-0">
+                            {Number(o.total ?? 0).toFixed(2)} €
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
             </div>
 
             <div className="mt-6">
-              <ul className="font-body text-sm text-muted-foreground list-disc pl-5 space-y-2">
-                <li>“Total em Compras” soma as compras registadas (inclui drafts/canceladas se existirem).</li>
-                <li>Para stock real, use a página de Inventário e marque compras como “received”.</li>
-                <li>“Produtos mais vistos/pesquisas” dependem do tracking no frontend.</li>
-              </ul>
+              <div className="rounded-lg border border-border bg-secondary/10 p-4">
+                <ul className="font-body text-sm text-muted-foreground list-disc pl-5 space-y-2">
+                  <li>“Total em Compras” soma as compras registadas (inclui drafts/canceladas se existirem).</li>
+                  <li>Para stock real, use a página de Inventário e marque compras como “received”.</li>
+                  <li>“Produtos mais vistos/pesquisas” dependem do tracking no frontend.</li>
+                </ul>
+              </div>
             </div>
           </CardContent>
         </Card>
