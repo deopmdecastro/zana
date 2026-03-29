@@ -334,7 +334,10 @@ model StaffService {
 
 model Appointment { 
   id              String            @id @default(cuid()) 
-  userId          String 
+  userId          String?
+  guestName       String?
+  guestEmail      String?
+  guestPhone      String?
   serviceId       String 
   staffId         String 
   startAt         DateTime 
@@ -346,7 +349,7 @@ model Appointment {
   createdAt       DateTime          @default(now()) 
   updatedAt       DateTime          @updatedAt 
 
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
   service         Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
   staff           StaffMember @relation(fields: [staffId], references: [id], onDelete: Restrict)
 

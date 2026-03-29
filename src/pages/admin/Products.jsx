@@ -15,6 +15,8 @@ import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
+import { getProductStatusLabel, productStatusBadgeClassName } from '@/lib/productBadges';
+import { cn } from '@/lib/utils';
 import { entityCode } from '@/utils/entityCode';
 import DeleteIcon from '@/components/ui/delete-icon';
 
@@ -300,7 +302,17 @@ export default function AdminProducts() {
                 <td className="p-3 font-body text-xs capitalize">{p.category}</td>
                 <td className="p-3 font-body text-sm">{p.price?.toFixed(2)} €</td>
                 <td className="p-3 font-body text-sm">{p.stock || 0}</td>
-                <td className="p-3"><Badge variant="secondary" className="text-[10px]">{p.status}</Badge></td>
+                <td className="p-3">
+                  <Badge
+                    className={cn(
+                      'rounded-none font-body text-[10px] font-semibold',
+                      productStatusBadgeClassName[p.status] ??
+                        'border-transparent bg-muted text-muted-foreground shadow-none',
+                    )}
+                  >
+                    {getProductStatusLabel(p.status)}
+                  </Badge>
+                </td>
                 <td className="p-3 text-right">
 	                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
 	                  <Button

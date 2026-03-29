@@ -595,6 +595,9 @@ const appointmentCreateSchema = z
     staff_id: z.string().min(1),
     start_at: z.string().min(1).max(200),
     observations: z.string().max(5000).optional().nullable(),
+    guest_name: z.string().max(200).optional().nullable(),
+    guest_email: z.string().max(320).optional().nullable(),
+    guest_phone: z.string().max(30).optional().nullable(),
   })
   .passthrough()
 
@@ -884,6 +887,25 @@ async function requireUser(req, res) {
       res.status(401).json({ error: 'unauthorized' })
       return null
     }
+  } catch {
+    // If the column doesn't exist yet, treat as active.
+  }
+  return user
+}
+
+/** Returns the authenticated user or null (no 401). Used for optional-auth endpoints. */
+async function getUserFromRequest(req) {
+  const token = getBearerToken(req)
+  if (!token) return null
+  const payload = verifyToken(token)
+  const userId = payload?.sub
+  if (typeof userId !== 'string' || userId.length === 0) return null
+  const user = await prisma.user.findUnique({ where: { id: userId } })
+  if (!user) return null
+  try {
+    const rows = await prisma.$queryRaw`SELECT "isDeleted" FROM "User" WHERE "id" = ${userId} LIMIT 1;`
+    const isDeleted = Boolean(Array.isArray(rows) ? rows[0]?.isDeleted : false)
+    if (isDeleted) return null
   } catch {
     // If the column doesn't exist yet, treat as active.
   }
@@ -1305,6 +1327,88 @@ async function maybeSendAppointmentRemindersForUser(user, appointments) {
     } catch (err) {
       console.error('appointment reminder log failed', err)
     }
+  }
+}
+
+async function maybeSendGuestAppointmentReminder(a) {
+  if (!a || a.userId) return
+  const toRaw = a.guestEmail ? String(a.guestEmail).trim().toLowerCase() : ''
+  if (!toRaw) return
+  if (a.status !== 'pending' && a.status !== 'confirmed') return
+  if (a.reminderSentAt) return
+
+  const smtpOk = isSmtpConfigured()
+  const now = Date.now()
+  const windowHours = Math.max(1, Math.min(Number.parseInt(process.env.APPOINTMENT_REMINDER_HOURS ?? '24', 10) || 24, 24 * 14))
+  const windowMs = windowHours * 60 * 60 * 1000
+  const startMs = new Date(a.startAt).getTime()
+  if (!Number.isFinite(startMs) || startMs <= now || startMs - now > windowMs) return
+
+  let emailContent = null
+  if (smtpOk) {
+    try {
+      emailContent = (await getEmailContent())?.content ?? null
+    } catch {}
+  }
+
+  const startAt = new Date(a.startAt)
+  const dateText = startAt.toLocaleDateString('pt-PT')
+  const timeText = startAt.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+
+  let emailSent = false
+  if (smtpOk) {
+    try {
+      const subject = `Lembrete: marcação em ${dateText} às ${timeText}`
+      const serviceName = a.service?.name ? String(a.service.name) : 'Serviço'
+      const staffName = a.staff?.name ? String(a.staff.name) : 'Atendente'
+      const link = `${String(appBaseUrl ?? '').replace(/\/+$/, '')}/marcacoes`
+      const greet = guessFirstName(a.guestName ?? a.guestEmail)
+      const html = [
+        `<p>Olá ${greet},</p>`,
+        `<p>Este é um lembrete da sua marcação.</p>`,
+        `<p><strong>${serviceName}</strong> · ${staffName}<br/>${dateText} às ${timeText}</p>`,
+        `<p>Ver detalhes: <a href="${link}">${link}</a></p>`,
+      ].join('')
+      const text = [
+        `Olá ${greet},`,
+        '',
+        'Este é um lembrete da sua marcação.',
+        `${serviceName} · ${staffName}`,
+        `${dateText} às ${timeText}`,
+        '',
+        `Ver detalhes: ${link}`,
+      ].join('\n')
+      const fromName = emailContent?.from_name ? String(emailContent.from_name) : undefined
+      emailSent = await sendTemplatedEmail({ to: toRaw, subject, html, text, fromName })
+    } catch (err) {
+      console.error('appointment reminder email failed', err)
+    }
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.appointment.update({ where: { id: a.id }, data: { reminderSentAt: new Date() } })
+      await tx.auditLog.create({
+        data: {
+          actorId: null,
+          action: 'reminder',
+          entityType: 'Appointment',
+          entityId: a.id,
+          meta: {
+            user_id: null,
+            guest_email: a.guestEmail ?? null,
+            customer_email: a.guestEmail ?? null,
+            appointment_id: a.id,
+            start_at: a.startAt,
+            service_name: a.service?.name ?? null,
+            staff_name: a.staff?.name ?? null,
+            email_sent: Boolean(emailSent),
+          },
+        },
+      })
+    })
+  } catch (err) {
+    console.error('appointment reminder log failed', err)
   }
 }
 
@@ -2349,8 +2453,12 @@ function toApiStaffMember(s) {
 function toApiAppointment(a) { 
   return { 
     id: a.id, 
-    user_id: a.userId, 
-    customer_email: a.user?.email ?? null, 
+    user_id: a.userId ?? null, 
+    customer_email: a.user?.email ?? a.guestEmail ?? null,
+    guest_name: a.guestName ?? null,
+    guest_email: a.guestEmail ?? null,
+    guest_phone: a.guestPhone ?? null,
+    is_guest: !a.userId,
     service: a.service ? toApiAppointmentService(a.service) : null, 
     staff: a.staff ? toApiStaffMember(a.staff) : null, 
     start_at: a.startAt, 
@@ -4310,14 +4418,30 @@ app.post('/api/appointments/:id/remind', async (req, res) => {
 })
 
 app.post('/api/appointments', async (req, res) => {
-  const user = await requireUser(req, res)
-  if (!user) return
+  const user = await getUserFromRequest(req)
 
   const { content: apptContent } = await getAppointmentsContent()
   if (!apptContent.enabled) return res.status(403).json({ error: 'appointments_disabled' })
 
   const parsed = appointmentCreateSchema.safeParse(req.body ?? {})
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  let guestName = null
+  let guestEmail = null
+  let guestPhone = null
+  if (!user) {
+    guestName = String(parsed.data.guest_name ?? '').trim()
+    guestEmail = String(parsed.data.guest_email ?? '')
+      .trim()
+      .toLowerCase()
+    guestPhone = String(parsed.data.guest_phone ?? '').trim() || null
+    if (!guestName || !guestEmail) {
+      return res.status(400).json({ error: 'guest_required', detail: 'Indique nome e email para concluir a marcação.' })
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail)) {
+      return res.status(400).json({ error: 'invalid_body', detail: 'Email inválido.' })
+    }
+  }
 
   const startAt = parseDateInput(parsed.data.start_at)
   if (!startAt) return res.status(400).json({ error: 'invalid_body', detail: 'start_at inválido' })
@@ -4377,7 +4501,10 @@ app.post('/api/appointments', async (req, res) => {
 
   const created = await prisma.appointment.create({
     data: {
-      userId: user.id,
+      userId: user ? user.id : null,
+      guestName: user ? null : guestName,
+      guestEmail: user ? null : guestEmail,
+      guestPhone: user ? null : guestPhone,
       serviceId: service.id,
       staffId: staff.id,
       startAt,
@@ -4390,12 +4517,14 @@ app.post('/api/appointments', async (req, res) => {
   })
 
   await writeAuditLog({
-    actorId: user.id,
+    actorId: user?.id ?? null,
     action: 'create',
     entityType: 'Appointment',
     entityId: created.id,
     meta: {
-      user_id: user.id,
+      user_id: user?.id ?? null,
+      guest_email: user ? null : guestEmail,
+      guest_name: user ? null : guestName,
       service_id: service.id,
       service_name: created.service?.name ?? service.name ?? null,
       staff_id: staff.id,
@@ -4410,7 +4539,11 @@ app.post('/api/appointments', async (req, res) => {
   void (async () => {
     try {
       if (!isSmtpConfigured()) return
-      const to = user.email ? String(user.email).trim().toLowerCase() : ''
+      const to = user
+        ? user.email
+          ? String(user.email).trim().toLowerCase()
+          : ''
+        : guestEmail || ''
       if (!to) return
 
       const startAtLocal = new Date(created.startAt)
@@ -4418,23 +4551,27 @@ app.post('/api/appointments', async (req, res) => {
       const timeText = startAtLocal.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
       const serviceName = created.service?.name ? String(created.service.name) : 'Serviço'
       const staffName = created.staff?.name ? String(created.staff.name) : 'Atendente'
-      const link = `${String(appBaseUrl ?? '').replace(/\/+$/, '')}/conta/marcacoes`
+      const linkPath = user ? '/conta/marcacoes' : '/marcacoes'
+      const link = `${String(appBaseUrl ?? '').replace(/\/+$/, '')}${linkPath}`
+      const greet = user ? guessFirstName(user.fullName ?? user.email) : guessFirstName(guestName ?? guestEmail)
 
       const subject = `Marcação recebida: ${dateText} às ${timeText}`
       const html = [
-        `<p>Olá ${guessFirstName(user.fullName ?? user.email)},</p>`,
+        `<p>Olá ${greet},</p>`,
         `<p>Recebemos a sua marcação.</p>`,
         `<p><strong>${serviceName}</strong> · ${staffName}<br/>${dateText} às ${timeText}</p>`,
-        `<p>Ver detalhes: <a href="${link}">${link}</a></p>`,
+        user
+          ? `<p>Ver detalhes: <a href="${link}">${link}</a></p>`
+          : `<p>Pode voltar ao site em <a href="${link}">${link}</a> para nova marcação.</p>`,
       ].join('')
       const text = [
-        `Olá ${guessFirstName(user.fullName ?? user.email)},`,
+        `Olá ${greet},`,
         '',
         'Recebemos a sua marcação.',
         `${serviceName} · ${staffName}`,
         `${dateText} às ${timeText}`,
         '',
-        `Ver detalhes: ${link}`,
+        user ? `Ver detalhes: ${link}` : `Site: ${link}`,
       ].join('\n')
 
       let fromName = undefined
@@ -7259,6 +7396,11 @@ async function bootstrapAndListen() {
 
       for (const entry of byUser.values()) {
         await maybeSendAppointmentRemindersForUser(entry.user, entry.appointments)
+      }
+
+      for (const a of appts) {
+        if (a.userId) continue
+        await maybeSendGuestAppointmentReminder(a)
       }
     } catch (err) {
       console.error('appointment reminder sweep failed', err)

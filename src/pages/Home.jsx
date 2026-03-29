@@ -114,10 +114,10 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:items-start">
               <div className="lg:col-span-5">
-                <div className="bg-card rounded-lg border border-border overflow-hidden shadow-sm h-full flex flex-col">
-                  <div className="aspect-[16/9] bg-secondary/30">
+                <div className="bg-card rounded-lg border border-border overflow-hidden shadow-sm flex flex-col">
+                  <div className="aspect-[4/3] bg-secondary/30">
                     <ImageWithFallback
                       src={nextAppointment?.service?.image_url}
                       alt={
@@ -129,7 +129,7 @@ export default function Home() {
                       iconClassName="w-16 h-16 text-muted-foreground/40"
                     />
                   </div>
-                  <div className="p-6 flex-1 flex flex-col">
+                  <div className="p-6 sm:p-7 flex flex-col">
                     <div className="flex items-center gap-4 flex-wrap text-sm text-muted-foreground font-body">
                       <span className="inline-flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-primary" />
@@ -141,11 +141,11 @@ export default function Home() {
                       </span>
                     </div>
 
-                    <div className="mt-3">
-                      <div className="font-heading text-xl">
+                    <div className="mt-6 space-y-3">
+                      <div className="font-heading text-xl leading-snug">
                         {user ? (nextAppointment ? 'A sua próxima marcação' : 'Sem marcações') : 'Entre para ver as suas marcações'}
                       </div>
-                      <p className="font-body text-sm text-muted-foreground mt-1">
+                      <p className="font-body text-sm text-muted-foreground leading-relaxed">
                         {nextAppointment
                           ? `${nextAppointment.service?.name ?? 'Serviço'} • ${nextAppointment.staff?.name ?? 'Atendente'}`
                           : user
@@ -154,7 +154,7 @@ export default function Home() {
                       </p>
                     </div>
 
-                    <div className="mt-auto">
+                    <div className="mt-8">
                       <Button
                         asChild
                         variant="default"
@@ -172,9 +172,9 @@ export default function Home() {
                   {services.map((s) => (
                     <div
                       key={s.id}
-                      className="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow overflow-hidden h-full flex flex-col"
+                      className="bg-card rounded-lg border border-border shadow-sm hover:shadow-md transition-shadow overflow-hidden flex flex-col"
                     >
-                      <div className="aspect-[16/9] bg-secondary/30">
+                      <div className="aspect-[4/3] bg-secondary/30 shrink-0">
                         <ImageWithFallback
                           src={s.image_url}
                           alt=""
@@ -182,7 +182,7 @@ export default function Home() {
                           iconClassName="w-16 h-16 text-muted-foreground/40"
                         />
                       </div>
-                      <div className="p-6 text-center flex-1 flex flex-col">
+                      <div className="p-6 text-center flex flex-col">
                         <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-3">
                           <CalendarClock className="w-5 h-5" />
                         </div>
@@ -192,16 +192,18 @@ export default function Home() {
                             <Clock className="w-4 h-4" /> {s.duration_minutes ?? 30} min
                           </span>
                         </div>
-                        <p className="text-2xl font-bold text-primary mb-5">{s.price ? `€${s.price}` : 'Grátis'}</p>
-                        <Button
-                          className="w-full rounded-none font-body text-sm tracking-wider"
-                          onClick={() => {
-                            setQuickServiceId(String(s.id));
-                            setQuickOpen(true);
-                          }}
-                        >
-                          Agendar
-                        </Button>
+                        <p className="text-2xl font-bold text-primary">{s.price ? `€${s.price}` : 'Grátis'}</p>
+                        <div className="mt-6 w-full">
+                          <Button
+                            className="w-full rounded-none font-body text-sm tracking-wider"
+                            onClick={() => {
+                              setQuickServiceId(String(s.id));
+                              setQuickOpen(true);
+                            }}
+                          >
+                            Agendar
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}

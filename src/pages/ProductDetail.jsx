@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { ShoppingBag, Heart, Minus, Plus, ChevronLeft, Star, X, UploadCloud } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { productPromoBadgeClassName } from '@/lib/productBadges';
+import { cn } from '@/lib/utils';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
@@ -225,10 +227,26 @@ export default function ProductDetail() {
 
           {/* Details */}
           <div>
-            <div className="flex gap-2 mb-3">
-              {product.is_new && <Badge className="bg-primary text-primary-foreground text-[10px]">Novo</Badge>}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {product.is_new && (
+                <Badge
+                  className={cn(
+                    'text-[10px] rounded-none font-body font-semibold',
+                    productPromoBadgeClassName.new,
+                  )}
+                >
+                  Novo
+                </Badge>
+              )}
               {product.is_bestseller && (
-                <Badge className="bg-accent text-accent-foreground text-[10px]">Bestseller</Badge>
+                <Badge
+                  className={cn(
+                    'text-[10px] rounded-none font-body font-semibold',
+                    productPromoBadgeClassName.bestseller,
+                  )}
+                >
+                  Bestseller
+                </Badge>
               )}
             </div>
 

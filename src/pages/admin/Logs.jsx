@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import SearchableSelect from '@/components/ui/searchable-select';
 import { ChevronDown, ChevronUp, FileText, Search, TrendingUp, MapPin, Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { appointmentStatusLabels } from '@/lib/appointmentStatus';
 import { entityCode } from '@/utils/entityCode';
 
 function safeJson(value) {
@@ -80,12 +81,10 @@ function entityLabel(entityType) {
 
 function statusLabel(status) {
   const map = {
-    pending: 'Pendente',
-    confirmed: 'Confirmada',
+    ...appointmentStatusLabels,
     processing: 'Em preparação',
     shipped: 'Enviada',
     delivered: 'Entregue',
-    cancelled: 'Cancelada',
   };
   return map[status] ?? status;
 }

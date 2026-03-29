@@ -15,6 +15,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import { toast } from 'sonner';
+import {
+  appointmentStatusBadgeClassName,
+  appointmentStatusLabels,
+  getAppointmentStatusLabel,
+} from '@/lib/appointmentStatus';
+import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/lib/toast';
 
 const WEEKDAYS = [
@@ -200,13 +206,6 @@ export default function AppointmentsAdmin() {
   const upcoming = useMemo(() => {
     return appointments.slice().sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime());
   }, [appointments]);
-
-  const statusMeta = {
-    pending: { label: 'Pendente', variant: 'secondary' },
-    confirmed: { label: 'Confirmada', variant: 'default' },
-    cancelled: { label: 'Cancelada', variant: 'destructive' },
-    completed: { label: 'Concluída', variant: 'outline' },
-  };
 
   const toLocalDateTimeInput = (value) => {
     if (!value) return '';
@@ -782,16 +781,22 @@ export default function AppointmentsAdmin() {
                     </tr>
                   ) : (
                     upcoming.map((a) => {
-                      const meta = statusMeta[a.status] ?? { label: a.status, variant: 'outline' };
+                      const badgeCls =
+                        appointmentStatusBadgeClassName[a.status] ??
+                        'border-transparent bg-muted text-muted-foreground shadow-none';
                       return (
                         <tr key={a.id} className="border-b border-border last:border-0 hover:bg-secondary/10">
                           <td className="p-3 font-body text-sm whitespace-nowrap">{formatPtDateTime(a.start_at)}</td>
                           <td className="p-3 font-body text-sm">{a.service?.name ?? '-'}</td>
                           <td className="p-3 font-body text-sm">{a.staff?.name ?? '-'}</td>
-                          <td className="p-3 font-body text-sm text-muted-foreground">{a.customer_email ?? '-'}</td>
+                          <td className="p-3 font-body text-sm text-muted-foreground">
+                            {[a.guest_name, a.customer_email].filter(Boolean).join(' · ') || '-'}
+                          </td>
                           <td className="p-3">
-                            <Badge variant={meta.variant} className="rounded-none font-body">
-                              {meta.label}
+                            <Badge
+                              className={cn('rounded-none font-body text-xs font-semibold', badgeCls)}
+                            >
+                              {getAppointmentStatusLabel(a.status)}
                             </Badge>
                           </td>
                           <td className="p-3 text-right whitespace-nowrap">
@@ -871,7 +876,12 @@ export default function AppointmentsAdmin() {
                   <div className="space-y-4">
                     <div>
                       <Label className="font-body text-xs">Cliente</Label>
-                      <div className="font-body text-sm text-muted-foreground mt-1">{editing.customer_email ?? '-'}</div>
+                      <div className="font-body text-sm text-muted-foreground mt-1">
+                        {[editing.guest_name, editing.customer_email].filter(Boolean).join(' · ') || '-'}
+                        {editing.guest_phone ? (
+                          <span className="block mt-1">Tel.: {editing.guest_phone}</span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -938,9 +948,9 @@ export default function AppointmentsAdmin() {
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {['pending', 'confirmed', 'cancelled', 'completed'].map((s) => (
+                          {Object.keys(appointmentStatusLabels).map((s) => (
                             <SelectItem key={s} value={s}>
-                              {statusMeta[s]?.label ?? s}
+                              {appointmentStatusLabels[s]}
                             </SelectItem>
                           ))}
                         </SelectContent>

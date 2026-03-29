@@ -640,7 +640,11 @@ export const base44 = {
         },
         my: async () => authedJsonRequest('/api/appointments/my'), 
         get: async (id) => authedJsonRequest(`/api/appointments/${encodeURIComponent(String(id ?? ''))}`),
-        create: async (data) => authedJsonRequest('/api/appointments', { method: 'POST', body: data }), 
+        /** Com sessão associa ao utilizador; sem sessão envie guest_name e guest_email. */
+        create: async (data) => {
+          const token = getToken();
+          return jsonRequest('/api/appointments', { method: 'POST', body: data, token: token || undefined });
+        },
         cancel: async (id) => authedJsonRequest(`/api/appointments/${id}/cancel`, { method: 'PATCH' }), 
         remind: async (id) => authedJsonRequest(`/api/appointments/${encodeURIComponent(String(id ?? ''))}/remind`, { method: 'POST' }),
       }, 

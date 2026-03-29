@@ -11,16 +11,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { appointmentStatusLabels } from '@/lib/appointmentStatus';
 import { useAuth } from '@/lib/AuthContext';
 import { Link } from 'react-router-dom';
 
 const statusLabel = {
-  pending: 'Pendente',
-  confirmed: 'Confirmada',
+  ...appointmentStatusLabels,
   processing: 'Em preparação',
   shipped: 'Enviada',
   delivered: 'Entregue',
-  cancelled: 'Cancelada',
 };
 
 const READ_STORAGE_KEY = 'zana_notifications_read';

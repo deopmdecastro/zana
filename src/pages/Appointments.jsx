@@ -1,16 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation } from 'react-router-dom';
-import { Calendar, Clock, MessageSquareText, UserRound } from 'lucide-react';
+import { Calendar, Clock, Mail, MessageSquareText, Phone, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { pt } from 'date-fns/locale';
 
 import { base44 } from '@/api/base44Client';
+import { appointmentStatusBadgeClassName, getAppointmentStatusLabel } from '@/lib/appointmentStatus';
+import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/lib/toast';
 import { useAuth } from '@/lib/AuthContext';
-import Auth from './Auth';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -51,6 +54,9 @@ export default function Appointments() {
     date: '',
     time: '',
     observations: '',
+    guest_name: '',
+    guest_email: '',
+    guest_phone: '',
   });
 
   const startAtInput = useMemo(() => {
@@ -136,10 +142,16 @@ export default function Appointments() {
   const createMutation = useMutation({
     mutationFn: (payload) => base44.appointments.create(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
-      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
+      if (user) {
+        await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+        await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
+      }
       toast.success('Marcação enviada.');
-      setForm((p) => ({ ...p, observations: '' }));
+      setForm((p) => ({
+        ...p,
+        observations: '',
+        ...(user ? {} : { guest_name: '', guest_email: '', guest_phone: '' }),
+      }));
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível criar a marcação.')),
   });
@@ -154,7 +166,9 @@ export default function Appointments() {
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível cancelar.')),
   });
 
-  if (!user) return <Auth />;
+  const guestReady =
+    Boolean(user) ||
+    (String(form.guest_name ?? '').trim().length > 0 && String(form.guest_email ?? '').trim().length > 0);
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-12">
@@ -163,11 +177,20 @@ export default function Appointments() {
           <Calendar className="w-6 h-6 text-primary" />
           <h1 className="font-heading text-3xl">Marcações</h1>
         </div>
-        <Link to="/conta/marcacoes">
-          <Button variant="outline" className="rounded-none font-body text-sm">
-            Ver as minhas marcações
-          </Button>
-        </Link>
+        {user ? (
+          <Link to="/conta/marcacoes">
+            <Button variant="outline" className="rounded-none font-body text-sm">
+              Ver as minhas marcações
+            </Button>
+          </Link>
+        ) : (
+          <p className="font-body text-sm text-muted-foreground">
+            Já tem conta?{' '}
+            <Link to="/conta" className="text-foreground underline underline-offset-4">
+              Entrar
+            </Link>
+          </p>
+        )}
       </div>
 
       {!enabled ? (
@@ -180,6 +203,49 @@ export default function Appointments() {
             <h2 className="font-heading text-xl mb-4">Nova marcação</h2>
 
             <div className="space-y-4">
+              {!user ? (
+                <div className="rounded-md border border-border bg-secondary/15 p-4 space-y-3">
+                  <p className="font-body text-sm text-muted-foreground">
+                    Pode marcar sem criar conta. Indique os seus dados para confirmarmos a marcação por email.
+                  </p>
+                  <div>
+                    <Label className="font-body text-xs flex items-center gap-2">
+                      <UserRound className="w-3.5 h-3.5" /> Nome
+                    </Label>
+                    <Input
+                      value={form.guest_name}
+                      onChange={(e) => setForm((p) => ({ ...p, guest_name: e.target.value }))}
+                      className="rounded-none mt-1 font-body text-sm"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs flex items-center gap-2">
+                      <Mail className="w-3.5 h-3.5" /> Email
+                    </Label>
+                    <Input
+                      type="email"
+                      value={form.guest_email}
+                      onChange={(e) => setForm((p) => ({ ...p, guest_email: e.target.value }))}
+                      className="rounded-none mt-1 font-body text-sm"
+                      autoComplete="email"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs flex items-center gap-2">
+                      <Phone className="w-3.5 h-3.5" /> Telefone (opcional)
+                    </Label>
+                    <Input
+                      type="tel"
+                      value={form.guest_phone}
+                      onChange={(e) => setForm((p) => ({ ...p, guest_phone: e.target.value }))}
+                      className="rounded-none mt-1 font-body text-sm"
+                      autoComplete="tel"
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div>
                 <Label className="font-body text-xs flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5" /> Serviço
@@ -321,15 +387,32 @@ export default function Appointments() {
 
               <Button
                 className="w-full rounded-none font-body text-sm tracking-wider"
-                disabled={createMutation.isPending || !form.service_id || !form.staff_id || !form.date || !form.time}
+                disabled={
+                  createMutation.isPending ||
+                  !guestReady ||
+                  !form.service_id ||
+                  !form.staff_id ||
+                  !form.date ||
+                  !form.time
+                }
                 onClick={() => {
                   const start_at = `${form.date}T${form.time}:00`;
-                  createMutation.mutate({
+                  const base = {
                     service_id: form.service_id,
                     staff_id: form.staff_id,
                     start_at,
                     observations: form.observations?.trim() || null,
-                  });
+                  };
+                  if (!user) {
+                    createMutation.mutate({
+                      ...base,
+                      guest_name: String(form.guest_name ?? '').trim(),
+                      guest_email: String(form.guest_email ?? '').trim(),
+                      guest_phone: String(form.guest_phone ?? '').trim() || null,
+                    });
+                  } else {
+                    createMutation.mutate(base);
+                  }
                 }}
               >
                 {createMutation.isPending ? 'A enviar...' : 'Confirmar marcação'}
@@ -346,7 +429,14 @@ export default function Appointments() {
           <div className="bg-card p-6 rounded-lg border border-border">
             <h2 className="font-heading text-xl mb-4">Últimas marcações</h2>
 
-            {appointments.length === 0 ? (
+            {!user ? (
+              <p className="font-body text-sm text-muted-foreground">
+                Inicie sessão para ver aqui o histórico das suas marcações.{' '}
+                <Link to="/conta" className="text-foreground underline underline-offset-4">
+                  Entrar
+                </Link>
+              </p>
+            ) : appointments.length === 0 ? (
               <p className="font-body text-sm text-muted-foreground">Ainda não tem marcações.</p>
             ) : (
               <div className="space-y-3">
@@ -362,8 +452,16 @@ export default function Appointments() {
                           <div className="font-body text-xs text-muted-foreground mt-1">{a.observations}</div>
                         ) : null}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-body text-xs text-muted-foreground">{a.status}</span>
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <Badge
+                          className={cn(
+                            'rounded-none font-body text-xs font-semibold',
+                            appointmentStatusBadgeClassName[a.status] ??
+                              'border-transparent bg-muted text-muted-foreground shadow-none',
+                          )}
+                        >
+                          {getAppointmentStatusLabel(a.status)}
+                        </Badge>
                         {(a.status === 'pending' || a.status === 'confirmed') ? (
                           <Button
                             variant="outline"

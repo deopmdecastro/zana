@@ -3,9 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarClock } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { appointmentStatusBadgeClassName, getAppointmentStatusLabel } from '@/lib/appointmentStatus';
+import { cn } from '@/lib/utils';
 import { getErrorMessage } from '@/lib/toast';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
@@ -63,7 +66,7 @@ export default function MyAppointments() {
       await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
       toast.success('Lembrete enviado.');
     },
-    onError: (err) => toast.error(getErrorMessage(err, 'NÃ£o foi possÃ­vel enviar o lembrete.')),
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar o lembrete.')),
   });
 
   if (!user) return <Auth />;
@@ -108,7 +111,18 @@ export default function MyAppointments() {
                   <div key={a.id} className="p-4 rounded-md border border-border bg-secondary/20">
                     <div className="flex items-start justify-between gap-4 flex-wrap">
                       <div className="min-w-0">
-                        <div className="font-body text-sm font-medium">{a.service?.name ?? 'Serviço'}</div>
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <div className="font-body text-sm font-medium">{a.service?.name ?? 'Serviço'}</div>
+                          <Badge
+                            className={cn(
+                              'rounded-none font-body text-[10px] font-semibold',
+                              appointmentStatusBadgeClassName[a.status] ??
+                                'border-transparent bg-muted text-muted-foreground shadow-none',
+                            )}
+                          >
+                            {getAppointmentStatusLabel(a.status)}
+                          </Badge>
+                        </div>
                         <div className="font-body text-xs text-muted-foreground">
                           {new Date(a.start_at).toLocaleString('pt-PT')} • {a.duration_minutes} min • {a.staff?.name ?? '-'}
                         </div>
@@ -155,8 +169,19 @@ export default function MyAppointments() {
                 {past.slice(0, 20).map((a) => (
                   <div key={a.id} className="p-4 rounded-md border border-border bg-secondary/10">
                     <div className="font-body text-sm font-medium">{a.service?.name ?? 'Serviço'}</div>
-                    <div className="font-body text-xs text-muted-foreground">
-                      {new Date(a.start_at).toLocaleString('pt-PT')} • {a.duration_minutes} min • {a.staff?.name ?? '-'} • {a.status}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="font-body text-xs text-muted-foreground">
+                        {new Date(a.start_at).toLocaleString('pt-PT')} • {a.duration_minutes} min • {a.staff?.name ?? '-'}
+                      </div>
+                      <Badge
+                        className={cn(
+                          'rounded-none font-body text-[10px] font-semibold',
+                          appointmentStatusBadgeClassName[a.status] ??
+                            'border-transparent bg-muted text-muted-foreground shadow-none',
+                        )}
+                      >
+                        {getAppointmentStatusLabel(a.status)}
+                      </Badge>
                     </div>
                     {a.observations ? (
                       <div className="font-body text-xs text-muted-foreground mt-1">{a.observations}</div>

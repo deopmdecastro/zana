@@ -23,6 +23,7 @@ export function getErrorMessage(err, fallback = 'Ocorreu um erro.') {
   if (code === 'staff_unavailable') return 'O atendente não está disponível nesse dia/horário.';
   if (code === 'slot_unavailable') return 'Este horário já está ocupado. Escolha outro.';
   if (code === 'appointments_disabled') return 'As marcações não estão disponíveis de momento.';
+  if (code === 'guest_required') return detail ? String(detail) : 'Indique nome e email para concluir a marcação.';
 
   if (code === 'internal_error' && /prisma|Invalid `prisma\.|Unknown argument|does not exist|column/i.test(detail)) {
     return 'Backend/BD desatualizados (Prisma). Reinicie o backend e rode prisma generate/migrações.';

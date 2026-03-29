@@ -8,6 +8,8 @@ import { base44 } from '@/api/base44Client';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
 import { toastApiPromise } from '@/lib/toast';
+import { productPromoBadgeClassName } from '@/lib/productBadges';
+import { cn } from '@/lib/utils';
 import { getPrimaryImage } from '@/lib/images';
 
 export default function ProductCard({ product }) {
@@ -65,13 +67,32 @@ export default function ProductCard({ product }) {
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1">
             {product.is_new && (
-              <Badge className="bg-primary text-primary-foreground text-[10px] px-2">Novo</Badge>
+              <Badge
+                className={cn(
+                  'text-[10px] px-2 rounded-none font-body font-semibold',
+                  productPromoBadgeClassName.new,
+                )}
+              >
+                Novo
+              </Badge>
             )}
             {product.is_bestseller && (
-              <Badge className="bg-accent text-accent-foreground text-[10px] px-2">Top</Badge>
+              <Badge
+                className={cn(
+                  'text-[10px] px-2 rounded-none font-body font-semibold',
+                  productPromoBadgeClassName.bestseller,
+                )}
+              >
+                Top
+              </Badge>
             )}
             {product.original_price && product.original_price > product.price && (
-              <Badge className="bg-destructive text-destructive-foreground text-[10px] px-2">
+              <Badge
+                className={cn(
+                  'text-[10px] px-2 rounded-none font-body font-semibold',
+                  productPromoBadgeClassName.discount,
+                )}
+              >
                 -{Math.round((1 - product.price / product.original_price) * 100)}%
               </Badge>
             )}

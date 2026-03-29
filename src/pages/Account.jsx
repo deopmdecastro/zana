@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
 import { Calendar, CalendarClock, Clock, Heart, LogOut, Package, Save, Sparkles, Trash2, User } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,7 +15,9 @@ import { pt } from 'date-fns/locale';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
+import { appointmentStatusBadgeClassName, getAppointmentStatusLabel } from '@/lib/appointmentStatus';
 import { confirmDestructive } from '@/lib/confirm';
+import { cn } from '@/lib/utils';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import OrderStatusCard from '@/components/orders/OrderStatusCard';
 
@@ -409,7 +412,18 @@ export default function Account() {
           </div>
         ) : nextAppointment ? (
           <div className="bg-secondary/20 border border-border rounded-md p-4">
-            <div className="font-body text-sm font-semibold">{nextAppointment.service?.name ?? 'Serviço'}</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="font-body text-sm font-semibold">{nextAppointment.service?.name ?? 'Serviço'}</div>
+              <Badge
+                className={cn(
+                  'rounded-none font-body text-[10px] font-semibold',
+                  appointmentStatusBadgeClassName[nextAppointment.status] ??
+                    'border-transparent bg-muted text-muted-foreground shadow-none',
+                )}
+              >
+                {getAppointmentStatusLabel(nextAppointment.status)}
+              </Badge>
+            </div>
             <div className="font-body text-xs text-muted-foreground mt-1">
               {new Date(nextAppointment.start_at).toLocaleString('pt-PT')} • {nextAppointment.duration_minutes} min •{' '}
               {nextAppointment.staff?.name ?? '-'}
