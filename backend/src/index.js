@@ -138,6 +138,40 @@ async function getEmailContent() {
   }
 }
 
+const defaultLoyaltyContent = {
+  point_value_eur: 0.01,
+  reward_text_points: 10,
+  reward_image_points: 10,
+  reward_video_points: 20,
+}
+
+let loyaltyCache = { content: defaultLoyaltyContent, updatedAt: 0 }
+const LOYALTY_CACHE_TTL_MS = 30_000
+
+function coerceNumber(value, fallback) {
+  const n = typeof value === 'string' ? Number(value) : typeof value === 'number' ? value : NaN
+  return Number.isFinite(n) ? n : fallback
+}
+
+async function getLoyaltyContent() {
+  const now = Date.now()
+  if (loyaltyCache?.content && now - (loyaltyCache.updatedAt ?? 0) < LOYALTY_CACHE_TTL_MS) return loyaltyCache.content
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'loyalty' } })
+  const value = record?.value ?? null
+  const content = { ...defaultLoyaltyContent }
+
+  if (value && typeof value === 'object') {
+    content.point_value_eur = coerceNumber(value.point_value_eur, content.point_value_eur)
+    content.reward_text_points = Math.max(0, Math.floor(coerceNumber(value.reward_text_points, content.reward_text_points)))
+    content.reward_image_points = Math.max(0, Math.floor(coerceNumber(value.reward_image_points, content.reward_image_points)))
+    content.reward_video_points = Math.max(0, Math.floor(coerceNumber(value.reward_video_points, content.reward_video_points)))
+  }
+
+  loyaltyCache = { content, updatedAt: now }
+  return content
+}
+
 function normalizeEmail(value) {
   return String(value ?? '').trim().toLowerCase()
 }
@@ -418,6 +452,7 @@ const orderPayloadSchema = z
     payment_method: z.enum(['mbway', 'transferencia', 'multibanco', 'paypal']).optional().nullable(),
     notes: z.string().optional().nullable(),
     coupon_code: z.string().optional().nullable(),
+    points_to_use: z.union([z.number(), z.string()]).optional().nullable(),
     items: z.array(orderItemPayloadSchema).min(1),
   })
   .passthrough()
@@ -507,6 +542,8 @@ const reviewCreateSchema = z
     rating: z.number().int().min(1).max(5),
     comment: z.string().max(2000).optional().nullable(),
     author_name: z.string().max(120).optional().nullable(),
+    images: z.array(z.string().min(1).max(2_500_000)).max(3).optional(),
+    videos: z.array(z.string().min(1).max(15_000_000)).max(1).optional(),
   })
   .passthrough()
 
@@ -531,6 +568,15 @@ const searchEventSchema = z
 
 // Any JSON object payload (unknown keys allowed).
 const aboutContentSchema = z.object({}).catchall(z.any())
+
+const loyaltyContentSchema = z
+  .object({
+    point_value_eur: z.union([z.number(), z.string()]).optional(),
+    reward_text_points: z.union([z.number(), z.string()]).optional(),
+    reward_image_points: z.union([z.number(), z.string()]).optional(),
+    reward_video_points: z.union([z.number(), z.string()]).optional(),
+  })
+  .passthrough()
 
 const shippingMethodContentSchema = z
   .object({
@@ -685,6 +731,7 @@ function pickPublicUser(user) {
     created_date: user.createdAt,
     updated_date: user.updatedAt,
     full_name: user.fullName ?? null,
+    points_balance: user.pointsBalance ?? 0,
     phone: user.phone ?? null,
     address: {
       line1: user.addressLine1 ?? null,
@@ -1952,12 +1999,29 @@ function toApiReview(r) {
     product_id: r.productId,
     product_name: r.product?.name ?? null,
     product_image: Array.isArray(r.product?.images) ? (r.product.images[0] ?? null) : null,
+    user_id: r.userId ?? null,
     rating: r.rating,
     comment: r.comment ?? null,
     author_name: r.authorName ?? null,
     is_approved: r.isApproved === undefined ? true : Boolean(r.isApproved),
+    images: Array.isArray(r.images) ? r.images : [],
+    videos: Array.isArray(r.videos) ? r.videos : [],
+    points_awarded: r.pointsAwarded ?? 0,
     created_date: r.createdAt,
   }
+}
+
+async function computeReviewRewardPoints(review) {
+  if (!review) return 0
+  const loyalty = await getLoyaltyContent()
+  const hasText = Boolean(String(review.comment ?? '').trim())
+  const hasImages = Array.isArray(review.images) && review.images.length > 0
+  const hasVideos = Array.isArray(review.videos) && review.videos.length > 0
+  let points = 0
+  if (hasText) points += Math.max(0, Number(loyalty.reward_text_points ?? 10) || 0)
+  if (hasImages) points += Math.max(0, Number(loyalty.reward_image_points ?? 10) || 0)
+  if (hasVideos) points += Math.max(0, Number(loyalty.reward_video_points ?? 20) || 0)
+  return Math.floor(points)
 }
 
 function toApiWishlistItem(w) {
@@ -2616,10 +2680,13 @@ app.post('/api/reviews', async (req, res) => {
   const created = await prisma.review.create({
     data: {
       productId: parsed.data.product_id,
+      userId: user.id,
       rating: parsed.data.rating,
       comment: parsed.data.comment ?? null,
       authorName: parsed.data.author_name ?? user.fullName ?? user.email,
       isApproved: false,
+      images: Array.isArray(parsed.data.images) ? parsed.data.images : [],
+      videos: Array.isArray(parsed.data.videos) ? parsed.data.videos : [],
     },
   })
 
@@ -2744,6 +2811,12 @@ app.get('/api/content/shipping', async (req, res) => {
 app.get('/api/content/branding', async (req, res) => {
   const record = await prisma.siteContent.findUnique({ where: { key: 'branding' } })
   res.json({ content: record?.value ?? null, updated_date: record?.updatedAt ?? null })
+})
+
+app.get('/api/content/loyalty', async (req, res) => {
+  const record = await prisma.siteContent.findUnique({ where: { key: 'loyalty' } })
+  const content = await getLoyaltyContent()
+  res.json({ content, updated_date: record?.updatedAt ?? null })
 })
 
 // Newsletter (public)
@@ -3150,7 +3223,7 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 	      const status = typeof l.meta?.status === 'string' ? l.meta.status : null
 	      const prev = typeof l.meta?.previous_status === 'string' ? l.meta.previous_status : null
 	      const orderId = l.entityId ?? null
-	      const title = 'Estado da encomenda atualizado'
+	      const title = status === 'delivered' ? 'Encomenda entregue â€” avalie e ganhe pontos' : 'Estado da encomenda atualizado'
 	      const inner = status
 	        ? prev
 	          ? `Estado: ${prev} → ${status}`
@@ -3160,7 +3233,12 @@ app.post('/api/support/tickets/:id/messages', async (req, res) => {
 	        id: `order:${l.id}`,
 	        type: 'order_status',
 	        title,
-	        text: orderId ? `Encomenda ${orderId}: ${inner}` : inner,
+	        text:
+	          status === 'delivered'
+	            ? 'A sua encomenda foi entregue. Deixe uma avaliaÃ§Ã£o com foto/vÃ­deo e ganhe pontos.'
+	            : orderId
+	            ? `Encomenda ${orderId}: ${inner}`
+	            : inner,
 	        link: '/conta',
 	        created_date: l.createdAt,
 	      }
@@ -3202,46 +3280,71 @@ app.post('/api/orders', async (req, res) => {
     discountType = coupon.type
   }
 
-  const totalValue = Math.max(0, subtotalValue + shippingCostValue - appliedDiscount)
-  const created = await prisma.order.create({
-    data: {
-      customerName: data.customer_name,
-      customerEmail: data.customer_email.trim().toLowerCase(),
-      customerPhone: data.customer_phone ?? null,
-      shippingAddress: data.shipping_address ?? null,
-      shippingCity: data.shipping_city ?? null,
-      shippingPostalCode: data.shipping_postal_code ?? null,
-      shippingCountry: data.shipping_country ?? undefined,
-      shippingMethodId: data.shipping_method_id ?? null,
-      shippingMethodLabel: data.shipping_method_label ?? null,
-      couponId,
-      couponCode,
-      discountAmount: appliedDiscount ? String(appliedDiscount) : undefined,
-      discountType: discountType ?? null,
-      subtotal: data.subtotal === undefined || data.subtotal === null ? undefined : String(data.subtotal),
-      shippingCost:
-        data.shipping_cost === undefined || data.shipping_cost === null ? undefined : String(data.shipping_cost),
-      total: String(totalValue),
-      status: data.status ?? 'pending',
-      paymentMethod: data.payment_method ?? null,
-      notes: data.notes ?? null,
-      items: {
-        create: data.items.map((it) => ({
-          productId: it.product_id ?? null,
-          productName: it.product_name,
-          productImage: it.product_image ?? null,
-          price: String(it.price),
-          quantity: it.quantity,
-          color: it.color ?? null,
-        })),
-      },
-    },
-    include: { items: true },
-  })
+  const totalBeforePoints = Math.max(0, subtotalValue + shippingCostValue - appliedDiscount)
+  const loyalty = await getLoyaltyContent()
+  const pointValue = Math.max(0.000001, Number(loyalty.point_value_eur ?? 0.01) || 0.01)
 
-  if (coupon) {
-    await prisma.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } })
-  }
+  // Optional loyalty points redemption (only for authenticated users).
+  const token = getBearerToken(req)
+  const payload = token ? verifyToken(token) : null
+  const userId = typeof payload?.sub === 'string' ? payload.sub : null
+  const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null
+
+  const requestedPoints = data.points_to_use === null || data.points_to_use === undefined ? 0 : Number.parseInt(String(data.points_to_use), 10) || 0
+  const pointsBalance = user && !user.isDeleted ? Number(user.pointsBalance ?? 0) || 0 : 0
+  const maxPointsByTotal = Math.floor(totalBeforePoints / pointValue)
+  const pointsUsed = Math.max(0, Math.min(requestedPoints, pointsBalance, maxPointsByTotal))
+  const pointsDiscount = pointsUsed * pointValue
+  const totalValue = Number(Math.max(0, totalBeforePoints - pointsDiscount).toFixed(2))
+
+  const created = await prisma.$transaction(async (tx) => {
+    const order = await tx.order.create({
+      data: {
+        customerName: data.customer_name,
+        customerEmail: data.customer_email.trim().toLowerCase(),
+        customerPhone: data.customer_phone ?? null,
+        shippingAddress: data.shipping_address ?? null,
+        shippingCity: data.shipping_city ?? null,
+        shippingPostalCode: data.shipping_postal_code ?? null,
+        shippingCountry: data.shipping_country ?? undefined,
+        shippingMethodId: data.shipping_method_id ?? null,
+        shippingMethodLabel: data.shipping_method_label ?? null,
+        couponId,
+        couponCode,
+        discountAmount: appliedDiscount ? String(appliedDiscount) : undefined,
+        discountType: discountType ?? null,
+        subtotal: data.subtotal === undefined || data.subtotal === null ? undefined : String(data.subtotal),
+        shippingCost: data.shipping_cost === undefined || data.shipping_cost === null ? undefined : String(data.shipping_cost),
+        total: String(totalValue.toFixed(2)),
+        pointsUsed,
+        pointsDiscount: String(pointsDiscount.toFixed(2)),
+        status: data.status ?? 'pending',
+        paymentMethod: data.payment_method ?? null,
+        notes: data.notes ?? null,
+        items: {
+          create: data.items.map((it) => ({
+            productId: it.product_id ?? null,
+            productName: it.product_name,
+            productImage: it.product_image ?? null,
+            price: String(it.price),
+            quantity: it.quantity,
+            color: it.color ?? null,
+          })),
+        },
+      },
+      include: { items: true },
+    })
+
+    if (coupon) {
+      await tx.coupon.update({ where: { id: coupon.id }, data: { usedCount: { increment: 1 } } })
+    }
+
+    if (user && !user.isDeleted && pointsUsed > 0) {
+      await tx.user.update({ where: { id: user.id }, data: { pointsBalance: { decrement: pointsUsed } } })
+    }
+
+    return order
+  })
 
   await writeAuditLog({ action: 'create', entityType: 'Order', entityId: created.id, meta: { source: 'checkout' } })
 
@@ -3392,7 +3495,30 @@ app.patch('/api/admin/users/:id', async (req, res) => {
   if (!admin) return
 
   const parsed = updateMeSchema
-    .extend({ is_admin: z.boolean().optional() })
+    .extend({
+      is_admin: z.boolean().optional(),
+      points_balance: z
+        .preprocess(
+          (v) => {
+            if (v === undefined || v === null || v === '') return undefined
+            if (typeof v === 'number') return v
+            if (typeof v === 'string') return Number(v)
+            return v
+          },
+          z.number().int().min(0).optional(),
+        )
+        .optional(),
+      points_delta: z.preprocess(
+        (v) => {
+          if (v === undefined || v === null || v === '') return undefined
+          if (typeof v === 'number') return v
+          if (typeof v === 'string') return Number(v)
+          return v
+        },
+        z.number().int().optional(),
+      ),
+      points_reason: optionalNullableTrimmedString({ min: 1, max: 200 }),
+    })
     .passthrough()
     .safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
@@ -3417,6 +3543,37 @@ app.patch('/api/admin/users/:id', async (req, res) => {
     isAdmin: parsed.data.is_admin,
   }
 
+  const wantsPointsBalance = parsed.data.points_balance !== undefined
+  const wantsPointsDelta = parsed.data.points_delta !== undefined
+
+  if (wantsPointsBalance && wantsPointsDelta) {
+    return res.status(400).json({ error: 'invalid_body', message: 'Use points_balance ou points_delta, não ambos.' })
+  }
+
+  let pointsBefore = null
+  let pointsAfter = null
+  if (wantsPointsBalance || wantsPointsDelta) {
+    const current = await prisma.user.findUnique({ where: { id: req.params.id } })
+    if (!current) return res.status(404).json({ error: 'not_found' })
+    pointsBefore = current.pointsBalance ?? 0
+
+    if (wantsPointsBalance) {
+      pointsAfter = parsed.data.points_balance
+    } else {
+      pointsAfter = pointsBefore + (parsed.data.points_delta ?? 0)
+    }
+
+    if (!Number.isFinite(pointsAfter)) {
+      return res.status(400).json({ error: 'invalid_body', message: 'points_balance/points_delta inválido.' })
+    }
+
+    if (pointsAfter < 0) {
+      return res.status(400).json({ error: 'invalid_body', message: 'O saldo de pontos não pode ser negativo.' })
+    }
+
+    data.pointsBalance = pointsAfter
+  }
+
   const updated = await prisma.user.update({ where: { id: req.params.id }, data })
 
   if (parsed.data.newsletter_opt_in !== undefined) {
@@ -3437,9 +3594,45 @@ app.patch('/api/admin/users/:id', async (req, res) => {
     action: 'update',
     entityType: 'User',
     entityId: updated.id,
-    meta: { patch: req.body },
+    meta: {
+      patch: req.body,
+      points_before: pointsBefore,
+      points_after: pointsAfter,
+      points_reason: parsed.data.points_reason ?? null,
+    },
   })
   res.json({ user: pickPublicUser(updated) })
+})
+
+app.get('/api/admin/loyalty/stats', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const loyalty = await getLoyaltyContent()
+  const pointValue = Math.max(0.000001, Number(loyalty.point_value_eur ?? 0.01) || 0.01)
+
+  const [earnedAgg, usedAgg, usersWithBalance, ordersWithPoints, earnedUsers, usedUsers] = await Promise.all([
+    prisma.review.aggregate({ where: { pointsAwarded: { gt: 0 } }, _sum: { pointsAwarded: true } }),
+    prisma.order.aggregate({ where: { pointsUsed: { gt: 0 } }, _sum: { pointsUsed: true } }),
+    prisma.user.count({ where: { pointsBalance: { gt: 0 }, isDeleted: false } }),
+    prisma.order.count({ where: { pointsUsed: { gt: 0 } } }),
+    prisma.review.findMany({ where: { pointsAwarded: { gt: 0 }, userId: { not: null } }, distinct: ['userId'], select: { userId: true } }),
+    prisma.order.findMany({ where: { pointsUsed: { gt: 0 } }, distinct: ['customerEmail'], select: { customerEmail: true } }),
+  ])
+
+  const totalPointsGenerated = Number(earnedAgg?._sum?.pointsAwarded ?? 0) || 0
+  const totalPointsUsed = Number(usedAgg?._sum?.pointsUsed ?? 0) || 0
+
+  res.json({
+    point_value_eur: pointValue,
+    total_points_generated: totalPointsGenerated,
+    total_points_used: totalPointsUsed,
+    total_discount_eur: Number((totalPointsUsed * pointValue).toFixed(2)),
+    users_with_points_balance: usersWithBalance,
+    users_who_generated_points: Array.isArray(earnedUsers) ? earnedUsers.length : 0,
+    users_who_used_points: Array.isArray(usedUsers) ? usedUsers.length : 0,
+    orders_with_points: ordersWithPoints,
+  })
 })
 
 app.get('/api/admin/products', async (req, res) => {
@@ -4042,6 +4235,105 @@ app.get('/api/admin/logs', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
 
+  // System notifications surfaced via AuditLog (shown in the admin bell).
+  // We generate them lazily here to avoid needing a scheduler.
+  try {
+    const now = new Date()
+
+    const deliveredAgg = await prisma.order.aggregate({
+      _sum: { total: true },
+      where: { status: 'delivered' },
+    })
+    const deliveredTotal = Number(deliveredAgg?._sum?.total ?? 0) || 0
+
+    const [targets, coupons] = await Promise.all([
+      prisma.salesTarget.findMany({ where: { isActive: true } }),
+      prisma.coupon.findMany({ where: { isActive: true, expiresAt: { not: null } } }),
+    ])
+
+    const notificationExists = async (notificationKey) => {
+      if (!notificationKey) return false
+      const existing = await prisma.auditLog.findFirst({
+        where: { action: 'notify', meta: { path: ['notification_key'], equals: String(notificationKey) } },
+        select: { id: true },
+      })
+      return Boolean(existing?.id)
+    }
+
+    const maybeNotify = async ({ notificationKey, entityType, entityId, meta }) => {
+      if (!notificationKey) return
+      if (await notificationExists(notificationKey)) return
+      await writeAuditLog({
+        actorId: null,
+        action: 'notify',
+        entityType,
+        entityId: entityId ?? null,
+        meta: { notification_key: notificationKey, ...(meta ?? {}) },
+      })
+    }
+
+    for (const t of targets ?? []) {
+      const goal = Number(t.goalAmount ?? 0) || 0
+      const endAt = t.endAt ? new Date(t.endAt) : null
+
+      if (endAt && endAt < now) {
+        const key = `sales_target_expired:${t.id}:${endAt.toISOString().slice(0, 10)}`
+        await maybeNotify({
+          notificationKey: key,
+          entityType: 'SalesTarget',
+          entityId: t.id,
+          meta: { kind: 'sales_target_expired', name: t.name, end_at: t.endAt },
+        })
+      }
+
+      if (goal > 0 && deliveredTotal >= goal) {
+        const key = `sales_target_achieved:${t.id}:${formatDecimal(goal)}:${formatDecimal(deliveredTotal)}`
+        await maybeNotify({
+          notificationKey: key,
+          entityType: 'SalesTarget',
+          entityId: t.id,
+          meta: {
+            kind: 'sales_target_achieved',
+            name: t.name,
+            goal_amount: goal,
+            achieved_amount: deliveredTotal,
+          },
+        })
+      }
+    }
+
+    const daysUntil = (date) => Math.ceil((date.getTime() - now.getTime()) / (24 * 60 * 60 * 1000))
+
+    for (const c of coupons ?? []) {
+      const expiresAt = c.expiresAt ? new Date(c.expiresAt) : null
+      if (!expiresAt) continue
+
+      if (expiresAt < now) {
+        const key = `coupon_expired:${c.id}:${expiresAt.toISOString().slice(0, 10)}`
+        await maybeNotify({
+          notificationKey: key,
+          entityType: 'Coupon',
+          entityId: c.id,
+          meta: { kind: 'coupon_expired', code: c.code, expires_at: c.expiresAt },
+        })
+        continue
+      }
+
+      const left = daysUntil(expiresAt)
+      if (left <= 3) {
+        const key = `coupon_expiring:${c.id}:${expiresAt.toISOString().slice(0, 10)}`
+        await maybeNotify({
+          notificationKey: key,
+          entityType: 'Coupon',
+          entityId: c.id,
+          meta: { kind: 'coupon_expiring', code: c.code, expires_at: c.expiresAt, days_left: left },
+        })
+      }
+    }
+  } catch (err) {
+    console.error('admin notifications generation failed', err)
+  }
+
   const logs = await prisma.auditLog.findMany({
     orderBy: { createdAt: 'desc' },
     take: parseLimit(req.query.limit, 200),
@@ -4192,6 +4484,35 @@ app.patch('/api/admin/content/branding', async (req, res) => {
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'branding', meta: { keys: Object.keys(value ?? {}) } })
   res.json({ content: record.value, updated_date: record.updatedAt })
+})
+
+app.get('/api/admin/content/loyalty', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'loyalty' } })
+  const content = await getLoyaltyContent()
+  res.json({ content, updated_date: record?.updatedAt ?? null })
+})
+
+app.patch('/api/admin/content/loyalty', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = loyaltyContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const value = parsed.data
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'loyalty' },
+    create: { key: 'loyalty', value },
+    update: { value },
+  })
+
+  loyaltyCache = { content: defaultLoyaltyContent, updatedAt: 0 }
+
+  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'loyalty', meta: { keys: Object.keys(value ?? {}) } })
+  res.json({ content: await getLoyaltyContent(), updated_date: record.updatedAt })
 })
 
 // Marketing / Email templates
@@ -5376,11 +5697,42 @@ app.patch('/api/admin/reviews/:id', async (req, res) => {
   if (typeof isApproved !== 'boolean') return res.status(400).json({ error: 'invalid_body' })
 
   try {
-    const updated = await prisma.review.update({
+    const existing = await prisma.review.findUnique({
       where: { id: req.params.id },
-      data: { isApproved },
+      select: { id: true, isApproved: true, userId: true, pointsAwarded: true, comment: true, images: true, videos: true },
     })
-    await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Review', entityId: updated.id, meta: { is_approved: isApproved } })
+    if (!existing) return res.status(404).json({ error: 'not_found' })
+
+    const shouldAward = isApproved === true && existing.isApproved === false && existing.userId && (existing.pointsAwarded ?? 0) === 0
+    const rewardPoints = shouldAward ? await computeReviewRewardPoints(existing) : 0
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const next = await tx.review.update({
+        where: { id: req.params.id },
+        data: {
+          isApproved,
+          pointsAwarded: shouldAward && rewardPoints > 0 ? rewardPoints : undefined,
+        },
+        include: { product: { select: { name: true, images: true } } },
+      })
+
+      if (shouldAward && rewardPoints > 0) {
+        await tx.user.update({
+          where: { id: existing.userId },
+          data: { pointsBalance: { increment: rewardPoints } },
+        })
+      }
+
+      return next
+    })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'update',
+      entityType: 'Review',
+      entityId: updated.id,
+      meta: { is_approved: isApproved, points_awarded: shouldAward ? rewardPoints : 0 },
+    })
     res.json(toApiReview(updated))
   } catch {
     res.status(404).json({ error: 'not_found' })

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell, Check, ScrollText } from 'lucide-react';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,9 @@ function targetPath(log) {
   if (type === 'SupportTicket' || type === 'SupportMessage') return '/admin/suporte';
   if (type === 'BlogComment' || type === 'BlogCommentReply') return '/admin/conteudo/blog-comentarios';
   if (type === 'Order' || type === 'OrderItem') return '/admin/encomendas';
+  if (type === 'SalesTarget') return '/admin/metas-vendas';
+  if (type === 'CashClosure') return '/admin/fecho-de-caixa';
+  if (type === 'Coupon') return '/admin/cupons';
 
   if (type === 'Purchase' || type === 'PurchaseItem') return '/admin/compras';
   if (type === 'Inventory' || type === 'InventoryMovement') return '/admin/inventario';
@@ -43,6 +46,15 @@ function friendlyTitle(log) {
   const action = String(log?.action ?? '');
   const type = String(log?.entity_type ?? '');
   const meta = log?.meta ?? null;
+
+  if (action === 'notify') {
+    const kind = String(meta?.kind ?? '');
+    if (kind === 'sales_target_expired') return 'Meta de vendas expirada';
+    if (kind === 'sales_target_achieved') return 'Meta de vendas alcançada';
+    if (kind === 'coupon_expired') return 'Cupom expirado';
+    if (kind === 'coupon_expiring') return 'Cupom a expirar';
+    return 'Notificação';
+  }
 
   if (type === 'SupportTicket' && action === 'create') return 'Novo pedido de suporte';
   if (type === 'SupportTicket' && action === 'update') return 'Pedido de suporte atualizado';
@@ -61,24 +73,72 @@ function friendlyTitle(log) {
     if (action === 'delete') return 'Instagram: link removido';
   }
 
-  if (type === 'Purchase' && action === 'create') return 'Compra criada';
-  if (type === 'Purchase' && action === 'update') return 'Compra atualizada';
+  if (type === 'SalesTarget') {
+    if (action === 'create') return 'Meta de vendas criada';
+    if (action === 'update') return 'Meta de vendas atualizada';
+    if (action === 'delete') return 'Meta de vendas removida';
+  }
+
+  if (type === 'CashClosure') {
+    if (action === 'create') return 'Fecho de caixa registado';
+    if (action === 'update') return 'Fecho de caixa atualizado';
+  }
+
+  if (type === 'Coupon') {
+    if (action === 'create') return 'Cupom criado';
+    if (action === 'update') return 'Cupom atualizado';
+    if (action === 'delete') return 'Cupom removido';
+  }
+
+  if (type === 'Order') {
+    if (action === 'create') return 'Encomenda criada';
+    if (action === 'update') return 'Encomenda atualizada';
+  }
+
+  if (type === 'SiteContent' && action === 'update') return 'Conteúdo do site atualizado';
   if (type === 'Inventory' && action === 'update') return 'Stock atualizado';
-  if (type === 'Product' && action === 'update') return 'Produto atualizado';
-  if (type === 'Supplier' && action === 'create') return 'Fornecedor criado';
 
   return `${action} ${type}`.trim() || 'Atualização';
 }
 
 function friendlyDetail(log) {
+  const action = String(log?.action ?? '');
   const type = String(log?.entity_type ?? '');
+  const meta = log?.meta ?? null;
   const id = log?.entity_id ? String(log.entity_id) : '';
+
+  if (action === 'notify') {
+    const kind = String(meta?.kind ?? '');
+    if (kind === 'sales_target_expired' || kind === 'sales_target_achieved') return meta?.name ? String(meta.name) : id ? `SalesTarget · ${id}` : '';
+    if (kind === 'coupon_expired' || kind === 'coupon_expiring') return meta?.code ? `Cupom · ${meta.code}` : id ? `Coupon · ${id}` : '';
+    return '';
+  }
+
   if (!id) return '';
   if (['BlogComment', 'BlogCommentReply', 'SupportMessage'].includes(type)) return '';
+  if (type === 'Coupon' && meta?.code) return `Cupom · ${meta.code}`;
+  if (type === 'SalesTarget' && meta?.name) return `Meta · ${meta.name}`;
+  if (type === 'SiteContent') return `Conteúdo · ${id}`;
   return `${type} · ${id}`;
 }
 
+function parseDate(value) {
+  try {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 export default function AdminNotificationBell() {
+  const queryClient = useQueryClient();
   const [readIds, setReadIds] = useState(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -131,6 +191,28 @@ export default function AdminNotificationBell() {
     });
   };
 
+  const couponCloseMutation = useMutation({
+    mutationFn: ({ id }) => base44.admin.coupons.update(id, { is_active: false }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-logs-bell'] });
+    },
+  });
+
+  const couponExtendMutation = useMutation({
+    mutationFn: ({ id, expires_at }) => base44.admin.coupons.update(id, { expires_at }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-logs-bell'] });
+    },
+  });
+
+  const isCouponNotify = (log) => {
+    if (!log) return false;
+    if (String(log.action ?? '') !== 'notify') return false;
+    if (String(log.entity_type ?? '') !== 'Coupon') return false;
+    const kind = String(log?.meta?.kind ?? '');
+    return kind === 'coupon_expired' || kind === 'coupon_expiring';
+  };
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -167,12 +249,50 @@ export default function AdminNotificationBell() {
                     <div className="font-body text-sm">
                       <span className="font-medium">{friendlyTitle(l)}</span>
                     </div>
-                    {friendlyDetail(l) ? (
-                      <div className="font-body text-[11px] text-muted-foreground">{friendlyDetail(l)}</div>
-                    ) : null}
+                    {friendlyDetail(l) ? <div className="font-body text-[11px] text-muted-foreground">{friendlyDetail(l)}</div> : null}
                     <div className="font-body text-[11px] text-muted-foreground">
                       {l.actor?.email ?? '—'} · {formatWhen(l.created_date)}
                     </div>
+                    {isCouponNotify(l) ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          className="h-7 px-2 rounded-none font-body text-[11px]"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const id = l.entity_id;
+                            if (!id) return;
+                            if (!window.confirm('Encerrar este cupom?')) return;
+                            couponCloseMutation.mutate({ id });
+                            markRead(l.id);
+                          }}
+                          disabled={couponCloseMutation.isPending}
+                        >
+                          Encerrar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-7 px-2 rounded-none font-body text-[11px]"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const id = l.entity_id;
+                            if (!id) return;
+
+                            const current = parseDate(l?.meta?.expires_at);
+                            const suggested = (current ? addDays(current, 7) : addDays(new Date(), 7)).toISOString().slice(0, 10);
+                            const next = window.prompt('Nova data de validade (YYYY-MM-DD):', suggested);
+                            if (!next) return;
+                            couponExtendMutation.mutate({ id, expires_at: next });
+                            markRead(l.id);
+                          }}
+                          disabled={couponExtendMutation.isPending}
+                        >
+                          Prorrogar
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 </Link>
 

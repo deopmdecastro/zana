@@ -67,10 +67,17 @@ export default function Checkout() {
   const [coupon, setCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
   const [couponLoading, setCouponLoading] = useState(false);
+  const [pointsToUse, setPointsToUse] = useState(0);
 
   const { data: paymentsData } = useQuery({
     queryKey: ['content-payments'],
     queryFn: () => base44.content.payments(),
+    staleTime: 60_000,
+  });
+
+  const { data: loyaltyData } = useQuery({
+    queryKey: ['content-loyalty'],
+    queryFn: () => base44.content.loyalty(),
     staleTime: 60_000,
   });
 
@@ -151,6 +158,13 @@ export default function Checkout() {
 
   const totalWithCoupon = Math.max(0, subtotal + shipping - couponDiscount)
 
+  const pointValue = Math.max(0.000001, Number(loyaltyData?.content?.point_value_eur ?? 0.01) || 0.01);
+  const pointsAvailable = Number(user?.points_balance ?? 0) || 0;
+  const maxPointsByTotal = Math.floor(totalWithCoupon / pointValue);
+  const pointsUsed = Math.max(0, Math.min(Number(pointsToUse) || 0, pointsAvailable, maxPointsByTotal));
+  const pointsDiscount = pointsUsed * pointValue;
+  const totalAfterPoints = Math.max(0, totalWithCoupon - pointsDiscount);
+
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
   const handleApplyCoupon = async () => {
@@ -202,6 +216,7 @@ export default function Checkout() {
           shipping_method_id: selectedShipping?.id ?? form.shipping_method_id ?? null,
           shipping_method_label: selectedShipping?.label ?? null,
           coupon_code: coupon?.code ?? null,
+          points_to_use: pointsUsed || null,
           items: items.map((i) => ({
             product_id: i.product_id,
             product_name: i.product_name,
@@ -212,7 +227,7 @@ export default function Checkout() {
           })),
           subtotal,
           shipping_cost: shipping,
-          total: totalWithCoupon,
+          total: totalAfterPoints,
           status: 'pending',
         }),
         {
@@ -463,10 +478,38 @@ export default function Checkout() {
                   <span>-{couponDiscount.toFixed(2)} €</span>
                 </div>
               ) : null}
+              {pointsAvailable > 0 ? (
+                <div className="pt-2">
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-muted-foreground">Pontos</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        Disponíveis: {pointsAvailable} • 1 ponto = {pointValue.toFixed(3)}€
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={Math.min(pointsAvailable, maxPointsByTotal)}
+                      step={1}
+                      value={pointsToUse}
+                      onChange={(e) => setPointsToUse(e.target.value)}
+                      className="w-28 h-9 rounded-none text-right"
+                    />
+                  </div>
+                </div>
+              ) : null}
+              {pointsUsed > 0 ? (
+                <div className="flex justify-between text-sm text-green-700">
+                  <span className="text-muted-foreground">Pontos ({pointsUsed})</span>
+                  <span>-{pointsDiscount.toFixed(2)} €</span>
+                </div>
+              ) : null}
               <Separator />
               <div className="flex justify-between font-semibold text-base">
                 <span>Total</span>
-                <span>{totalWithCoupon.toFixed(2)} €</span>
+                <span>{totalAfterPoints.toFixed(2)} €</span>
               </div>
             </div>
             <Button type="submit" disabled={submitting} className="w-full rounded-none py-6 font-body text-sm tracking-wider mt-6">

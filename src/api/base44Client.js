@@ -273,7 +273,10 @@ export const base44 = {
         if (limit) params.set('limit', String(limit));
         return authedJsonRequest(`/api/admin/orders?${params.toString()}`);
       },
-      create: async (data) => jsonRequest('/api/orders', { method: 'POST', body: data }),
+      create: async (data) => {
+        const token = getToken();
+        return jsonRequest('/api/orders', { method: 'POST', body: data, token: token || undefined });
+      },
       update: async (id, data) => authedJsonRequest(`/api/admin/orders/${id}`, { method: 'PATCH', body: data }),
     },
     BlogPost: {
@@ -407,6 +410,9 @@ export const base44 = {
 		        return authedJsonRequest(`/api/admin/analytics/summary?${params.toString()}`);
 		      },
 		    },
+        loyalty: {
+          stats: async () => authedJsonRequest('/api/admin/loyalty/stats'),
+        },
 		    support: {
 		      tickets: {
 		        list: async (limit = 500) => {
@@ -495,6 +501,10 @@ export const base44 = {
           get: async () => authedJsonRequest('/api/admin/content/branding'),
           update: async (data) => authedJsonRequest('/api/admin/content/branding', { method: 'PATCH', body: data }),
         },
+        loyalty: {
+          get: async () => authedJsonRequest('/api/admin/content/loyalty'),
+          update: async (data) => authedJsonRequest('/api/admin/content/loyalty', { method: 'PATCH', body: data }),
+        },
         },
         coupons: {
           list: async (order = '-created_date', limit = 200) => {
@@ -548,6 +558,7 @@ export const base44 = {
 		    payments: async () => jsonRequest('/api/content/payments'),
         shipping: async () => jsonRequest('/api/content/shipping'),
         branding: async () => jsonRequest('/api/content/branding'),
+        loyalty: async () => jsonRequest('/api/content/loyalty'),
 		  },
       newsletter: {
         subscribe: async (data) => jsonRequest('/api/newsletter/subscribe', { method: 'POST', body: data, token: getToken() }),

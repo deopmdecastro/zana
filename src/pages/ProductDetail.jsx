@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Heart, Minus, Plus, ChevronLeft, Star } from 'lucide-react';
+import { ShoppingBag, Heart, Minus, Plus, ChevronLeft, Star, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
@@ -30,6 +30,8 @@ export default function ProductDetail() {
   const [selectedColor, setSelectedColor] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
+  const [reviewImages, setReviewImages] = useState([]);
+  const [reviewVideos, setReviewVideos] = useState([]);
   const { addItem } = useCart();
 
   const { data: product, isLoading } = useQuery({
@@ -97,12 +99,69 @@ export default function ProductDetail() {
     toast.success('Adicionado ao carrinho');
   };
 
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Não foi possível ler o ficheiro'));
+      reader.readAsDataURL(file);
+    });
+
+  const handleSelectReviewImages = async (files) => {
+    const incoming = Array.from(files || []).filter(Boolean);
+    if (incoming.length === 0) return;
+
+    const maxTotal = 3;
+    const maxSizeBytes = 2 * 1024 * 1024;
+    const availableSlots = Math.max(0, maxTotal - reviewImages.length);
+    const toAdd = incoming.slice(0, availableSlots);
+
+    if (toAdd.length === 0) {
+      toast.error('Máximo de 3 fotos por avaliação.');
+      return;
+    }
+
+    try {
+      const next = [];
+      for (const file of toAdd) {
+        if (!file.type?.startsWith('image/')) continue;
+        if (file.size > maxSizeBytes) {
+          toast.error('Cada foto deve ter no máximo 2MB.');
+          continue;
+        }
+        next.push(await readFileAsDataUrl(file));
+      }
+      if (next.length > 0) setReviewImages((p) => [...p, ...next]);
+    } catch {
+      toast.error('Não foi possível carregar as fotos.');
+    }
+  };
+
+  const handleSelectReviewVideo = async (file) => {
+    if (!file) return;
+    const maxSizeBytes = 10 * 1024 * 1024;
+    if (!file.type?.startsWith('video/')) return;
+    if (file.size > maxSizeBytes) {
+      toast.error('O vídeo deve ter no máximo 10MB.');
+      return;
+    }
+
+    try {
+      const url = await readFileAsDataUrl(file);
+      setReviewVideos([url]);
+    } catch {
+      toast.error('Não foi possível carregar o vídeo.');
+    }
+  };
+
   const submitReview = async () => {
     await toastApiPromise(
       base44.entities.ProductReview.create({
         product_id: product.id,
         rating: Number(reviewForm.rating) || 5,
         comment: reviewForm.comment?.trim() || null,
+        images: reviewImages,
+        videos: reviewVideos,
       }),
       {
         loading: 'A enviar avaliação...',
@@ -111,6 +170,8 @@ export default function ProductDetail() {
       },
     );
     setReviewForm({ rating: 5, comment: '' });
+    setReviewImages([]);
+    setReviewVideos([]);
   };
 
   const avgRating =
@@ -301,6 +362,25 @@ export default function ProductDetail() {
                     </span>
                   </div>
                   {review.comment ? <p className="font-body text-sm text-muted-foreground">{review.comment}</p> : null}
+                  {Array.isArray(review.images) && review.images.length > 0 ? (
+                    <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+                      {review.images.slice(0, 8).map((src, idx) => (
+                        <div key={idx} className="aspect-square rounded-md overflow-hidden border border-border bg-secondary/20">
+                          <img src={src} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {Array.isArray(review.videos) && review.videos.length > 0 ? (
+                    <div className="mt-3">
+                      <video
+                        src={review.videos[0]}
+                        controls
+                        playsInline
+                        className="w-full max-w-xl rounded-md border border-border bg-black/5"
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -326,6 +406,57 @@ export default function ProductDetail() {
                   onChange={(e) => setReviewForm((p) => ({ ...p, comment: e.target.value }))}
                   className="rounded-none mt-1 min-h-[90px]"
                 />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div>
+                <Label className="font-body text-xs">Fotos (até 3)</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => handleSelectReviewImages(e.target.files)}
+                  className="mt-2 block w-full text-sm font-body"
+                />
+                {reviewImages.length > 0 ? (
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {reviewImages.map((src, idx) => (
+                      <div key={idx} className="relative aspect-square rounded-md overflow-hidden border border-border bg-secondary/20">
+                        <img src={src} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setReviewImages((p) => p.filter((_, i) => i !== idx))}
+                          className="absolute top-1 right-1 bg-background/80 border border-border rounded-sm p-1 hover:bg-background"
+                          aria-label="Remover foto"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+              <div>
+                <Label className="font-body text-xs">Vídeo (opcional)</Label>
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => handleSelectReviewVideo(e.target.files?.[0] || null)}
+                  className="mt-2 block w-full text-sm font-body"
+                />
+                {reviewVideos.length > 0 ? (
+                  <div className="mt-3 relative">
+                    <video src={reviewVideos[0]} controls playsInline className="w-full rounded-md border border-border bg-black/5" />
+                    <button
+                      type="button"
+                      onClick={() => setReviewVideos([])}
+                      className="absolute top-2 right-2 bg-background/80 border border-border rounded-sm p-1 hover:bg-background"
+                      aria-label="Remover vídeo"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </div>
             <Button onClick={submitReview} className="mt-4 rounded-none font-body text-sm tracking-wider">

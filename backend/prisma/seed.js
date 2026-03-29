@@ -4,6 +4,20 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
+  await prisma.siteContent.upsert({
+    where: { key: 'loyalty' },
+    create: {
+      key: 'loyalty',
+      value: {
+        point_value_eur: 0.01,
+        reward_text_points: 10,
+        reward_image_points: 10,
+        reward_video_points: 20,
+      },
+    },
+    update: {},
+  })
+
   const count = await prisma.product.count()
   if (count > 0) return
 
@@ -46,4 +60,3 @@ main()
     await prisma.$disconnect()
     process.exit(1)
   })
-

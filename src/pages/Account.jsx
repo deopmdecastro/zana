@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Link, useNavigate } from 'react-router-dom';
-import { Clock, Heart, LogOut, Package, Save, Trash2, User } from 'lucide-react';
+import { Clock, Heart, LogOut, Package, Save, Sparkles, Trash2, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -56,6 +56,14 @@ export default function Account() {
     enabled: !!user,
     retry: false,
   });
+
+  const { data: loyaltyData } = useQuery({
+    queryKey: ['content-loyalty'],
+    queryFn: () => base44.content.loyalty(),
+    staleTime: 60_000,
+  });
+
+  const pointValue = Math.max(0.000001, Number(loyaltyData?.content?.point_value_eur ?? 0.01) || 0.01);
 
   const [profileForm, setProfileForm] = useState({
     full_name: '',
@@ -182,7 +190,7 @@ export default function Account() {
       </div>
 
       {/* Quick Links */}
-      <div className="grid grid-cols-2 gap-4 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
         <Link
           to="/favoritos"
           className="bg-card p-5 rounded-lg border border-border hover:border-primary/30 transition-colors flex items-center gap-3"
@@ -197,6 +205,14 @@ export default function Account() {
           <Package className="w-5 h-5 text-accent" />
           <span className="font-body text-sm">Catálogo</span>
         </Link>
+        <div className="bg-card p-5 rounded-lg border border-border flex items-center gap-3">
+          <Sparkles className="w-5 h-5 text-accent" />
+          <div className="min-w-0">
+            <div className="font-body text-xs text-muted-foreground">Pontos disponíveis</div>
+            <div className="font-heading text-xl leading-tight">{Number(user?.points_balance ?? 0) || 0}</div>
+            <div className="font-body text-[11px] text-muted-foreground">1 ponto = {pointValue.toFixed(3)}€</div>
+          </div>
+        </div>
       </div>
 
       {/* Profile + Address */}
