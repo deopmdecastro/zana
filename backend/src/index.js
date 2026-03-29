@@ -3557,6 +3557,26 @@ app.get('/api/notifications', async (req, res) => {
       take: 20,
     })
 	 
+    const appointmentChangeLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'Appointment',
+        action: { in: ['create', 'update'] },
+        OR: [{ actorId: user.id }, { meta: { path: ['user_id'], equals: user.id } }],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    })
+
+    const userPointsLogs = await prisma.auditLog.findMany({
+      where: {
+        entityType: 'User',
+        entityId: user.id,
+        action: { in: ['points', 'update'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    })
+
 	  const items = [ 
     ...appointmentReminderLogs.map((l) => {
       const serviceName = typeof l.meta?.service_name === 'string' ? l.meta.service_name : null
@@ -3569,10 +3589,99 @@ app.get('/api/notifications', async (req, res) => {
         type: 'appointment_reminder',
         title: 'Lembrete de marcação',
         text,
-        link: '/marcacoes',
+        link: '/conta/marcacoes',
         created_date: l.createdAt,
       }
     }),
+    ...appointmentChangeLogs
+      .map((l) => {
+        const meta = l.meta && typeof l.meta === 'object' ? l.meta : {}
+        const serviceName = typeof meta?.service_name === 'string' ? meta.service_name : null
+        const staffName = typeof meta?.staff_name === 'string' ? meta.staff_name : null
+        const startAt = meta?.start_at ? new Date(meta.start_at) : null
+        const when = startAt && Number.isFinite(startAt.getTime()) ? startAt.toLocaleString('pt-PT') : null
+
+        const statusFromMeta = typeof meta?.status === 'string' ? meta.status : null
+        const statusFromPatch = typeof meta?.patch?.status === 'string' ? meta.patch.status : null
+        const status = statusFromMeta ?? statusFromPatch
+        const prev = typeof meta?.previous_status === 'string' ? meta.previous_status : null
+
+        const baseText = [serviceName, staffName, when].filter(Boolean).join(' â€¢ ') || null
+
+        if (l.action === 'create') {
+          return {
+            id: `appt-change:${l.id}`,
+            type: 'appointment_created',
+            title: 'Marcação criada',
+            text: baseText ?? 'A sua marcação foi registada.',
+            link: '/conta/marcacoes',
+            created_date: l.createdAt,
+          }
+        }
+
+        const statusTitleMap = {
+          confirmed: 'Marcação confirmada',
+          cancelled: 'Marcação cancelada',
+          completed: 'Marcação concluída',
+          pending: 'Marcação atualizada',
+        }
+
+        const statusText =
+          status && prev && prev !== status ? `Estado: ${prev} → ${status}` : status ? `Estado: ${status}` : null
+
+        return {
+          id: `appt-change:${l.id}`,
+          type: 'appointment_update',
+          title: status && statusTitleMap[status] ? statusTitleMap[status] : 'Marcação atualizada',
+          text: [baseText, statusText].filter(Boolean).join(' â€¢ ') || 'A sua marcação foi atualizada.',
+          link: '/conta/marcacoes',
+          created_date: l.createdAt,
+        }
+      })
+      .filter(Boolean),
+    ...userPointsLogs
+      .map((l) => {
+        const meta = l.meta && typeof l.meta === 'object' ? l.meta : {}
+        const delta = Number.isFinite(meta?.points_delta) ? meta.points_delta : null
+        const before = Number.isFinite(meta?.points_before) ? meta.points_before : null
+        const after = Number.isFinite(meta?.points_after) ? meta.points_after : null
+        const computedDelta = delta ?? (before !== null && after !== null ? after - before : null)
+
+        const reason =
+          typeof meta?.points_reason === 'string'
+            ? meta.points_reason
+            : typeof meta?.reason === 'string'
+              ? meta.reason
+              : null
+        const orderId = typeof meta?.order_id === 'string' ? meta.order_id : null
+
+        if (computedDelta === null && before === null && after === null) return null
+
+        const abs = computedDelta !== null ? Math.abs(computedDelta) : null
+        const title =
+          computedDelta === null
+            ? 'Pontos atualizados'
+            : computedDelta > 0
+              ? `Ganhou ${abs} ponto${abs === 1 ? '' : 's'}`
+              : computedDelta < 0
+                ? `Usou ${abs} ponto${abs === 1 ? '' : 's'}`
+                : 'Pontos atualizados'
+
+        const textParts = []
+        if (before !== null && after !== null) textParts.push(`Saldo: ${before} → ${after}`)
+        if (reason) textParts.push(reason)
+        if (orderId) textParts.push(`Encomenda: ${orderId}`)
+
+        return {
+          id: `points:${l.id}`,
+          type: 'points',
+          title,
+          text: textParts.join(' â€¢ ') || null,
+          link: '/conta',
+          created_date: l.createdAt,
+        }
+      })
+      .filter(Boolean),
     ...supportMessages.map((m) => ({ 
       id: `support:${m.id}`, 
       type: 'support', 
@@ -3718,6 +3827,22 @@ app.post('/api/orders', async (req, res) => {
 
   await writeAuditLog({ action: 'create', entityType: 'Order', entityId: created.id, meta: { source: 'checkout' } })
 
+  if (user && !user.isDeleted && pointsUsed > 0) {
+    await writeAuditLog({
+      actorId: user.id,
+      action: 'points',
+      entityType: 'User',
+      entityId: user.id,
+      meta: {
+        points_delta: -pointsUsed,
+        points_before: pointsBalance,
+        points_after: Math.max(0, pointsBalance - pointsUsed),
+        reason: 'Pontos usados na encomenda',
+        order_id: created.id,
+      },
+    })
+  }
+ 
   // Order email (best-effort).
   void (async () => {
     try {
@@ -4252,8 +4377,60 @@ app.post('/api/appointments', async (req, res) => {
     action: 'create',
     entityType: 'Appointment',
     entityId: created.id,
-    meta: { service_id: service.id, staff_id: staff.id, start_at: startAt.toISOString(), duration_minutes: durationMinutes },
+    meta: {
+      user_id: user.id,
+      service_id: service.id,
+      service_name: created.service?.name ?? service.name ?? null,
+      staff_id: staff.id,
+      staff_name: created.staff?.name ?? staff.name ?? null,
+      start_at: startAt.toISOString(),
+      duration_minutes: durationMinutes,
+      status: created.status ?? 'pending',
+    },
   })
+
+  // Appointment email confirmation (best-effort).
+  void (async () => {
+    try {
+      if (!isSmtpConfigured()) return
+      const to = user.email ? String(user.email).trim().toLowerCase() : ''
+      if (!to) return
+
+      const startAtLocal = new Date(created.startAt)
+      const dateText = startAtLocal.toLocaleDateString('pt-PT')
+      const timeText = startAtLocal.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' })
+      const serviceName = created.service?.name ? String(created.service.name) : 'Serviço'
+      const staffName = created.staff?.name ? String(created.staff.name) : 'Atendente'
+      const link = `${String(appBaseUrl ?? '').replace(/\/+$/, '')}/conta/marcacoes`
+
+      const subject = `Marcação recebida: ${dateText} às ${timeText}`
+      const html = [
+        `<p>Olá ${guessFirstName(user.fullName ?? user.email)},</p>`,
+        `<p>Recebemos a sua marcação.</p>`,
+        `<p><strong>${serviceName}</strong> · ${staffName}<br/>${dateText} às ${timeText}</p>`,
+        `<p>Ver detalhes: <a href="${link}">${link}</a></p>`,
+      ].join('')
+      const text = [
+        `Olá ${guessFirstName(user.fullName ?? user.email)},`,
+        '',
+        'Recebemos a sua marcação.',
+        `${serviceName} · ${staffName}`,
+        `${dateText} às ${timeText}`,
+        '',
+        `Ver detalhes: ${link}`,
+      ].join('\n')
+
+      let fromName = undefined
+      try {
+        const emailContent = (await getEmailContent())?.content ?? null
+        fromName = emailContent?.from_name ? String(emailContent.from_name) : undefined
+      } catch {}
+
+      await sendTemplatedEmail({ to, subject, html, text, fromName })
+    } catch (err) {
+      console.error('appointment create email failed', err)
+    }
+  })()
 
   res.status(201).json({ appointment: toApiAppointment(created) })
 })
@@ -4283,7 +4460,16 @@ app.patch('/api/appointments/:id/cancel', async (req, res) => {
     action: 'update',
     entityType: 'Appointment',
     entityId: updated.id,
-    meta: { status: 'cancelled' },
+    meta: {
+      user_id: user.id,
+      previous_status: existing.status ?? null,
+      status: 'cancelled',
+      service_id: updated.serviceId ?? null,
+      service_name: updated.service?.name ?? null,
+      staff_id: updated.staffId ?? null,
+      staff_name: updated.staff?.name ?? null,
+      start_at: updated.startAt?.toISOString?.() ?? null,
+    },
   })
 
   res.json({ appointment: toApiAppointment(updated) })
@@ -4763,7 +4949,24 @@ app.patch('/api/admin/appointments/:id', async (req, res) => {
     include: { user: true, service: true, staff: true }, 
   }) 
 
-  await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'Appointment', entityId: updated.id, meta: { patch: req.body } })
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'update',
+    entityType: 'Appointment',
+    entityId: updated.id,
+    meta: {
+      user_id: existing.userId ?? updated.userId ?? null,
+      previous_status: existing.status ?? null,
+      status: updated.status ?? null,
+      previous_start_at: existing.startAt?.toISOString?.() ?? null,
+      start_at: updated.startAt?.toISOString?.() ?? null,
+      service_id: updated.serviceId ?? null,
+      service_name: updated.service?.name ?? null,
+      staff_id: updated.staffId ?? null,
+      staff_name: updated.staff?.name ?? null,
+      patch: req.body,
+    },
+  })
   res.json({ appointment: toApiAppointment(updated) })
 })
 
@@ -6906,8 +7109,18 @@ app.patch('/api/admin/reviews/:id', async (req, res) => {
       action: 'update',
       entityType: 'Review',
       entityId: updated.id,
-      meta: { is_approved: isApproved, points_awarded: shouldAward ? rewardPoints : 0 },
+      meta: { is_approved: isApproved, points_awarded: shouldAward ? rewardPoints : 0, user_id: existing.userId ?? null },
     })
+
+    if (shouldAward && rewardPoints > 0 && existing.userId) {
+      await writeAuditLog({
+        actorId: admin.id,
+        action: 'points',
+        entityType: 'User',
+        entityId: existing.userId,
+        meta: { points_delta: rewardPoints, reason: 'Pontos ganhos por avaliação', review_id: updated.id },
+      })
+    }
     res.json(toApiReview(updated))
   } catch {
     res.status(404).json({ error: 'not_found' })

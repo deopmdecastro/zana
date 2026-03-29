@@ -50,9 +50,20 @@ export default function MyAppointments() {
     mutationFn: (id) => base44.appointments.cancel(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
       toast.success('Marcação cancelada.');
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível cancelar.')),
+  });
+
+  const remindMutation = useMutation({
+    mutationFn: (id) => base44.appointments.remind(id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
+      toast.success('Lembrete enviado.');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'NÃ£o foi possÃ­vel enviar o lembrete.')),
   });
 
   if (!user) return <Auth />;
@@ -106,14 +117,26 @@ export default function MyAppointments() {
                         ) : null}
                       </div>
                       {(a.status === 'pending' || a.status === 'confirmed') ? (
-                        <Button
-                          variant="outline"
-                          className="rounded-none h-9 font-body text-xs"
-                          disabled={cancelMutation.isPending}
-                          onClick={() => cancelMutation.mutate(a.id)}
-                        >
-                          Cancelar
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {!a.reminder_sent_at ? (
+                            <Button
+                              variant="outline"
+                              className="rounded-none h-9 font-body text-xs"
+                              disabled={remindMutation.isPending || cancelMutation.isPending}
+                              onClick={() => remindMutation.mutate(a.id)}
+                            >
+                              Lembrete
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="outline"
+                            className="rounded-none h-9 font-body text-xs"
+                            disabled={cancelMutation.isPending || remindMutation.isPending}
+                            onClick={() => cancelMutation.mutate(a.id)}
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
                       ) : null}
                     </div>
                     <Separator className="my-3" />
@@ -149,4 +172,3 @@ export default function MyAppointments() {
     </div>
   );
 }
-

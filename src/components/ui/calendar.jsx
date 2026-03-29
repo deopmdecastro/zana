@@ -16,7 +16,7 @@ function Calendar({
     (<DayPicker
       showOutsideDays={showOutsideDays}
       fixedWeeks={fixedWeeks}
-      className={cn("p-2", className)}
+      className={cn("p-2 w-full max-w-full", className)}
       classNames={{
         months: "flex flex-col gap-4 w-full min-w-0",
         month: "space-y-3 w-full min-w-0",
@@ -30,19 +30,19 @@ function Calendar({
         nav_button_previous: "absolute left-1",
         nav_button_next: "absolute right-1",
         table: "w-full border-collapse",
-        head_row: "grid grid-cols-7 gap-1.5",
+        head_row: "grid grid-cols-7 gap-2",
         head_cell:
-          "text-muted-foreground/80 rounded-md text-center font-medium text-[0.70rem] uppercase tracking-widest",
-        row: "grid grid-cols-7 gap-1.5 mt-1.5",
+          "text-muted-foreground/80 rounded-md text-center font-medium text-[0.70rem] uppercase tracking-widest h-7 flex items-center justify-center",
+        row: "grid grid-cols-7 gap-2 mt-2",
         cell: cn(
-          "relative p-0 text-center text-sm min-w-0 focus-within:relative focus-within:z-20",
+          "relative p-0 text-center text-sm min-w-0 flex items-center justify-center focus-within:relative focus-within:z-20",
           props.mode === "range"
             ? "[&:has(>.day-range-end)]:rounded-r-md [&:has(>.day-range-start)]:rounded-l-md first:[&:has([aria-selected])]:rounded-l-md last:[&:has([aria-selected])]:rounded-r-md"
             : "[&:has([aria-selected])]:rounded-md"
         ),
         day: cn(
           buttonVariants({ variant: "ghost" }),
-          "relative w-full aspect-square h-auto p-0 font-normal aria-selected:opacity-100 rounded-md leading-none"
+          "relative h-[clamp(2.25rem,9vw,2.75rem)] w-[clamp(2.25rem,9vw,2.75rem)] p-0 font-normal aria-selected:opacity-100 rounded-md leading-none"
         ),
         day_range_start: "day-range-start",
         day_range_end: "day-range-end",

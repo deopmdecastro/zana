@@ -128,6 +128,7 @@ export default function QuickAppointmentDialog({ open, onOpenChange, service }) 
     mutationFn: (payload) => base44.appointments.create(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
       toast.success('Marcação enviada.');
       onOpenChange(false);
       setForm({ staff_id: '', date: '', time: '', observations: '' });
@@ -166,7 +167,7 @@ export default function QuickAppointmentDialog({ open, onOpenChange, service }) 
                 <Label className="font-body text-xs flex items-center gap-2">
                   <Calendar className="w-3.5 h-3.5" /> Data
                 </Label>
-                <div className="mt-2 rounded-md border border-border bg-card p-2 min-w-0 overflow-hidden">
+                <div className="mt-2 rounded-md border border-border bg-card p-2 min-w-0 overflow-x-auto overflow-y-hidden">
                   <ThemeCalendar
                     className="w-full p-0"
                     mode="single"

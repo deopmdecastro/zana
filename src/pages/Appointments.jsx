@@ -137,6 +137,7 @@ export default function Appointments() {
     mutationFn: (payload) => base44.appointments.create(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
       toast.success('Marcação enviada.');
       setForm((p) => ({ ...p, observations: '' }));
     },
@@ -147,6 +148,7 @@ export default function Appointments() {
     mutationFn: (id) => base44.appointments.cancel(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['appointments-my'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
       toast.success('Marcação cancelada.');
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível cancelar.')),
@@ -199,7 +201,7 @@ export default function Appointments() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label className="font-body text-xs flex items-center gap-2">
                     <Calendar className="w-3.5 h-3.5" /> Data
