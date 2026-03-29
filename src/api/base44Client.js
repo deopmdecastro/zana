@@ -504,6 +504,9 @@ export const base44 = {
             update: async (data) => authedJsonRequest('/api/admin/marketing/email', { method: 'PATCH', body: data }),
           },
         },
+        smtp: {
+          test: async (data) => authedJsonRequest('/api/admin/smtp/test', { method: 'POST', body: data }),
+        },
         newsletter: {
           subscribers: {
             list: async ({ status = 'subscribed', limit = 500 } = {}) => {

@@ -53,6 +53,13 @@ export default function MarketingAdmin() {
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível guardar.')),
   });
 
+  const [smtpTestEmail, setSmtpTestEmail] = useState('');
+  const smtpTestMutation = useMutation({
+    mutationFn: (payload) => base44.admin.smtp.test(payload),
+    onSuccess: () => toast.success('Email de teste enviado'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar o email de teste.')),
+  });
+
   const { data: subscribers = [] } = useQuery({
     queryKey: ['admin-newsletter-subscribers'],
     queryFn: () => base44.admin.newsletter.subscribers.list({ status: 'subscribed', limit: 500 }),
@@ -68,7 +75,13 @@ export default function MarketingAdmin() {
   const sendCampaignMutation = useMutation({
     mutationFn: (payload) => base44.admin.newsletter.send(payload),
     onSuccess: (res) => {
-      toast.success(`Enviado: ${res?.sent ?? 0} | Falhas: ${res?.failed ?? 0}`);
+      const sent = Number(res?.sent ?? 0);
+      const failed = Number(res?.failed ?? 0);
+      const firstFailure = Array.isArray(res?.failures) ? res.failures[0] : null;
+      const failureDetail = firstFailure?.error ? ` (${String(firstFailure.error).slice(0, 140)})` : '';
+
+      if (failed > 0) toast.error(`Falhas: ${failed} | Enviado: ${sent}${failureDetail}`);
+      else toast.success(`Enviado: ${sent}`);
       setCampaign((p) => ({ ...p, content: '' }));
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar.')),
@@ -98,9 +111,12 @@ export default function MarketingAdmin() {
         </div>
 
         <p className="font-body text-sm text-muted-foreground mt-2">
-          Variáveis disponíveis: <span className="font-mono">{'{{first_name}} {{full_name}} {{email}} {{app_url}}'}</span>{' '}
+          Variáveis disponíveis:{' '}
+          <span className="font-mono">
+            {'{{first_name}} {{full_name}} {{email}} {{app_url}} {{store_name}} {{store_email}} {{store_phone}} {{store_address}} {{logo_url}} {{year}} {{instagram_url}} {{instagram_icon_url}}'}
+          </span>{' '}
           (encomendas: <span className="font-mono">{'{{order_id}} {{total}} {{customer_name}}'}</span>; campanhas:{' '}
-          <span className="font-mono">{'{{content}} {{unsubscribe_url}}'}</span>).
+          <span className="font-mono">{'{{content}} {{content_html}} {{unsubscribe_url}}'}</span>).
         </p>
 
         {emailLoading ? (
@@ -184,6 +200,34 @@ export default function MarketingAdmin() {
             >
               {updateEmailMutation.isPending ? 'A guardar…' : 'Guardar templates'}
             </Button>
+
+            {smtpConfigured ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                <div>
+                  <Label className="font-body text-xs">Email de teste</Label>
+                  <Input
+                    type="email"
+                    value={smtpTestEmail}
+                    onChange={(e) => setSmtpTestEmail(e.target.value)}
+                    className="rounded-none mt-1"
+                    placeholder="email@exemplo.com"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button
+                    className="w-full rounded-none font-body text-sm tracking-wider"
+                    disabled={smtpTestMutation.isPending}
+                    onClick={() => {
+                      const to = String(smtpTestEmail ?? '').trim();
+                      if (!to) return toast.error('Escreva um email.');
+                      smtpTestMutation.mutate({ to });
+                    }}
+                  >
+                    {smtpTestMutation.isPending ? 'A enviar…' : 'Enviar email de teste'}
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             {!smtpConfigured ? (
               <div className="mt-2 font-body text-xs text-muted-foreground">
@@ -277,4 +321,3 @@ export default function MarketingAdmin() {
     </div>
   );
 }
-

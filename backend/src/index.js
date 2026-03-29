@@ -17,12 +17,19 @@ const canReturnResetToken = (process.env.NODE_ENV ?? 'development') !== 'product
 const appBaseUrl = process.env.APP_BASE_URL ?? corsOrigin
 const isProduction = (process.env.NODE_ENV ?? 'development') === 'production'
 
-const smtpHost = process.env.SMTP_HOST
+const smtpHost = process.env.SMTP_HOST ? String(process.env.SMTP_HOST).trim() : undefined
 const smtpPort = Number.parseInt(process.env.SMTP_PORT ?? '587', 10)
 const smtpSecure = (process.env.SMTP_SECURE ?? 'false') === 'true'
-const smtpUser = process.env.SMTP_USER
-const smtpPass = process.env.SMTP_PASS
-const smtpFrom = process.env.SMTP_FROM
+const smtpUser = process.env.SMTP_USER ? String(process.env.SMTP_USER).trim() : undefined
+const smtpPass = process.env.SMTP_PASS ? String(process.env.SMTP_PASS).replace(/\s+/g, '').trim() : undefined
+const smtpFrom = process.env.SMTP_FROM ? String(process.env.SMTP_FROM).trim() : undefined
+
+const storeName = process.env.STORE_NAME ? String(process.env.STORE_NAME).trim() : 'Zana'
+const storeEmail = process.env.STORE_EMAIL ? String(process.env.STORE_EMAIL).trim() : smtpUser ?? ''
+const storePhone = process.env.STORE_PHONE ? String(process.env.STORE_PHONE).trim() : ''
+const storeAddress = process.env.STORE_ADDRESS ? String(process.env.STORE_ADDRESS).trim() : ''
+const storeInstagram = process.env.STORE_INSTAGRAM ? String(process.env.STORE_INSTAGRAM).trim() : ''
+const storeWhatsapp = process.env.STORE_WHATSAPP ? String(process.env.STORE_WHATSAPP).trim() : ''
 
 let cachedTransport = null
 function getMailTransport() {
@@ -73,6 +80,43 @@ function renderTemplate(template, vars) {
   })
 }
 
+function escapeHtml(input) {
+  const value = input === null || input === undefined ? '' : String(input)
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function textToHtml(input) {
+  return escapeHtml(input).replace(/\r\n|\n|\r/g, '<br/>')
+}
+
+function buildBaseEmailVars(extra = {}) {
+  const base = String(appBaseUrl ?? '').replace(/\/+$/, '')
+  const instagramUrl = storeInstagram
+    ? /^https?:\/\//i.test(storeInstagram)
+      ? storeInstagram
+      : `https://instagram.com/${storeInstagram.replace(/^@/, '')}`
+    : ''
+  return {
+    app_url: appBaseUrl,
+    logo_url: base ? `${base}/icons/icon.svg` : '',
+    instagram_url: instagramUrl,
+    instagram_icon_url: base ? `${base}/icons/instagram.svg` : '',
+    store_name: storeName,
+    store_email: storeEmail,
+    store_phone: storePhone,
+    store_address: storeAddress,
+    store_instagram: storeInstagram,
+    store_whatsapp: storeWhatsapp,
+    year: String(new Date().getFullYear()),
+    ...extra,
+  }
+}
+
 function buildFromHeader(fromName) {
   const name = fromName === null || fromName === undefined ? '' : String(fromName).trim()
   if (!name) return smtpFrom
@@ -99,26 +143,282 @@ const defaultEmailContent = {
   from_name: 'Zana',
   welcome: {
     enabled: true,
-    subject: 'Bem-vindo(a) à Zana, {{first_name}}!',
-    html:
-      '<p>Olá {{full_name}},</p><p>Obrigado por criar conta na Zana.</p><p>Pode entrar aqui: <a href="{{app_url}}/conta">{{app_url}}/conta</a></p>',
-    text: 'Olá {{full_name}},\n\nObrigado por criar conta na Zana.\n\nPode entrar aqui: {{app_url}}/conta',
+    subject: 'Bem-vindo(a) à {{store_name}}, {{first_name}}!',
+    html: [
+      '<!doctype html>',
+      '<html>',
+      '<head>',
+      '  <meta charset="utf-8"/>',
+      '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+      '  <meta name="x-apple-disable-message-reformatting"/>',
+      '</head>',
+      '<body style="margin:0;padding:0;background:#f8f5f1;">',
+      '  <div style="display:none;font-size:1px;color:#f8f5f1;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">',
+      '    Bem-vindo(a) à {{store_name}} — a tua conta está pronta.',
+      '  </div>',
+      '  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f8f5f1;">',
+      '    <tr>',
+      '      <td align="center" style="padding:28px 16px;">',
+      '        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:600px;width:100%;">',
+      '          <tr>',
+      '            <td style="padding:0 0 14px 0;">',
+      '              <a href="{{app_url}}" style="text-decoration:none;color:#782641;">',
+      '                <img src="{{logo_url}}" width="34" height="34" alt="{{store_name}}" style="display:inline-block;vertical-align:middle;border:0;outline:none;text-decoration:none;"/>',
+      '                <span style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:18px;font-weight:700;letter-spacing:0.4px;">{{store_name}}</span>',
+      '              </a>',
+      '            </td>',
+      '          </tr>',
+      '          <tr>',
+      '            <td style="background:#fbfaf8;border:1px solid #e0d9d1;border-radius:12px;padding:26px 22px;">',
+      '              <h1 style="margin:0 0 10px 0;font-size:22px;line-height:1.25;color:#3d2930;font-weight:700;">Olá {{full_name}},</h1>',
+      '              <p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#3d2930;">',
+      '                Obrigado por criares conta na {{store_name}}.',
+      '              </p>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="background:#782641;border:1px solid #782641;border-radius:10px;">',
+      '                    <a href="{{app_url}}/conta" style="display:inline-block;padding:12px 18px;font-size:12px;line-height:1.2;color:#fbfaf8;text-decoration:none;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;">Entrar na conta</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <p style="margin:16px 0 0 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                Se não foste tu, podes ignorar este email.',
+      '              </p>',
+      '              <hr style="border:none;border-top:1px solid #e0d9d1;margin:20px 0;"/>',
+      '              <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                <strong style="color:#3d2930;">{{store_name}}</strong> {{store_address}}',
+      '              </p>',
+      '              <p style="margin:0 0 10px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                {{store_email}} {{store_phone}}',
+      '              </p>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="padding:0 10px 0 0;vertical-align:middle;">',
+      '                    <a href="{{instagram_url}}" style="text-decoration:none;">',
+      '                      <img src="{{instagram_icon_url}}" width="18" height="18" alt="Instagram" style="display:block;border:0;outline:none;text-decoration:none;"/>',
+      '                    </a>',
+      '                  </td>',
+      '                  <td style="vertical-align:middle;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                    <a href="{{instagram_url}}" style="color:#782641;text-decoration:underline;">Instagram</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <p style="margin:10px 0 0 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                © {{year}} {{store_name}}',
+      '              </p>',
+      '            </td>',
+      '          </tr>',
+      '          <tr>',
+      '            <td style="padding:14px 4px 0 4px;text-align:center;font-size:11px;line-height:1.6;color:#7e676f;">',
+      '              <a href="{{app_url}}" style="color:#782641;text-decoration:underline;">Visitar loja</a>',
+      '            </td>',
+      '          </tr>',
+      '        </table>',
+      '      </td>',
+      '    </tr>',
+      '  </table>',
+      '</body>',
+      '</html>',
+    ].join(''),
+    text: [
+      'Olá {{full_name}},',
+      '',
+      'Obrigado por criares conta na {{store_name}}.',
+      '',
+      'Entrar na conta: {{app_url}}/conta',
+      '',
+      '---',
+      '{{store_name}}',
+      '{{store_address}}',
+      '{{store_email}} {{store_phone}}',
+      '© {{year}} {{store_name}}',
+    ].join('\n'),
   },
   order: {
     enabled: true,
-    subject: 'Recebemos a sua encomenda {{order_id}}',
-    html:
-      '<p>Olá {{customer_name}},</p><p>Recebemos a sua encomenda <strong>{{order_id}}</strong>.</p><p>Total: {{total}}</p><p>Acompanhe em: <a href="{{app_url}}/conta">{{app_url}}/conta</a></p>',
-    text:
-      'Olá {{customer_name}},\n\nRecebemos a sua encomenda {{order_id}}.\nTotal: {{total}}\n\nAcompanhe em: {{app_url}}/conta',
+    subject: '{{store_name}} — Encomenda {{order_id}} recebida',
+    html: [
+      '<!doctype html>',
+      '<html>',
+      '<head>',
+      '  <meta charset="utf-8"/>',
+      '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+      '  <meta name="x-apple-disable-message-reformatting"/>',
+      '</head>',
+      '<body style="margin:0;padding:0;background:#f8f5f1;">',
+      '  <div style="display:none;font-size:1px;color:#f8f5f1;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">',
+      '    Recebemos a tua encomenda {{order_id}} — total {{total}}.',
+      '  </div>',
+      '  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f8f5f1;">',
+      '    <tr>',
+      '      <td align="center" style="padding:28px 16px;">',
+      '        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:600px;width:100%;">',
+      '          <tr>',
+      '            <td style="padding:0 0 14px 0;">',
+      '              <a href="{{app_url}}" style="text-decoration:none;color:#782641;">',
+      '                <img src="{{logo_url}}" width="34" height="34" alt="{{store_name}}" style="display:inline-block;vertical-align:middle;border:0;outline:none;text-decoration:none;"/>',
+      '                <span style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:18px;font-weight:700;letter-spacing:0.4px;">{{store_name}}</span>',
+      '              </a>',
+      '            </td>',
+      '          </tr>',
+      '          <tr>',
+      '            <td style="background:#fbfaf8;border:1px solid #e0d9d1;border-radius:12px;padding:26px 22px;">',
+      '              <h1 style="margin:0 0 10px 0;font-size:22px;line-height:1.25;color:#3d2930;font-weight:700;">Olá {{customer_name}},</h1>',
+      '              <p style="margin:0 0 18px 0;font-size:14px;line-height:1.6;color:#3d2930;">',
+      '                Recebemos a tua encomenda.',
+      '              </p>',
+      '              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="background:#f8f5f1;border:1px solid #e0d9d1;border-radius:10px;padding:12px 12px;">',
+      '                    <div style="font-size:12px;color:#7e676f;line-height:1.4;">Encomenda</div>',
+      '                    <div style="font-size:14px;color:#3d2930;font-weight:700;line-height:1.4;">{{order_id}}</div>',
+      '                    <div style="height:8px;"></div>',
+      '                    <div style="font-size:12px;color:#7e676f;line-height:1.4;">Total</div>',
+      '                    <div style="font-size:14px;color:#3d2930;font-weight:700;line-height:1.4;">{{total}}</div>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <div style="height:18px;"></div>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="background:#782641;border:1px solid #782641;border-radius:10px;">',
+      '                    <a href="{{app_url}}/conta" style="display:inline-block;padding:12px 18px;font-size:12px;line-height:1.2;color:#fbfaf8;text-decoration:none;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;">Ver encomenda</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <hr style="border:none;border-top:1px solid #e0d9d1;margin:20px 0;"/>',
+      '              <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                <strong style="color:#3d2930;">{{store_name}}</strong> {{store_address}}',
+      '              </p>',
+      '              <p style="margin:0 0 10px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                {{store_email}} {{store_phone}}',
+      '              </p>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="padding:0 10px 0 0;vertical-align:middle;">',
+      '                    <a href="{{instagram_url}}" style="text-decoration:none;">',
+      '                      <img src="{{instagram_icon_url}}" width="18" height="18" alt="Instagram" style="display:block;border:0;outline:none;text-decoration:none;"/>',
+      '                    </a>',
+      '                  </td>',
+      '                  <td style="vertical-align:middle;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                    <a href="{{instagram_url}}" style="color:#782641;text-decoration:underline;">Instagram</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <p style="margin:10px 0 0 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                © {{year}} {{store_name}}',
+      '              </p>',
+      '            </td>',
+      '          </tr>',
+      '        </table>',
+      '      </td>',
+      '    </tr>',
+      '  </table>',
+      '</body>',
+      '</html>',
+    ].join(''),
+    text: [
+      'Olá {{customer_name}},',
+      '',
+      'Recebemos a tua encomenda {{order_id}}.',
+      'Total: {{total}}',
+      '',
+      'Ver estado: {{app_url}}/conta',
+      '',
+      '---',
+      '{{store_name}}',
+      '{{store_address}}',
+      '{{store_email}} {{store_phone}}',
+      '© {{year}} {{store_name}}',
+    ].join('\n'),
   },
   campaign: {
     enabled: true,
-    subject: 'Novidades Zana',
-    html:
-      '<p>Olá {{name}},</p><p>{{content}}</p><p style="font-size:12px;color:#666">Se não quiser receber mais emails, pode cancelar aqui: <a href="{{unsubscribe_url}}">{{unsubscribe_url}}</a></p>',
-    text:
-      'Olá {{name}},\n\n{{content}}\n\nPara cancelar: {{unsubscribe_url}}',
+    subject: 'Novidades {{store_name}}',
+    html: [
+      '<!doctype html>',
+      '<html>',
+      '<head>',
+      '  <meta charset="utf-8"/>',
+      '  <meta name="viewport" content="width=device-width,initial-scale=1"/>',
+      '  <meta name="x-apple-disable-message-reformatting"/>',
+      '</head>',
+      '<body style="margin:0;padding:0;background:#f8f5f1;">',
+      '  <div style="display:none;font-size:1px;color:#f8f5f1;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">',
+      '    Novidades da {{store_name}} — veja o que preparamos para si.',
+      '  </div>',
+      '  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#f8f5f1;">',
+      '    <tr>',
+      '      <td align="center" style="padding:28px 16px;">',
+      '        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:600px;width:100%;">',
+      '          <tr>',
+      '            <td style="padding:0 0 14px 0;">',
+      '              <a href="{{app_url}}" style="text-decoration:none;color:#782641;">',
+      '                <img src="{{logo_url}}" width="34" height="34" alt="{{store_name}}" style="display:inline-block;vertical-align:middle;border:0;outline:none;text-decoration:none;"/>',
+      '                <span style="display:inline-block;vertical-align:middle;margin-left:10px;font-size:18px;font-weight:700;letter-spacing:0.4px;">{{store_name}}</span>',
+      '              </a>',
+      '            </td>',
+      '          </tr>',
+      '          <tr>',
+      '            <td style="background:#fbfaf8;border:1px solid #e0d9d1;border-radius:12px;padding:26px 22px;">',
+      '              <h1 style="margin:0 0 10px 0;font-size:20px;line-height:1.25;color:#3d2930;font-weight:700;">Olá {{name}},</h1>',
+      '              <div style="margin:0 0 18px 0;font-size:14px;line-height:1.7;color:#3d2930;">{{content_html}}</div>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="background:#782641;border:1px solid #782641;border-radius:10px;">',
+      '                    <a href="{{app_url}}/catalogo" style="display:inline-block;padding:12px 18px;font-size:12px;line-height:1.2;color:#fbfaf8;text-decoration:none;font-weight:700;letter-spacing:0.6px;text-transform:uppercase;">Explorar catálogo</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <hr style="border:none;border-top:1px solid #e0d9d1;margin:20px 0;"/>',
+      '              <p style="margin:0 0 8px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                Se não quiser receber mais emails, pode cancelar aqui: <a href="{{unsubscribe_url}}" style="color:#782641;text-decoration:underline;">Cancelar subscrição</a>',
+      '              </p>',
+      '              <p style="margin:0 0 6px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                <strong style="color:#3d2930;">{{store_name}}</strong> {{store_address}}',
+      '              </p>',
+      '              <p style="margin:0 0 10px 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                {{store_email}} {{store_phone}}',
+      '              </p>',
+      '              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">',
+      '                <tr>',
+      '                  <td style="padding:0 10px 0 0;vertical-align:middle;">',
+      '                    <a href="{{instagram_url}}" style="text-decoration:none;">',
+      '                      <img src="{{instagram_icon_url}}" width="18" height="18" alt="Instagram" style="display:block;border:0;outline:none;text-decoration:none;"/>',
+      '                    </a>',
+      '                  </td>',
+      '                  <td style="vertical-align:middle;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                    <a href="{{instagram_url}}" style="color:#782641;text-decoration:underline;">Instagram</a>',
+      '                  </td>',
+      '                </tr>',
+      '              </table>',
+      '              <p style="margin:10px 0 0 0;font-size:12px;line-height:1.6;color:#7e676f;">',
+      '                © {{year}} {{store_name}}',
+      '              </p>',
+      '            </td>',
+      '          </tr>',
+      '        </table>',
+      '      </td>',
+      '    </tr>',
+      '  </table>',
+      '</body>',
+      '</html>',
+    ].join(''),
+    text: [
+      'Olá {{name}},',
+      '',
+      '{{content}}',
+      '',
+      'Explorar catálogo: {{app_url}}/catalogo',
+      '',
+      'Cancelar subscrição: {{unsubscribe_url}}',
+      '',
+      '---',
+      '{{store_name}}',
+      '{{store_address}}',
+      '{{store_email}} {{store_phone}}',
+      '© {{year}} {{store_name}}',
+    ].join('\n'),
   },
 }
 
@@ -785,6 +1085,15 @@ const newsletterCampaignSendSchema = z
     subject: z.string().min(1).max(500),
     content: z.string().min(1).max(200000),
     test_email: z.string().email().max(320).optional().nullable(),
+  })
+  .passthrough()
+
+const smtpTestSchema = z
+  .object({
+    to: z.string().email().max(320),
+    subject: z.string().max(500).optional().nullable(),
+    text: z.string().max(20000).optional().nullable(),
+    verify_only: z.boolean().optional().nullable(),
   })
   .passthrough()
 
@@ -2737,12 +3046,11 @@ app.post('/api/auth/register', async (req, res) => {
         if (content?.welcome?.enabled === false) return
 
         const fullName = created.fullName ?? created.email
-        const vars = {
+        const vars = buildBaseEmailVars({
           full_name: fullName,
           first_name: guessFirstName(fullName),
           email: created.email,
-          app_url: appBaseUrl,
-        }
+        })
         const subject = renderTemplate(content.welcome.subject, vars)
         const html = renderTemplate(content.welcome.html, vars)
         const text = renderTemplate(content.welcome.text, vars)
@@ -3976,13 +4284,12 @@ app.post('/api/orders', async (req, res) => {
       if (content?.order?.enabled === false) return
 
       const customerName = created.customerName ?? created.customerEmail
-      const vars = {
+      const vars = buildBaseEmailVars({
         customer_name: customerName,
         first_name: guessFirstName(customerName),
         order_id: created.id,
         total: `${created.total?.toString?.() ?? String(created.total)}€`,
-        app_url: appBaseUrl,
-      }
+      })
       const subject = renderTemplate(content.order.subject, vars)
       const html = renderTemplate(content.order.html, vars)
       const text = renderTemplate(content.order.text, vars)
@@ -6082,6 +6389,69 @@ app.patch('/api/admin/marketing/email', async (req, res) => {
   res.json({ content, updated_date: record.updatedAt, smtp_configured: isSmtpConfigured() })
 })
 
+app.post('/api/admin/smtp/test', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  if (!isSmtpConfigured()) return res.status(400).json({ error: 'smtp_not_configured' })
+
+  const parsed = smtpTestSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const transport = getMailTransport()
+  if (!transport) return res.status(400).json({ error: 'smtp_not_configured' })
+
+  const toSmtpErrorPayload = (err) => ({
+    error: 'smtp_error',
+    detail: err?.message ? String(err.message) : String(err),
+    code: err?.code ? String(err.code) : null,
+    command: err?.command ? String(err.command) : null,
+    response: err?.response ? String(err.response).slice(0, 800) : null,
+    response_code: err?.responseCode ? Number(err.responseCode) : null,
+  })
+
+  try {
+    await transport.verify()
+  } catch (err) {
+    const payload = toSmtpErrorPayload(err)
+    payload.error = 'smtp_verify_failed'
+    return res.status(400).json(payload)
+  }
+
+  if (parsed.data.verify_only) return res.json({ ok: true, verified: true })
+
+  const to = normalizeEmail(parsed.data.to)
+  const subject = String(parsed.data.subject ?? 'Teste SMTP - Zana').trim() || 'Teste SMTP - Zana'
+  const text =
+    parsed.data.text === null || parsed.data.text === undefined
+      ? `Email de teste enviado em ${new Date().toISOString()}`
+      : String(parsed.data.text)
+
+  try {
+    const { content: emailContent } = await getEmailContent()
+    const info = await transport.sendMail({
+      from: buildFromHeader(emailContent?.from_name),
+      to,
+      subject,
+      text,
+    })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'create',
+      entityType: 'SmtpTest',
+      entityId: null,
+      meta: { to, subject },
+    })
+
+    res.json({ ok: true, verified: true, message_id: info?.messageId ?? null })
+  } catch (err) {
+    const payload = toSmtpErrorPayload(err)
+    payload.error = 'smtp_send_failed'
+    return res.status(400).json(payload)
+  }
+})
+
 // Newsletter (admin)
 app.get('/api/admin/newsletter/subscribers', async (req, res) => {
   const admin = await requireAdmin(req, res)
@@ -6169,18 +6539,19 @@ app.post('/api/admin/newsletter/send', async (req, res) => {
 
   let sent = 0
   let failed = 0
+  const detailedFailures = testEmail ? [] : null
 
   for (const r of uniqueRecipients) {
     try {
       const sub = await upsertNewsletterSubscriber({ email: r.email, name: r.name ?? null, userId: r.userId, status: 'subscribed' })
       const unsubscribeUrl = buildUnsubscribeUrl(sub?.unsubscribeToken ?? '')
-      const vars = {
+      const vars = buildBaseEmailVars({
         name: r.name ?? r.email,
         email: r.email,
-        app_url: appBaseUrl,
         unsubscribe_url: unsubscribeUrl,
         content: contentRaw,
-      }
+        content_html: textToHtml(contentRaw),
+      })
       const subject = renderTemplate(subjectRaw, vars)
       const html = renderTemplate(emailContent.campaign.html, vars)
       const text = renderTemplate(emailContent.campaign.text, vars)
@@ -6189,6 +6560,13 @@ app.post('/api/admin/newsletter/send', async (req, res) => {
     } catch (err) {
       failed += 1
       console.error('newsletter send failed', r.email, err)
+      if (detailedFailures) {
+        detailedFailures.push({
+          email: r.email,
+          error: err?.message ? String(err.message) : String(err),
+          code: err?.code ? String(err.code) : null,
+        })
+      }
     }
   }
 
@@ -6200,7 +6578,7 @@ app.post('/api/admin/newsletter/send', async (req, res) => {
     meta: { audience, total: uniqueRecipients.length, sent, failed, test_email: testEmail },
   })
 
-  res.json({ ok: true, total: uniqueRecipients.length, sent, failed, test_email: testEmail })
+  res.json({ ok: true, total: uniqueRecipients.length, sent, failed, test_email: testEmail, failures: detailedFailures ?? undefined })
 })
 
 // FAQ

@@ -4,6 +4,7 @@ import { pt } from 'date-fns/locale';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -30,16 +31,17 @@ function pluralize(value, singular, plural) {
 export default function OrderStatusCard({ order, onRepeat }) {
   const totalNumber = Number.parseFloat(order.total);
   const totalItems = (order.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
+  const items = Array.isArray(order.items) ? order.items : [];
 
   return (
     <Card className="border-border">
       <CardHeader className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <p className="font-body text-xs text-muted-foreground">Encomenda #{String(order.id).slice(0, 8).toUpperCase()}</p>
             <CardTitle className="text-lg">{format(new Date(order.created_at), 'd MMM yyyy', { locale: pt })}</CardTitle>
             <CardDescription>
-              {totalItems} {pluralize(totalItems, 'item', 'itens')} • {(order.items ?? []).length} {pluralize((order.items ?? []).length, 'Produto', 'Produtos')}
+              {totalItems} {pluralize(totalItems, 'item', 'itens')} • {items.length} {pluralize(items.length, 'Produto', 'Produtos')}
             </CardDescription>
           </div>
           <Badge className={statusColors[order.status] || 'bg-secondary'}>
@@ -49,6 +51,41 @@ export default function OrderStatusCard({ order, onRepeat }) {
       </CardHeader>
 
       <CardContent>
+        {items.length ? (
+          <div className="mb-5">
+            <div className="font-body text-xs text-muted-foreground mb-2">Produtos</div>
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {items.map((it) => {
+                const quantity = Number(it.quantity) || 0;
+                return (
+                  <div key={it.id ?? `${it.product_id ?? ''}:${it.product_name ?? ''}`} className="w-[104px] shrink-0">
+                    <div className="relative w-full aspect-square rounded-md overflow-hidden border border-border bg-secondary/30">
+                      <ImageWithFallback
+                        src={it.product_image ?? ''}
+                        alt={it.product_name ?? 'Produto'}
+                        iconClassName="w-8 h-8 opacity-30 text-muted-foreground"
+                      />
+                      {quantity > 1 ? (
+                        <div className="absolute bottom-1 right-1 bg-card/90 border border-border rounded px-1.5 py-0.5">
+                          <span className="font-body text-[10px] text-foreground">x{quantity}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="mt-1 font-body text-xs truncate" title={it.product_name ?? ''}>
+                      {it.product_name ?? 'Produto'}
+                    </div>
+                    {it.color ? (
+                      <div className="font-body text-[10px] text-muted-foreground truncate" title={it.color ?? ''}>
+                        {it.color}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
           <div>
             <p className="font-body text-sm font-semibold">{Number.isFinite(totalNumber) ? totalNumber.toFixed(2) : order.total} €</p>

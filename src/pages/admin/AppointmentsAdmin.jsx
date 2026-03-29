@@ -764,11 +764,11 @@ export default function AppointmentsAdmin() {
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Data/hora</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Serviço</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Atendente</th>
                     <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Status</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
                     <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
                   </tr>
                 </thead>
@@ -942,7 +942,7 @@ export default function AppointmentsAdmin() {
                     </div>
 
                     <div>
-                      <Label className="font-body text-xs">Status</Label>
+                      <Label className="font-body text-xs">Estado</Label>
                       <Select value={editForm.status} onValueChange={(v) => setEditForm((p) => ({ ...p, status: v }))}>
                         <SelectTrigger className="rounded-none mt-1 font-body text-sm">
                           <SelectValue placeholder="Selecione..." />
