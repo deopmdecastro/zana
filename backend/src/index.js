@@ -9,7 +9,7 @@ import { prisma } from './prisma.js'
 import { ensureSchema } from './bootstrap.js'
 
 const port = Number.parseInt(process.env.PORT ?? '3001', 10)
-const corsOrigin = process.env.CORS_ORIGIN ?? 'http://localhost:5173'
+const corsOrigin = process.env.CORS_ORIGIN ?? process.env.APP_BASE_URL ?? 'http://localhost:5173'
 const authSecret = process.env.AUTH_SECRET ?? 'dev-secret-change-me'
 const authTokenTtlSeconds = Number.parseInt(process.env.AUTH_TOKEN_TTL_SECONDS ?? '2592000', 10) // 30 days
 const passwordResetTtlSeconds = Number.parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_SECONDS ?? '3600', 10) // 1 hour
@@ -568,6 +568,18 @@ function parseCorsOrigins(value) {
     .filter(Boolean)
 }
 
+function normalizeCorsEntry(entry) {
+  const value = String(entry ?? '').trim()
+  if (!value) return null
+  if (value === '*') return '*'
+  if (value.startsWith('*.')) return value // wildcard subdomains, e.g. "*.vercel.app"
+  if (/^https?:\/\//i.test(value)) return value
+  if (value.endsWith(':*')) return value // used as "http://localhost:*" (already includes scheme) OR raw host wildcard (leave as-is)
+  // Accept plain domains (without scheme) and normalize to https:// so they can match browser origins.
+  if (/^[a-z0-9.-]+\.[a-z]{2,}(:\d+)?$/i.test(value)) return `https://${value}`
+  return value
+}
+
 function isOriginAllowed(origin, allowed) {
   if (!origin) return true // non-browser / same-origin
   if (!Array.isArray(allowed) || allowed.length === 0) return false
@@ -588,12 +600,31 @@ function isOriginAllowed(origin, allowed) {
   return false
 }
 
-const allowedCorsOrigins = parseCorsOrigins(corsOrigin)
+const allowedCorsOrigins = Array.from(
+  new Set(
+    parseCorsOrigins(corsOrigin)
+      .map(normalizeCorsEntry)
+      .filter(Boolean),
+  ),
+)
+const seenCorsDeniedOrigins = new Set()
 app.use(
   cors({
     origin(origin, cb) {
       if (isOriginAllowed(origin, allowedCorsOrigins)) return cb(null, true)
-      return cb(new Error('cors_not_allowed'), false)
+
+      // Don't crash the request pipeline; just omit CORS headers.
+      // Browsers will block the request, but server logs stay clean.
+      if (origin && !seenCorsDeniedOrigins.has(origin)) {
+        seenCorsDeniedOrigins.add(origin)
+        console.error('cors_not_allowed', {
+          origin,
+          allowed: allowedCorsOrigins,
+          hint: 'Set CORS_ORIGIN to a comma-separated list (e.g. "https://yourapp.vercel.app,*.vercel.app").',
+        })
+      }
+
+      return cb(null, false)
     },
   }),
 )
