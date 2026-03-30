@@ -21,6 +21,7 @@ import {
   Tag,
   TrendingUp,
   Truck,
+  Database,
   Users,
 } from 'lucide-react';
 import zanaLogo from '@/img/zana_logo_primary.svg';
@@ -60,8 +61,10 @@ const navSections = [
     items: [
       { to: '/admin/definicoes/pagamentos', icon: CreditCard, label: 'Pagamentos' },
       { to: '/admin/definicoes/envios', icon: Truck, label: 'Envios' },
+      { to: '/admin/definicoes/backup', icon: Database, label: 'Backup' },
     ],
   },
+
   {
     label: 'Operação',
     items: [
