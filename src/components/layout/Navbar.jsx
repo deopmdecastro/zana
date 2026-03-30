@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, LayoutDashboard, LogOut, Menu, ShoppingBag, Store, User } from 'lucide-react';
+import { Bell, LayoutDashboard, LogOut, Menu, Settings, ShoppingBag, Store, User } from 'lucide-react';
 
 import { useCart } from '@/lib/CartContext';
 import { useAuth } from '@/lib/AuthContext';
@@ -160,6 +160,18 @@ export default function Navbar() {
                       </Link>
                     </SheetClose>
 
+                    {isLogged ? (
+                      <SheetClose asChild>
+                        <Link
+                          to="/conta"
+                          className="flex items-center gap-3 rounded-md px-3 py-2 font-body text-sm hover:bg-secondary/60 transition-colors"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Definições
+                        </Link>
+                      </SheetClose>
+                    ) : null}
+
                     {isAdmin ? (
                       <SheetClose asChild>
                         <Link
@@ -172,19 +184,18 @@ export default function Navbar() {
                       </SheetClose>
                     ) : null}
 
-                    {isLogged ? (
-                      <SheetClose asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="w-full justify-start gap-3 rounded-md px-3 py-2 font-body text-sm hover:bg-secondary/60"
-                          onClick={handleLogout}
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Logout
-                        </Button>
-                      </SheetClose>
-                    ) : null}
+                    <SheetClose asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full justify-start gap-3 rounded-md px-3 py-2 font-body text-sm hover:bg-secondary/60 disabled:opacity-50"
+                        disabled={!isLogged}
+                        onClick={handleLogout}
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Logout
+                      </Button>
+                    </SheetClose>
                   </div>
                 </div>
               </SheetContent>
