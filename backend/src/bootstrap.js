@@ -123,6 +123,7 @@ const ddl = [
   `,
   `CREATE INDEX IF NOT EXISTS "Order_status_idx" ON "Order" ("status");`,
   `CREATE INDEX IF NOT EXISTS "Order_customerEmail_idx" ON "Order" ("customerEmail");`,
+  `CREATE INDEX IF NOT EXISTS "Order_createdAt_idx" ON "Order" ("createdAt");`,
 
   `DO $$ BEGIN CREATE TABLE IF NOT EXISTS "Coupon" (
     "id" TEXT PRIMARY KEY,
