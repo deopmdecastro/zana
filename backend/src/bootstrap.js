@@ -32,6 +32,7 @@ const ddl = [
     "country" TEXT NOT NULL DEFAULT 'Portugal',
     "newsletterOptIn" BOOLEAN NOT NULL DEFAULT FALSE,
     "orderUpdatesEmail" BOOLEAN NOT NULL DEFAULT TRUE,
+    "pointsBalance" INTEGER NOT NULL DEFAULT 0,
     "passwordHash" TEXT NOT NULL,
     "passwordSalt" TEXT NOT NULL,
     "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -53,6 +54,7 @@ const ddl = [
   `ALTER TABLE IF EXISTS "User" ADD COLUMN IF NOT EXISTS "country" TEXT NOT NULL DEFAULT 'Portugal';`,
   `ALTER TABLE IF EXISTS "User" ADD COLUMN IF NOT EXISTS "newsletterOptIn" BOOLEAN NOT NULL DEFAULT FALSE;`,
   `ALTER TABLE IF EXISTS "User" ADD COLUMN IF NOT EXISTS "orderUpdatesEmail" BOOLEAN NOT NULL DEFAULT TRUE;`,
+  `ALTER TABLE IF EXISTS "User" ADD COLUMN IF NOT EXISTS "pointsBalance" INTEGER NOT NULL DEFAULT 0;`,
 
   `
   CREATE TABLE IF NOT EXISTS "PasswordResetToken" (
