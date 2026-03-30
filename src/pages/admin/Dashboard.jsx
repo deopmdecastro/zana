@@ -1,10 +1,11 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Euro, Package, ShoppingCart, TrendingUp } from 'lucide-react';
+
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
-import { Package, ShoppingCart, Euro, TrendingUp } from 'lucide-react';
-import { BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 const STATUS_META = {
   pending: { label: 'Pendente', color: 'hsl(var(--chart-3))' },
@@ -13,6 +14,21 @@ const STATUS_META = {
   shipped: { label: 'Enviada', color: 'hsl(var(--chart-4))' },
   delivered: { label: 'Entregue', color: 'hsl(var(--chart-5))' },
 };
+
+function OrdersByStatusTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  const label = String(row?.name ?? '');
+  const value = Number(row?.value ?? 0);
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2 shadow-sm">
+      <div className="font-body text-xs text-muted-foreground">Estado</div>
+      <div className="font-body text-sm font-semibold">{label}</div>
+      <div className="mt-1 font-body text-xs text-muted-foreground">Encomendas</div>
+      <div className="font-body text-sm font-semibold">{value}</div>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data: products = [] } = useQuery({
@@ -68,20 +84,41 @@ export default function Dashboard() {
           <CardTitle className="font-heading text-xl">Encomendas por Estado</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={statusData}>
-                <XAxis dataKey="name" className="font-body text-xs" />
-                <YAxis className="font-body text-xs" />
-                <Tooltip />
-                <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {statusData.map((entry) => (
-                    <Cell key={entry.key} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+          {orders.length === 0 ? (
+            <div className="h-64 flex items-center justify-center">
+              <p className="font-body text-sm text-muted-foreground">Ainda não existem encomendas para mostrar.</p>
+            </div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={statusData} margin={{ top: 18, right: 16, bottom: 10, left: 0 }} barCategoryGap={18}>
+                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    interval={0}
+                    height={46}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    width={28}
+                  />
+                  <Tooltip cursor={{ fill: 'hsl(var(--secondary) / 0.35)' }} content={<OrdersByStatusTooltip />} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={56}>
+                    <LabelList dataKey="value" position="top" className="font-body text-xs fill-foreground" />
+                    {statusData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </CardContent>
       </Card>
 
