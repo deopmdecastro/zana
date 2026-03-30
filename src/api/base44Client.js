@@ -186,7 +186,7 @@ export const base44 = {
         return user;
       }
     },
-    register: async ({ email, password, full_name } = {}) => {
+    register: async ({ email, password, full_name, newsletter_opt_in, privacy_policy_accepted } = {}) => {
       if (!email || !password) {
         throw new Error('Missing credentials');
       }
@@ -194,7 +194,7 @@ export const base44 = {
       try {
         const res = await jsonRequest('/api/auth/register', {
           method: 'POST',
-          body: { email, password, full_name },
+          body: { email, password, full_name, newsletter_opt_in, privacy_policy_accepted },
         });
         return res?.user ?? null;
       } catch (e) {
@@ -557,6 +557,10 @@ export const base44 = {
             get: async () => authedJsonRequest('/api/admin/marketing/email'),
             update: async (data) => authedJsonRequest('/api/admin/marketing/email', { method: 'PATCH', body: data }),
           },
+        },
+        backup: {
+          export: async () => authedJsonRequest('/api/admin/backup/export'),
+          import: async (data) => authedJsonRequest('/api/admin/backup/import', { method: 'POST', body: data }),
         },
         smtp: {
           test: async (data) => authedJsonRequest('/api/admin/smtp/test', { method: 'POST', body: data }),

@@ -12,6 +12,7 @@ const defaults = {
   logo_url: '',
   favicon_url: '',
   app_icon_url: iconZ,
+  share_image_url: '',
   theme_color: '#782641',
   background_color: '#f8f5f2',
   secondary_color: '#f1e7db',
@@ -34,6 +35,16 @@ function getOrCreateMeta(name) {
   if (meta) return meta;
   meta = document.createElement('meta');
   meta.setAttribute('name', name);
+  document.head.appendChild(meta);
+  return meta;
+}
+
+function getOrCreateMetaProperty(property) {
+  if (typeof document === 'undefined') return null;
+  let meta = document.querySelector(`meta[property="${property}"]`);
+  if (meta) return meta;
+  meta = document.createElement('meta');
+  meta.setAttribute('property', property);
   document.head.appendChild(meta);
   return meta;
 }
@@ -123,7 +134,7 @@ function createDynamicManifest(branding) {
     currentManifestObjectUrl = null;
   }
 
-  const iconUrl = String(branding.app_icon_url ?? '').trim() || String(branding.favicon_url ?? '').trim() || '/icons/icon.svg';
+  const iconUrl = String(branding.app_icon_url ?? '').trim() || String(branding.favicon_url ?? '').trim() || '/icons/icon_z.svg';
   const manifest = {
     name: String(branding.site_name ?? 'Zana Acessórios').trim() || 'Zana Acessórios',
     short_name: String(branding.site_name ?? 'Zana').trim() || 'Zana',
@@ -211,8 +222,16 @@ export function useBranding() {
       }
     }
 
+    const shareImage = String(branding.share_image_url ?? '').trim() || String(branding.app_icon_url ?? '').trim() || '/icons/icon_z.svg';
+    if (shareImage) {
+      const ogImageMeta = getOrCreateMetaProperty('og:image');
+      if (ogImageMeta) ogImageMeta.setAttribute('content', shareImage);
+      const twitterImageMeta = getOrCreateMeta('twitter:image');
+      if (twitterImageMeta) twitterImageMeta.setAttribute('content', shareImage);
+    }
+
     createDynamicManifest(branding);
-  }, [branding.favicon_url, branding.app_icon_url, branding.site_name, branding.theme_color]);
+  }, [branding.favicon_url, branding.app_icon_url, branding.share_image_url, branding.site_name, branding.theme_color]);
 
   useEffect(() => {
     const name = String(branding.site_name ?? '').trim();

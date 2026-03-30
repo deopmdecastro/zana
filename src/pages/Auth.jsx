@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
@@ -26,6 +27,21 @@ const getAuthErrorMessage = (err, mode) => {
   return 'Não foi possível criar a conta.';
 };
 
+const getPasswordStrength = (password) => {
+  if (!password) return { label: 'Insira uma palavra-passe.', status: 'empty' };
+
+  let score = 0;
+  if (password.length >= 8) score += 1;
+  if (password.length >= 12) score += 1;
+  if (/[A-Z]/.test(password)) score += 1;
+  if (/[0-9]/.test(password)) score += 1;
+  if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+  if (score <= 1) return { label: 'Fraca', status: 'weak' };
+  if (score <= 3) return { label: 'Média', status: 'medium' };
+  return { label: 'Forte', status: 'strong' };
+};
+
 export default function Auth() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -38,7 +54,13 @@ export default function Auth() {
   const [resetNewPassword, setResetNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showResetPassword, setShowResetPassword] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    newsletterOptIn: false,
+    privacyPolicyAccepted: false,
+  });
 
   useEffect(() => {
     setErrorMessage('');
@@ -80,8 +102,7 @@ export default function Auth() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: (data) =>
-      base44.auth.register({ email: data.email, password: data.password, full_name: data.name }),
+    mutationFn: (data) => base44.auth.register(data),
     onSuccess: () => {
       setErrorMessage('');
       toast.success('Conta criada! Agora pode fazer login.');
@@ -145,7 +166,19 @@ export default function Auth() {
     if (isLogin) {
       loginMutation.mutate({ email: form.email, password: form.password });
     } else {
-      registerMutation.mutate(form);
+      if (!form.privacyPolicyAccepted) {
+        const msg = 'Tem de aceitar a política de privacidade para criar a conta.';
+        setErrorMessage(msg);
+        toast.error(msg);
+        return;
+      }
+      registerMutation.mutate({
+        email: form.email,
+        password: form.password,
+        full_name: form.name,
+        newsletter_opt_in: form.newsletterOptIn,
+        privacy_policy_accepted: form.privacyPolicyAccepted,
+      });
     }
   };
 
@@ -224,6 +257,24 @@ export default function Auth() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {!isLogin && (
+                <p className="text-xs font-body mt-2">
+                  Força da palavra-passe:{' '}
+                  <span
+                    className={
+                      form.password.length === 0
+                        ? 'text-muted-foreground'
+                        : getPasswordStrength(form.password).status === 'weak'
+                        ? 'text-destructive'
+                        : getPasswordStrength(form.password).status === 'medium'
+                        ? 'text-amber-600'
+                        : 'text-emerald-600'
+                    }
+                  >
+                    {getPasswordStrength(form.password).label}
+                  </span>
+                </p>
+              )}
             </div>
           ) : resetStep === 'confirm' ? (
             <>
@@ -260,13 +311,43 @@ export default function Auth() {
             </>
           ) : null}
 
+          {!resetMode && !isLogin && (
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="privacyPolicyAccepted"
+                  checked={form.privacyPolicyAccepted}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, privacyPolicyAccepted: Boolean(checked) }))}
+                />
+                <label htmlFor="privacyPolicyAccepted" className="text-sm font-body leading-tight">
+                  Aceito a <Link to="/politica-privacidade" className="text-primary hover:underline">política de privacidade</Link>.
+                </label>
+              </div>
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="newsletterOptIn"
+                  checked={form.newsletterOptIn}
+                  onCheckedChange={(checked) => setForm((prev) => ({ ...prev, newsletterOptIn: Boolean(checked) }))}
+                />
+                <label htmlFor="newsletterOptIn" className="text-sm font-body leading-tight">
+                  Quero receber novidades e ofertas por email.
+                </label>
+              </div>
+            </div>
+          )}
           {errorMessage ? (
             <p className="text-xs font-body text-destructive">{errorMessage}</p>
           ) : null}
 
           <Button
             type="submit"
-            disabled={loginMutation.isPending || registerMutation.isPending || resetRequestMutation.isPending || resetConfirmMutation.isPending}
+            disabled={
+              loginMutation.isPending ||
+              registerMutation.isPending ||
+              resetRequestMutation.isPending ||
+              resetConfirmMutation.isPending ||
+              (!resetMode && !isLogin && !form.privacyPolicyAccepted)
+            }
             className="w-full rounded-none py-6 font-body text-sm tracking-wider gap-2 mt-2"
           >
             {resetMode ? (
@@ -338,17 +419,6 @@ export default function Auth() {
           )}
         </div>
       </motion.div>
-
-      <div className="mt-12 grid grid-cols-2 gap-8 text-center opacity-50 grayscale scale-90">
-        <div className="space-y-1">
-          <p className="font-heading text-lg italic">Zana</p>
-          <p className="text-[10px] uppercase tracking-widest font-body">Elegância</p>
-        </div>
-        <div className="space-y-1">
-          <p className="font-heading text-lg italic">Acessórios</p>
-          <p className="text-[10px] uppercase tracking-widest font-body">Essência</p>
-        </div>
-      </div>
     </div>
   );
 }

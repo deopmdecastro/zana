@@ -18,11 +18,12 @@ Na raiz do repo:
 Em `backend/`:
 
 1. Copie `backend/.env.example` para `backend/.env`
-2. Instale deps: `npm.cmd --prefix backend install`
-3. Gere o client: `npm.cmd --prefix backend run prisma:generate`
-4. Migre: `npm.cmd --prefix backend run prisma:migrate`
-5. Seed (opcional): `npm.cmd --prefix backend run prisma:seed`
-6. Rode: `npm.cmd --prefix backend run dev`
+2. Opcionalmente crie `backend/.env.local` a partir de `backend/.env.local.example` para overrides locais (não comitar).
+3. Instale deps: `npm.cmd --prefix backend install`
+4. Gere o client: `npm.cmd --prefix backend run prisma:generate`
+5. Migre: `npm.cmd --prefix backend run prisma:migrate`
+6. Seed (opcional): `npm.cmd --prefix backend run prisma:seed`
+7. Rode: `npm.cmd --prefix backend run dev`
 
 ## Endpoints
 

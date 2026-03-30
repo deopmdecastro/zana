@@ -1,9 +1,15 @@
-import 'dotenv/config'
+import dotenv from 'dotenv'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import express from 'express'
 import cors from 'cors'
 import { z } from 'zod'
 import crypto from 'node:crypto'
 import nodemailer from 'nodemailer'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+dotenv.config({ path: path.resolve(__dirname, '../.env') })
+dotenv.config({ path: path.resolve(__dirname, '../.env.local'), override: true })
 
 import { prisma } from './prisma.js'
 import { ensureSchema } from './bootstrap.js'
@@ -842,6 +848,8 @@ const registerSchema = z.object({
   email: z.string().email().max(320),
   password: z.string().min(6).max(200),
   full_name: z.string().min(1).max(200).optional(),
+  newsletter_opt_in: z.boolean().optional(),
+  privacy_policy_accepted: z.literal(true),
 })
 
 const loginSchema = z.object({
@@ -1411,6 +1419,192 @@ function parseLimit(raw, fallback = 100) {
   const n = Number.parseInt(String(raw ?? ''), 10)
   if (!Number.isFinite(n) || n <= 0) return fallback
   return Math.min(n, 500)
+}
+
+function toArray(value) {
+  return Array.isArray(value) ? value : []
+}
+
+async function collectBackupData() {
+  return {
+    metadata: {
+      exportedAt: new Date().toISOString(),
+      version: '1',
+    },
+    users: await prisma.user.findMany({ orderBy: { createdAt: 'asc' } }),
+    newsletterSubscribers: await prisma.newsletterSubscriber.findMany({ orderBy: { createdAt: 'asc' } }),
+    products: await prisma.product.findMany({ orderBy: { createdAt: 'asc' } }),
+    coupons: await prisma.coupon.findMany({ orderBy: { createdAt: 'asc' } }),
+    salesTargets: await prisma.salesTarget.findMany({ orderBy: { createdAt: 'asc' } }),
+    cashClosures: await prisma.cashClosure.findMany({ orderBy: { startedAt: 'asc' } }),
+    orders: await prisma.order.findMany({ orderBy: { createdAt: 'asc' } }),
+    orderItems: await prisma.orderItem.findMany({ orderBy: { id: 'asc' } }),
+    reviews: await prisma.review.findMany({ orderBy: { createdAt: 'asc' } }),
+    services: await prisma.service.findMany({ orderBy: { createdAt: 'asc' } }),
+    staffMembers: await prisma.staffMember.findMany({ orderBy: { createdAt: 'asc' } }),
+    staffServices: await prisma.staffService.findMany({ orderBy: { createdAt: 'asc' } }),
+    appointments: await prisma.appointment.findMany({ orderBy: { createdAt: 'asc' } }),
+    wishlistItems: await prisma.wishlistItem.findMany({ orderBy: { createdAt: 'asc' } }),
+    faqItems: await prisma.faqItem.findMany({ orderBy: { createdAt: 'asc' } }),
+    faqQuestions: await prisma.faqQuestion.findMany({ orderBy: { createdAt: 'asc' } }),
+    instagramPosts: await prisma.instagramPost.findMany({ orderBy: { createdAt: 'asc' } }),
+    supportTickets: await prisma.supportTicket.findMany({ orderBy: { createdAt: 'asc' } }),
+    supportMessages: await prisma.supportMessage.findMany({ orderBy: { createdAt: 'asc' } }),
+    suppliers: await prisma.supplier.findMany({ orderBy: { createdAt: 'asc' } }),
+    purchases: await prisma.purchase.findMany({ orderBy: { createdAt: 'asc' } }),
+    purchaseItems: await prisma.purchaseItem.findMany({ orderBy: { id: 'asc' } }),
+    inventoryMovements: await prisma.inventoryMovement.findMany({ orderBy: { createdAt: 'asc' } }),
+    blogPosts: await prisma.blogPost.findMany({ orderBy: { createdAt: 'asc' } }),
+    blogComments: await prisma.blogComment.findMany({ orderBy: { createdAt: 'asc' } }),
+    blogCommentReplies: await prisma.blogCommentReply.findMany({ orderBy: { createdAt: 'asc' } }),
+    siteContent: await prisma.siteContent.findMany({ orderBy: { key: 'asc' } }),
+  }
+}
+
+async function restoreBackupData(backup) {
+  if (!backup || typeof backup !== 'object') {
+    throw new Error('invalid_backup_payload')
+  }
+
+  const users = toArray(backup.users)
+  const newsletterSubscribers = toArray(backup.newsletterSubscribers)
+  const products = toArray(backup.products)
+  const coupons = toArray(backup.coupons)
+  const salesTargets = toArray(backup.salesTargets)
+  const cashClosures = toArray(backup.cashClosures)
+  const orders = toArray(backup.orders)
+  const orderItems = toArray(backup.orderItems)
+  const reviews = toArray(backup.reviews)
+  const services = toArray(backup.services)
+  const staffMembers = toArray(backup.staffMembers)
+  const staffServices = toArray(backup.staffServices)
+  const appointments = toArray(backup.appointments)
+  const wishlistItems = toArray(backup.wishlistItems)
+  const faqItems = toArray(backup.faqItems)
+  const faqQuestions = toArray(backup.faqQuestions)
+  const instagramPosts = toArray(backup.instagramPosts)
+  const supportTickets = toArray(backup.supportTickets)
+  const supportMessages = toArray(backup.supportMessages)
+  const suppliers = toArray(backup.suppliers)
+  const purchases = toArray(backup.purchases)
+  const purchaseItems = toArray(backup.purchaseItems)
+  const inventoryMovements = toArray(backup.inventoryMovements)
+  const blogPosts = toArray(backup.blogPosts)
+  const blogComments = toArray(backup.blogComments)
+  const blogCommentReplies = toArray(backup.blogCommentReplies)
+  const siteContent = toArray(backup.siteContent)
+
+  await prisma.$transaction(async (tx) => {
+    await tx.blogCommentReply.deleteMany()
+    await tx.blogComment.deleteMany()
+    await tx.blogPost.deleteMany()
+    await tx.supportMessage.deleteMany()
+    await tx.supportTicket.deleteMany()
+    await tx.faqQuestion.deleteMany()
+    await tx.faqItem.deleteMany()
+    await tx.orderItem.deleteMany()
+    await tx.order.deleteMany()
+    await tx.purchaseItem.deleteMany()
+    await tx.inventoryMovement.deleteMany()
+    await tx.purchase.deleteMany()
+    await tx.staffService.deleteMany()
+    await tx.appointment.deleteMany()
+    await tx.wishlistItem.deleteMany()
+    await tx.review.deleteMany()
+    await tx.product.deleteMany()
+    await tx.newsletterSubscriber.deleteMany()
+    await tx.user.deleteMany()
+    await tx.service.deleteMany()
+    await tx.staffMember.deleteMany()
+    await tx.coupon.deleteMany()
+    await tx.salesTarget.deleteMany()
+    await tx.cashClosure.deleteMany()
+    await tx.instagramPost.deleteMany()
+    await tx.supplier.deleteMany()
+    await tx.siteContent.deleteMany()
+
+    if (users.length > 0) {
+      await tx.user.createMany({ data: users, skipDuplicates: true })
+    }
+    if (newsletterSubscribers.length > 0) {
+      await tx.newsletterSubscriber.createMany({ data: newsletterSubscribers, skipDuplicates: true })
+    }
+    if (products.length > 0) {
+      await tx.product.createMany({ data: products, skipDuplicates: true })
+    }
+    if (coupons.length > 0) {
+      await tx.coupon.createMany({ data: coupons, skipDuplicates: true })
+    }
+    if (salesTargets.length > 0) {
+      await tx.salesTarget.createMany({ data: salesTargets, skipDuplicates: true })
+    }
+    if (cashClosures.length > 0) {
+      await tx.cashClosure.createMany({ data: cashClosures, skipDuplicates: true })
+    }
+    if (suppliers.length > 0) {
+      await tx.supplier.createMany({ data: suppliers, skipDuplicates: true })
+    }
+    if (services.length > 0) {
+      await tx.service.createMany({ data: services, skipDuplicates: true })
+    }
+    if (staffMembers.length > 0) {
+      await tx.staffMember.createMany({ data: staffMembers, skipDuplicates: true })
+    }
+    if (instagramPosts.length > 0) {
+      await tx.instagramPost.createMany({ data: instagramPosts, skipDuplicates: true })
+    }
+    if (siteContent.length > 0) {
+      await tx.siteContent.createMany({ data: siteContent, skipDuplicates: true })
+    }
+    if (orders.length > 0) {
+      await tx.order.createMany({ data: orders, skipDuplicates: true })
+    }
+    if (orderItems.length > 0) {
+      await tx.orderItem.createMany({ data: orderItems, skipDuplicates: true })
+    }
+    if (wishlistItems.length > 0) {
+      await tx.wishlistItem.createMany({ data: wishlistItems, skipDuplicates: true })
+    }
+    if (appointments.length > 0) {
+      await tx.appointment.createMany({ data: appointments, skipDuplicates: true })
+    }
+    if (reviews.length > 0) {
+      await tx.review.createMany({ data: reviews, skipDuplicates: true })
+    }
+    if (faqItems.length > 0) {
+      await tx.faqItem.createMany({ data: faqItems, skipDuplicates: true })
+    }
+    if (faqQuestions.length > 0) {
+      await tx.faqQuestion.createMany({ data: faqQuestions, skipDuplicates: true })
+    }
+    if (blogPosts.length > 0) {
+      await tx.blogPost.createMany({ data: blogPosts, skipDuplicates: true })
+    }
+    if (blogComments.length > 0) {
+      await tx.blogComment.createMany({ data: blogComments, skipDuplicates: true })
+    }
+    if (blogCommentReplies.length > 0) {
+      await tx.blogCommentReply.createMany({ data: blogCommentReplies, skipDuplicates: true })
+    }
+    if (supportTickets.length > 0) {
+      await tx.supportTicket.createMany({ data: supportTickets, skipDuplicates: true })
+    }
+    if (supportMessages.length > 0) {
+      await tx.supportMessage.createMany({ data: supportMessages, skipDuplicates: true })
+    }
+    if (purchases.length > 0) {
+      await tx.purchase.createMany({ data: purchases, skipDuplicates: true })
+    }
+    if (purchaseItems.length > 0) {
+      await tx.purchaseItem.createMany({ data: purchaseItems, skipDuplicates: true })
+    }
+    if (inventoryMovements.length > 0) {
+      await tx.inventoryMovement.createMany({ data: inventoryMovements, skipDuplicates: true })
+    }
+    if (staffServices.length > 0) {
+      await tx.staffService.createMany({ data: staffServices, skipDuplicates: true })
+    }
+  })
 }
 
 function decimalToNumber(value) {
@@ -3173,6 +3367,7 @@ app.post('/api/auth/register', async (req, res) => {
         fullName: parsed.data.full_name,
         passwordSalt: saltHex,
         passwordHash: hashHex,
+        newsletterOptIn: parsed.data.newsletter_opt_in ?? false,
       },
     })
 
@@ -3197,6 +3392,21 @@ app.post('/api/auth/register', async (req, res) => {
         console.error('welcome email failed', err)
       }
     })()
+
+    if (parsed.data.newsletter_opt_in) {
+      void (async () => {
+        try {
+          await upsertNewsletterSubscriber({
+            email: created.email,
+            name: created.fullName ?? null,
+            userId: created.id,
+            status: 'subscribed',
+          })
+        } catch (err) {
+          console.error('newsletter subscription failed', err)
+        }
+      })()
+    }
 
     res.status(201).json({ user: pickPublicUser(created) })
   } catch (e) {
@@ -5212,6 +5422,33 @@ app.get('/api/admin/users/:id/wishlist', async (req, res) => {
   })
 
   res.json({ items: items.map(toApiWishlistItem) })
+})
+
+app.get('/api/admin/backup/export', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  try {
+    const backup = await collectBackupData()
+    res.json(backup)
+  } catch (err) {
+    sendInternalError(res, err, 'backup_export_failed')
+  }
+})
+
+app.post('/api/admin/backup/import', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  try {
+    await restoreBackupData(req.body)
+    res.json({ success: true })
+  } catch (err) {
+    if (String(err.message) === 'invalid_backup_payload') {
+      return res.status(400).json({ error: 'invalid_backup_payload' })
+    }
+    sendInternalError(res, err, 'backup_import_failed')
+  }
 })
 
 app.patch('/api/admin/users/:id', async (req, res) => {

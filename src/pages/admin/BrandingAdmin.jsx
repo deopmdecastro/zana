@@ -45,6 +45,7 @@ export default function BrandingAdmin() {
       logo_url: String(form.logo_url ?? '').trim() || null,
       favicon_url: String(form.favicon_url ?? '').trim() || null,
       app_icon_url: String(form.app_icon_url ?? '').trim() || null,
+      share_image_url: String(form.share_image_url ?? '').trim() || null,
       theme_color: String(form.theme_color ?? '').trim() || null,
       background_color: String(form.background_color ?? '').trim() || null,
       secondary_color: String(form.secondary_color ?? '').trim() || null,
@@ -161,6 +162,21 @@ export default function BrandingAdmin() {
                 label="Favicon"
                 recommended="PNG 512×512 (ou 256×256)"
                 onChange={(url) => setForm((p) => ({ ...p, favicon_url: url }))}
+              />
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h3 className="font-heading text-xl mb-4">Imagem de partilha</h3>
+            <p className="font-body text-sm text-muted-foreground mb-4">
+              Esta imagem será usada como pré-visualização em partilhas nas redes sociais e WhatsApp.
+            </p>
+            <div className="max-w-xl">
+              <ImageUpload
+                value={form.share_image_url ?? ''}
+                label="Imagem de partilha"
+                recommended="1120×630 ou retângulo widescreen"
+                onChange={(url) => setForm((p) => ({ ...p, share_image_url: url }))}
               />
             </div>
           </div>

@@ -13,8 +13,9 @@ Este repo tem:
 ## Frontend (Vite)
 
 1. Instale deps na raiz: `npm install`
-2. Crie o `.env.local` a partir do template: copie `.env.local.example` → `.env.local`
-3. Rode o front:
+2. Crie o `.env` a partir do template: copie `.env.example` → `.env`
+3. Opcionalmente crie `.env.local` a partir de `.env.local.example` para overrides locais (não comitar).
+4. Rode o front:
    - Windows (PowerShell com scripts bloqueados): `npm.cmd run dev`
    - Outros: `npm run dev`
 
@@ -31,11 +32,12 @@ Este repo inclui um backend local em `backend/` e Postgres via `docker-compose.y
 
 1. Suba o Postgres: `docker compose up -d` (sobe em `localhost:5433`)
 2. Crie `backend/.env` a partir de `backend/.env.example`
-3. Instale deps do backend: `npm.cmd --prefix backend install`
-4. Gere o client: `npm.cmd --prefix backend run prisma:generate`
-5. Rode migrações: `npm.cmd --prefix backend run prisma:migrate`
-5. (Opcional) Seed: `npm.cmd --prefix backend run prisma:seed`
-6. Suba o backend: `npm.cmd --prefix backend run dev`
+3. Opcionalmente crie `backend/.env.local` a partir de `backend/.env.local.example` para overrides locais (não comitar).
+4. Instale deps do backend: `npm.cmd --prefix backend install`
+5. Gere o client: `npm.cmd --prefix backend run prisma:generate`
+6. Rode migrações: `npm.cmd --prefix backend run prisma:migrate`
+7. (Opcional) Seed: `npm.cmd --prefix backend run prisma:seed`
+8. Suba o backend: `npm.cmd --prefix backend run dev`
 
 Endpoints: `GET /health`, CRUD em `GET/POST/PATCH/DELETE /api/products`
 
