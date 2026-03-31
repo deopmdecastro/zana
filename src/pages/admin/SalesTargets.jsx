@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { downloadCsv } from '@/lib/reportExport';
+import LoadMoreControls from '@/components/ui/load-more-controls';
 
 function formatDatePt(value) {
   return value ? new Date(value).toLocaleDateString('pt-PT') : '—';
@@ -22,11 +23,14 @@ function moneyPt(value) {
 export default function AdminSalesTargets() {
   const title = 'Metas de Vendas';
   const queryClient = useQueryClient();
+  const [limit, setLimit] = useState(50);
 
-  const { data: salesTargets = [] } = useQuery({
-    queryKey: ['admin-sales-targets'],
-    queryFn: () => base44.admin.salesTargets.list('-created_date', 200),
+  const { data: salesTargets = [], isLoading } = useQuery({
+    queryKey: ['admin-sales-targets', limit],
+    queryFn: () => base44.admin.salesTargets.list('-created_date', limit),
   });
+
+  const canLoadMore = !isLoading && Array.isArray(salesTargets) && salesTargets.length === limit && limit < 500;
 
   const [salesTargetForm, setSalesTargetForm] = useState({
     name: '',
@@ -176,6 +180,14 @@ export default function AdminSalesTargets() {
               </tbody>
             </table>
           </div>
+
+          <LoadMoreControls
+            leftText={`A mostrar ${Math.min(limit, Array.isArray(salesTargets) ? salesTargets.length : 0)} metas.`}
+            onLess={() => setLimit(50)}
+            lessDisabled={isLoading || limit <= 50}
+            onMore={() => setLimit((p) => Math.min(500, p + 50))}
+            moreDisabled={!canLoadMore}
+          />
         </CardContent>
       </Card>
     </div>

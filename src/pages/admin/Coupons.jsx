@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { downloadCsv } from '@/lib/reportExport';
+import LoadMoreControls from '@/components/ui/load-more-controls';
 
 function formatDatePt(value) {
   if (!value) return 'Sem limite';
@@ -23,11 +24,14 @@ function moneyPt(value) {
 export default function AdminCoupons() {
   const title = 'Cupons';
   const queryClient = useQueryClient();
+  const [limit, setLimit] = useState(50);
 
-  const { data: coupons = [] } = useQuery({
-    queryKey: ['admin-coupons'],
-    queryFn: () => base44.admin.coupons.list('-created_date', 200),
+  const { data: coupons = [], isLoading } = useQuery({
+    queryKey: ['admin-coupons', limit],
+    queryFn: () => base44.admin.coupons.list('-created_date', limit),
   });
+
+  const canLoadMore = !isLoading && Array.isArray(coupons) && coupons.length === limit && limit < 500;
 
   const [couponForm, setCouponForm] = useState({
     code: '',
@@ -187,6 +191,14 @@ export default function AdminCoupons() {
               </tbody>
             </table>
           </div>
+
+          <LoadMoreControls
+            leftText={`A mostrar ${Math.min(limit, Array.isArray(coupons) ? coupons.length : 0)} cupons.`}
+            onLess={() => setLimit(50)}
+            lessDisabled={isLoading || limit <= 50}
+            onMore={() => setLimit((p) => Math.min(500, p + 50))}
+            moreDisabled={!canLoadMore}
+          />
         </CardContent>
       </Card>
     </div>

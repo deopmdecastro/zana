@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { downloadCsv } from '@/lib/reportExport';
+import LoadMoreControls from '@/components/ui/load-more-controls';
 
 function formatDatePt(value) {
   return value ? new Date(value).toLocaleDateString('pt-PT') : '—';
@@ -21,11 +22,14 @@ function moneyPt(value) {
 export default function AdminCashClosures() {
   const title = 'Fecho de Caixa';
   const queryClient = useQueryClient();
+  const [limit, setLimit] = useState(50);
 
-  const { data: cashClosures = [] } = useQuery({
-    queryKey: ['admin-cash-closures'],
-    queryFn: () => base44.admin.cashClosures.list('-created_date', 200),
+  const { data: cashClosures = [], isLoading } = useQuery({
+    queryKey: ['admin-cash-closures', limit],
+    queryFn: () => base44.admin.cashClosures.list('-created_date', limit),
   });
+
+  const canLoadMore = !isLoading && Array.isArray(cashClosures) && cashClosures.length === limit && limit < 500;
 
   const [cashClosureForm, setCashClosureForm] = useState({
     started_at: new Date().toISOString().slice(0, 10),
@@ -192,6 +196,14 @@ export default function AdminCashClosures() {
               </tbody>
             </table>
           </div>
+
+          <LoadMoreControls
+            leftText={`A mostrar ${Math.min(limit, Array.isArray(cashClosures) ? cashClosures.length : 0)} fechos.`}
+            onLess={() => setLimit(50)}
+            lessDisabled={isLoading || limit <= 50}
+            onMore={() => setLimit((p) => Math.min(500, p + 50))}
+            moreDisabled={!canLoadMore}
+          />
         </CardContent>
       </Card>
     </div>

@@ -14,18 +14,22 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 import { entityCode } from '@/utils/entityCode';
+import LoadMoreControls from '@/components/ui/load-more-controls';
 
 export default function AdminCustomers() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
+  const [limit, setLimit] = useState(50);
   const [form, setForm] = useState(null);
   const [pointsForm, setPointsForm] = useState({ delta: '', balance: '', reason: '' });
 
-  const { data: users = [] } = useQuery({
-    queryKey: ['admin-users'],
-    queryFn: () => base44.entities.User.list('-created_date', 100),
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['admin-users', limit],
+    queryFn: () => base44.entities.User.list('-created_date', limit),
   });
+
+  const canLoadMore = !isLoadingUsers && Array.isArray(users) && users.length === limit && limit < 500;
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.User.update(id, data),
@@ -150,6 +154,14 @@ export default function AdminCustomers() {
           </div>
         )}
       </div>
+
+      <LoadMoreControls
+        leftText={`A mostrar ${Math.min(limit, Array.isArray(users) ? users.length : 0)} clientes${search.trim() ? ` (${filteredUsers.length} filtrados)` : ''}.`}
+        onLess={() => setLimit(50)}
+        lessDisabled={isLoadingUsers || limit <= 50}
+        onMore={() => setLimit((p) => Math.min(500, p + 50))}
+        moreDisabled={!canLoadMore}
+      />
 
       <Dialog
         open={!!selected}

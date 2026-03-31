@@ -12,6 +12,7 @@ import { getErrorMessage } from '@/lib/toast';
 import { Plus, Pencil, Instagram } from 'lucide-react';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import DeleteIcon from '@/components/ui/delete-icon';
+import LoadMoreControls from '@/components/ui/load-more-controls';
 
 const emptyPost = { url: '', caption: '', cover_url: '', is_active: true };
 
@@ -20,11 +21,14 @@ export default function InstagramAdmin() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPost);
+  const [limit, setLimit] = useState(50);
 
-  const { data: posts = [] } = useQuery({
-    queryKey: ['admin-instagram'],
-    queryFn: () => base44.entities.InstagramPost.list(200),
+  const { data: posts = [], isLoading } = useQuery({
+    queryKey: ['admin-instagram', limit],
+    queryFn: () => base44.entities.InstagramPost.list(limit),
   });
+
+  const canLoadMore = !isLoading && Array.isArray(posts) && posts.length === limit && limit < 500;
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.InstagramPost.create(data),
@@ -137,6 +141,14 @@ export default function InstagramAdmin() {
           </div>
         )}
       </div>
+
+      <LoadMoreControls
+        leftText={`A mostrar ${Math.min(limit, Array.isArray(posts) ? posts.length : 0)} links.`}
+        onLess={() => setLimit(50)}
+        lessDisabled={isLoading || limit <= 50}
+        onMore={() => setLimit((p) => Math.min(500, p + 50))}
+        moreDisabled={!canLoadMore}
+      />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
