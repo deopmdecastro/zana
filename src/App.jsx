@@ -76,6 +76,7 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 	const PaymentSettingsAdmin = lazy(() => import('@/pages/admin/PaymentSettingsAdmin'));
   const ShippingSettingsAdmin = lazy(() => import('@/pages/admin/ShippingSettingsAdmin'));
   const BackupSettingsAdmin = lazy(() => import('@/pages/admin/BackupSettingsAdmin'));
+  const ReturnsSettingsAdmin = lazy(() => import('@/pages/admin/ReturnsSettingsAdmin'));
 		const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
 		const BlogCommentsAdmin = lazy(() => import('@/pages/admin/BlogCommentsAdmin'));
 		const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
@@ -173,6 +174,7 @@ const AuthenticatedApp = () => {
 		          <Route index element={<Navigate to="pagamentos" replace />} />
 		          <Route path="pagamentos" element={<PaymentSettingsAdmin />} />
               <Route path="envios" element={<ShippingSettingsAdmin />} />
+              <Route path="devolucoes" element={<ReturnsSettingsAdmin />} />
               <Route path="backup" element={<BackupSettingsAdmin />} />
 		        </Route>
 	        <Route path="/admin/fornecedores" element={<AdminSuppliers />} />

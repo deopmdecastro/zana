@@ -1,10 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { CreditCard, Database, Truck } from 'lucide-react';
+import { CreditCard, Database, RotateCcw, Truck } from 'lucide-react';
 
 const tabs = [
   { to: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
   { to: 'envios', label: 'Envios', icon: Truck },
+  { to: 'devolucoes', label: 'Devoluções', icon: RotateCcw },
   { to: 'backup', label: 'Backup', icon: Database },
 ];
 

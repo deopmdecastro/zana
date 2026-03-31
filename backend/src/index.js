@@ -572,6 +572,16 @@ const defaultAppointmentsContent = {
 let appointmentsCache = { content: defaultAppointmentsContent, updatedAt: 0, recordUpdatedAt: null }
 const APPOINTMENTS_CACHE_TTL_MS = 30_000
 
+const defaultReturnsContent = {
+  enabled: true,
+  days_allowed: 14,
+  conditions_text:
+    'Aceitamos devoluções no prazo indicado, desde que o artigo esteja sem sinais de uso, na embalagem original e acompanhado do comprovativo de compra.\n\nPara iniciar um pedido, clique em “Pedir devolução” na sua encomenda.',
+}
+
+let returnsCache = { content: defaultReturnsContent, updatedAt: 0, recordUpdatedAt: null }
+const RETURNS_CACHE_TTL_MS = 30_000
+
 function coerceTimeHHMM(value, fallback) {
   const raw = String(value ?? '').trim()
   return /^\d{2}:\d{2}$/.test(raw) ? raw : fallback
@@ -604,6 +614,29 @@ async function getAppointmentsContent() {
   }
 
   appointmentsCache = { content, updatedAt: now, recordUpdatedAt: record?.updatedAt ?? null }
+  return { content, updatedAt: record?.updatedAt ?? null }
+}
+
+async function getReturnsContent() {
+  const now = Date.now()
+  if (returnsCache?.content && now - (returnsCache.updatedAt ?? 0) < RETURNS_CACHE_TTL_MS) {
+    return { content: returnsCache.content, updatedAt: returnsCache.recordUpdatedAt ?? null }
+  }
+
+  const record = await prisma.siteContent.findUnique({ where: { key: 'returns' } })
+  const value = record?.value ?? null
+
+  const content = { ...defaultReturnsContent }
+  if (value && typeof value === 'object') {
+    content.enabled = value.enabled === true
+    content.days_allowed = Math.max(0, Math.min(Math.floor(coerceNumber(value.days_allowed, content.days_allowed)), 60))
+    content.conditions_text =
+      typeof value.conditions_text === 'string' && value.conditions_text.trim()
+        ? value.conditions_text
+        : content.conditions_text
+  }
+
+  returnsCache = { content, updatedAt: now, recordUpdatedAt: record?.updatedAt ?? null }
   return { content, updatedAt: record?.updatedAt ?? null }
 }
 
@@ -1001,6 +1034,14 @@ const appointmentsContentSchema = z
     start_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     end_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     slot_step_minutes: z.number().int().min(5).max(120).optional(),
+  })
+  .passthrough()
+
+const returnsContentSchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    days_allowed: z.number().int().min(0).max(60).optional(),
+    conditions_text: z.string().max(20_000).optional(),
   })
   .passthrough()
 
@@ -3932,6 +3973,11 @@ app.get('/api/content/appointments', async (req, res) => {
   res.json({ content, updated_date: updatedAt ?? null })
 })
 
+app.get('/api/content/returns', async (req, res) => {
+  const { content, updatedAt } = await getReturnsContent()
+  res.json({ content, updated_date: updatedAt ?? null })
+})
+
 // Newsletter (public)
 app.post('/api/newsletter/subscribe', async (req, res) => {
   const parsed = newsletterSubscribeSchema.safeParse(req.body ?? {})
@@ -6017,8 +6063,26 @@ app.delete('/api/admin/products/:id', async (req, res) => {
   if (!admin) return
 
   try {
-    await prisma.product.delete({ where: { id: req.params.id } })
-    await writeAuditLog({ actorId: admin.id, action: 'delete', entityType: 'Product', entityId: req.params.id })
+    const existing = await prisma.product.findUnique({ where: { id: req.params.id } })
+    if (!existing) return res.status(404).json({ error: 'not_found' })
+
+    const updated = await prisma.product.update({
+      where: { id: req.params.id },
+      data: {
+        status: 'inactive',
+        isFeatured: false,
+        isNew: false,
+        isBestseller: false,
+      },
+    })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'delete',
+      entityType: 'Product',
+      entityId: req.params.id,
+      meta: { soft_deleted: true, previous_status: existing.status, next_status: updated.status },
+    })
     res.status(204).send()
   } catch {
     res.status(404).json({ error: 'not_found' })
@@ -6840,6 +6904,49 @@ app.patch('/api/admin/content/appointments', async (req, res) => {
 
   await writeAuditLog({ actorId: admin.id, action: 'update', entityType: 'SiteContent', entityId: 'appointments', meta: { keys: Object.keys(next ?? {}) } })
   res.json({ content: (await getAppointmentsContent())?.content ?? next, updated_date: record.updatedAt })
+})
+
+// Content (Returns)
+app.get('/api/admin/content/returns', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const { content, updatedAt } = await getReturnsContent()
+  res.json({ content, updated_date: updatedAt ?? null })
+})
+
+app.patch('/api/admin/content/returns', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = returnsContentSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const existingRecord = await prisma.siteContent.findUnique({ where: { key: 'returns' } })
+  const existing = existingRecord?.value && typeof existingRecord.value === 'object' ? existingRecord.value : {}
+  const next = { ...defaultReturnsContent, ...existing }
+
+  if (parsed.data.enabled !== undefined) next.enabled = parsed.data.enabled === true
+  if (parsed.data.days_allowed !== undefined) next.days_allowed = parsed.data.days_allowed
+  if (parsed.data.conditions_text !== undefined) next.conditions_text = parsed.data.conditions_text
+
+  const record = await prisma.siteContent.upsert({
+    where: { key: 'returns' },
+    create: { key: 'returns', value: next },
+    update: { value: next },
+  })
+
+  returnsCache = { content: { ...defaultReturnsContent, ...next }, updatedAt: 0, recordUpdatedAt: record.updatedAt }
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'update',
+    entityType: 'SiteContent',
+    entityId: 'returns',
+    meta: { keys: Object.keys(next ?? {}) },
+  })
+
+  res.json({ content: (await getReturnsContent())?.content ?? next, updated_date: record.updatedAt })
 })
 
 // Marketing / Email templates
@@ -8014,6 +8121,133 @@ app.patch('/api/admin/purchases/:id', async (req, res) => {
 	    return sendInternalError(res, err, 'purchase_update_failed')
 	  }
 	})
+
+app.post('/api/admin/purchases/:id/return', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const schema = z
+    .object({
+      reason: z.string().max(2000).optional().nullable(),
+      items: z
+        .array(
+          z.object({
+            purchase_item_id: z.string().min(1),
+            quantity: z.union([z.number(), z.string()]),
+          }),
+        )
+        .min(1),
+    })
+    .passthrough()
+
+  const parsed = schema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const purchase = await prisma.purchase.findUnique({
+    where: { id: req.params.id },
+    include: { items: true, supplier: true },
+  })
+  if (!purchase) return res.status(404).json({ error: 'not_found' })
+  if (purchase.status !== 'received') return res.status(409).json({ error: 'purchase_not_received' })
+
+  const byItemId = new Map((purchase.items ?? []).map((it) => [it.id, it]))
+
+  const requested = parsed.data.items
+    .map((r) => {
+      const item = byItemId.get(r.purchase_item_id) ?? null
+      if (!item) return null
+      const qtyNumber = typeof r.quantity === 'string' ? Number(r.quantity) : r.quantity
+      const qty = Number.isFinite(qtyNumber) ? Math.floor(qtyNumber) : 0
+      if (qty <= 0) return null
+      if (qty > item.quantity) return { error: 'invalid_quantity', item_id: item.id }
+      return { item, quantity: qty }
+    })
+    .filter(Boolean)
+
+  const invalid = requested.find((x) => x && x.error)
+  if (invalid) return res.status(400).json({ error: invalid.error, item_id: invalid.item_id })
+
+  if (!requested.length) return res.status(400).json({ error: 'invalid_items' })
+
+  // Validate stock availability for each product.
+  const productIds = Array.from(new Set(requested.map((r) => r.item.productId).filter(Boolean)))
+  const products = productIds.length ? await prisma.product.findMany({ where: { id: { in: productIds } } }) : []
+  const byProductId = new Map(products.map((p) => [p.id, p]))
+
+  for (const r of requested) {
+    const productId = r.item.productId
+    if (!productId) continue
+    const p = byProductId.get(productId)
+    if (!p) continue
+    const nextStock = (p.stock ?? 0) - r.quantity
+    if (nextStock < 0) return res.status(409).json({ error: 'insufficient_stock', product_id: productId })
+  }
+
+  const reason = parsed.data.reason ? String(parsed.data.reason).trim() : ''
+  const metaBase = {
+    kind: 'purchase_return',
+    purchase_id: purchase.id,
+    purchase_reference: purchase.reference ?? null,
+    supplier_id: purchase.supplierId ?? null,
+    supplier_name: purchase.supplier?.name ?? null,
+    reason: reason || null,
+  }
+
+  await prisma.$transaction(async (tx) => {
+    for (const r of requested) {
+      const productId = r.item.productId
+      if (!productId) continue
+
+      await tx.product.update({
+        where: { id: productId },
+        data: { stock: { decrement: r.quantity } },
+      })
+
+      try {
+        await tx.inventoryMovement.create({
+          data: {
+            productId,
+            type: 'manual',
+            quantityChange: -r.quantity,
+            unitCost: r.item.unitCost,
+            purchaseId: purchase.id,
+            actorId: admin.id,
+            meta: { ...metaBase, purchase_item_id: r.item.id },
+          },
+        })
+      } catch (err) {
+        console.error('inventory movement create failed (purchase_return)', err)
+      }
+    }
+  })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'return',
+    entityType: 'Purchase',
+    entityId: purchase.id,
+    meta: {
+      ...metaBase,
+      items: requested.map((r) => ({
+        purchase_item_id: r.item.id,
+        product_id: r.item.productId ?? null,
+        product_name: r.item.productName,
+        quantity: r.quantity,
+        unit_cost: decimalToNumber(r.item.unitCost) ?? 0,
+      })),
+    },
+  })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'update',
+    entityType: 'Inventory',
+    entityId: purchase.id,
+    meta: { source: 'purchase_return' },
+  })
+
+  res.json({ ok: true })
+})
 
 // Inventory
 app.get('/api/admin/inventory', async (req, res) => {

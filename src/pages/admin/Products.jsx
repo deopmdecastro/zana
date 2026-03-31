@@ -114,7 +114,7 @@ export default function AdminProducts() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Product.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); toast.success('Produto removido'); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); toast.success('Produto arquivado'); },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover o produto.')),
   });
 

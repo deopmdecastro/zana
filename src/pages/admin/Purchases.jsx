@@ -11,7 +11,7 @@ import SearchableSelect from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, CheckCircle, Code } from 'lucide-react';
+import { Plus, Pencil, CheckCircle, Code, RotateCcw } from 'lucide-react';
 import { getPrimaryImage } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 
@@ -28,6 +28,12 @@ const statusColors = {
   draft: 'bg-secondary text-foreground',
   received: 'bg-green-100 text-green-800',
   cancelled: 'bg-destructive/10 text-destructive',
+};
+
+const statusLabels = {
+  draft: 'Rascunho',
+  received: 'Recebida',
+  cancelled: 'Cancelada',
 };
 
 const emptyPurchase = {
@@ -53,6 +59,9 @@ export default function AdminPurchases() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPurchase);
   const [jsonText, setJsonText] = useState('');
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnLines, setReturnLines] = useState([]);
 
   const { data: purchases = [] } = useQuery({
     queryKey: ['admin-purchases'],
@@ -601,6 +610,50 @@ export default function AdminPurchases() {
 
   const isLocked = editing?.status === 'received';
 
+  const returnMutation = useMutation({
+    mutationFn: ({ id, payload }) => base44.entities.Purchase.returnToSupplier(id, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-purchases'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-inventory'] });
+      await queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      await queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
+      toast.success('Devolução registada');
+      setReturnOpen(false);
+      setReturnReason('');
+      setReturnLines([]);
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível registar a devolução.')),
+  });
+
+  const openReturn = () => {
+    if (!editing || !Array.isArray(editing.items) || editing.items.length === 0) return;
+    setReturnReason('');
+    setReturnLines(
+      editing.items.map((it) => ({
+        purchase_item_id: it.id,
+        product_id: it.product_id ?? null,
+        product_name: it.product_name ?? 'Produto',
+        max_quantity: Number(it.quantity ?? 0) || 0,
+        quantity: 0,
+      })),
+    );
+    setReturnOpen(true);
+  };
+
+  const submitReturn = () => {
+    if (!editing) return;
+    const items = (returnLines ?? [])
+      .map((l) => ({
+        purchase_item_id: l.purchase_item_id,
+        quantity: Number(l.quantity ?? 0) || 0,
+      }))
+      .filter((l) => l.purchase_item_id && l.quantity > 0);
+
+    if (items.length === 0) return toast.error('Selecione pelo menos 1 item para devolver.');
+    const reason = String(returnReason ?? '').trim() || null;
+    returnMutation.mutate({ id: editing.id, payload: { reason, items } });
+  };
+
   return (
 	    <div>
 	      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
@@ -635,7 +688,9 @@ export default function AdminPurchases() {
                   {p.reference ? <div className="text-xs text-muted-foreground">{p.reference}</div> : null}
                 </td>
                 <td className="p-3">
-                  <Badge className={`${statusColors[p.status] ?? 'bg-secondary text-foreground'} text-[10px]`}>{p.status}</Badge>
+                  <Badge className={`${statusColors[p.status] ?? 'bg-secondary text-foreground'} text-[10px]`}>
+                    {statusLabels[p.status] ?? p.status}
+                  </Badge>
                 </td>
                 <td className="p-3 font-body text-sm font-semibold">{(p.total ?? 0).toFixed(2)} €</td>
                 <td className="p-3 text-right">
@@ -862,7 +917,7 @@ export default function AdminPurchases() {
               </div>
               {editing && editing.status !== 'received' ? (
                 <Button type="button" variant="outline" onClick={markReceived} className="rounded-none font-body text-sm gap-2">
-                  <CheckCircle className="w-4 h-4" /> Marcar como received
+                  <CheckCircle className="w-4 h-4" /> Marcar como recebida
                 </Button>
               ) : null}
             </div>
@@ -872,13 +927,95 @@ export default function AdminPurchases() {
             </Button>
 
             {isLocked ? (
-              <p className="font-body text-xs text-muted-foreground">
-                Compra recebida: itens bloqueados para evitar inconsistências de stock.
-              </p>
+              <div className="space-y-2">
+                <p className="font-body text-xs text-muted-foreground">
+                  Compra recebida: itens bloqueados para evitar inconsistências de stock.
+                </p>
+                <Button type="button" variant="outline" className="w-full rounded-none font-body text-sm gap-2" onClick={openReturn}>
+                  <RotateCcw className="w-4 h-4" />
+                  Devolver ao fornecedor
+                </Button>
+              </div>
             ) : null}
           </div>
 	        </DialogContent>
 			      </Dialog>
+
+            <Dialog
+              open={returnOpen}
+              onOpenChange={(open) => {
+                setReturnOpen(open);
+                if (!open) {
+                  setReturnReason('');
+                  setReturnLines([]);
+                }
+              }}
+            >
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="font-heading text-xl">Devolução ao fornecedor</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  <div className="font-body text-sm text-muted-foreground">
+                    Regista uma devolução desta compra. O stock será ajustado e ficará histórico nos Logs.
+                  </div>
+
+                  <div className="space-y-3">
+                    {(returnLines ?? []).map((l) => (
+                      <div key={l.purchase_item_id} className="border border-border rounded-md p-3">
+                        <div className="flex items-start justify-between gap-3 flex-wrap">
+                          <div className="min-w-0">
+                            <div className="font-body text-sm font-medium truncate" title={l.product_name}>
+                              {l.product_name}
+                            </div>
+                            <div className="font-body text-xs text-muted-foreground mt-1">
+                              Comprado: {l.max_quantity}
+                            </div>
+                          </div>
+                          <div className="w-full sm:w-[220px]">
+                            <Label className="font-body text-xs">Qtd. a devolver</Label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={l.max_quantity}
+                              inputMode="numeric"
+                              value={l.quantity}
+                              onChange={(e) => {
+                                const next = Math.max(0, Math.min(Number(e.target.value ?? 0) || 0, l.max_quantity));
+                                setReturnLines((p) =>
+                                  (p ?? []).map((x) => (x.purchase_item_id === l.purchase_item_id ? { ...x, quantity: next } : x)),
+                                );
+                              }}
+                              className="rounded-none mt-1"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <Label className="font-body text-xs">Motivo (opcional)</Label>
+                    <Textarea
+                      value={returnReason}
+                      onChange={(e) => setReturnReason(e.target.value)}
+                      className="rounded-none mt-1 min-h-[120px]"
+                      placeholder="Ex.: defeito, erro de tamanho, embalagem danificada..."
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setReturnOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button className="rounded-none font-body text-sm" onClick={submitReturn} disabled={returnMutation.isPending}>
+                      {returnMutation.isPending ? 'A registar…' : 'Confirmar devolução'}
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
 
 			      <Dialog
 			        open={fixupOpen}

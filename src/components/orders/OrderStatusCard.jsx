@@ -1,10 +1,16 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { toast } from 'sonner';
+import { getErrorMessage } from '@/lib/toast';
+import { base44 } from '@/api/base44Client';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -29,9 +35,63 @@ function pluralize(value, singular, plural) {
 }
 
 export default function OrderStatusCard({ order, onRepeat }) {
+  const queryClient = useQueryClient();
   const totalNumber = Number.parseFloat(order.total);
   const totalItems = (order.items ?? []).reduce((sum, item) => sum + (Number(item.quantity) || 0), 0);
   const items = Array.isArray(order.items) ? order.items : [];
+
+  const [returnOpen, setReturnOpen] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+
+  const { data: returnsData } = useQuery({
+    queryKey: ['content-returns'],
+    queryFn: () => base44.content.returns(),
+    staleTime: 60_000,
+  });
+
+  const returnsCfg = returnsData?.content && typeof returnsData.content === 'object' ? returnsData.content : {};
+  const returnsEnabled = returnsCfg.enabled !== false;
+  const daysAllowed = Math.max(0, Math.min(Number(returnsCfg.days_allowed ?? 14) || 14, 60));
+  const conditionsText = String(returnsCfg.conditions_text ?? '').trim();
+
+  const deliveredAt = useMemo(() => {
+    const raw = order?.updated_date ?? order?.updated_at ?? order?.created_at ?? order?.created_date ?? null;
+    if (!raw) return null;
+    const d = new Date(raw);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }, [order?.updated_date, order?.updated_at, order?.created_at, order?.created_date]);
+
+  const withinWindow = useMemo(() => {
+    if (!deliveredAt) return false;
+    if (daysAllowed <= 0) return false;
+    const ms = Date.now() - deliveredAt.getTime();
+    if (!Number.isFinite(ms) || ms < 0) return true;
+    return ms <= daysAllowed * 24 * 60 * 60 * 1000;
+  }, [deliveredAt, daysAllowed]);
+
+  const canRequestReturn = returnsEnabled && String(order?.status ?? '') === 'delivered' && withinWindow;
+
+  const createTicketMutation = useMutation({
+    mutationFn: async ({ subject, message }) => base44.support.tickets.create({ subject, message }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
+      toast.success('Pedido enviado. Vamos responder o mais breve possível.');
+      setReturnOpen(false);
+      setReturnReason('');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar o pedido.')),
+  });
+
+  const submitReturnRequest = () => {
+    const reason = String(returnReason ?? '').trim();
+    if (!reason) return toast.error('Explique o motivo da devolução.');
+    const orderId = String(order?.id ?? '').trim();
+    const subject = orderId ? `Pedido de devolução — Encomenda ${orderId}` : 'Pedido de devolução';
+    const lines = (items ?? []).map((it) => `- ${it.product_name ?? 'Produto'} x${Number(it.quantity ?? 0) || 0}`).join('\n');
+    const message = [`Encomenda: ${orderId || '—'}`, '', 'Itens:', lines || '- (sem itens)', '', 'Motivo:', reason, '', 'Reembolso: solicito análise conforme política de devoluções.'].join('\n');
+    createTicketMutation.mutate({ subject, message });
+  };
 
   return (
     <Card className="border-border">
@@ -93,9 +153,23 @@ export default function OrderStatusCard({ order, onRepeat }) {
               <p className="font-body text-xs text-muted-foreground mt-1">Envio: {order.shipping_method_label}</p>
             ) : null}
           </div>
-          <Button type="button" variant="outline" className="rounded-none font-body text-sm" onClick={() => onRepeat?.(order)}>
-            Repetir encomenda
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap justify-end">
+            {returnsEnabled && String(order?.status ?? '') === 'delivered' ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="rounded-none font-body text-sm"
+                onClick={() => setReturnOpen(true)}
+                disabled={!canRequestReturn}
+                title={canRequestReturn ? 'Pedir devolução' : `Devoluções disponíveis até ${daysAllowed} dias após a entrega.`}
+              >
+                Pedir devolução
+              </Button>
+            ) : null}
+            <Button type="button" variant="outline" className="rounded-none font-body text-sm" onClick={() => onRepeat?.(order)}>
+              Repetir encomenda
+            </Button>
+          </div>
         </div>
 
         {order.tracking_url || order.tracking_code ? (
@@ -115,6 +189,56 @@ export default function OrderStatusCard({ order, onRepeat }) {
           </div>
         ) : null}
       </CardContent>
+
+      <Dialog
+        open={returnOpen}
+        onOpenChange={(open) => {
+          setReturnOpen(open);
+          if (!open) setReturnReason('');
+        }}
+      >
+        <DialogContent className="max-w-[640px]">
+          <DialogHeader>
+            <DialogTitle className="font-heading text-xl">Pedir devolução</DialogTitle>
+            <DialogDescription className="font-body text-xs">
+              {canRequestReturn
+                ? 'Envie o pedido e iremos responder com os próximos passos.'
+                : daysAllowed > 0
+                  ? `Este pedido está fora do prazo (${daysAllowed} dias após a entrega) ou a devolução está desativada.`
+                  : 'As devoluções estão desativadas.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {conditionsText ? (
+            <div className="border border-border rounded-md p-3 bg-secondary/10">
+              <div className="font-body text-xs text-muted-foreground whitespace-pre-line">{conditionsText}</div>
+            </div>
+          ) : null}
+
+          <div>
+            <div className="font-body text-xs text-muted-foreground mb-2">Motivo da devolução</div>
+            <Textarea
+              value={returnReason}
+              onChange={(e) => setReturnReason(e.target.value)}
+              className="rounded-none min-h-[140px]"
+              placeholder="Descreva o motivo e, se possível, inclua detalhes/medidas/fotos (pode enviar depois no suporte)."
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setReturnOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="rounded-none font-body text-sm"
+              onClick={submitReturnRequest}
+              disabled={!canRequestReturn || createTicketMutation.isPending}
+            >
+              {createTicketMutation.isPending ? 'A enviar…' : 'Enviar pedido'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

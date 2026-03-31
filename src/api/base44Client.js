@@ -353,6 +353,8 @@ export const base44 = {
       },
       create: async (data) => authedJsonRequest('/api/admin/purchases', { method: 'POST', body: data }),
       update: async (id, data) => authedJsonRequest(`/api/admin/purchases/${id}`, { method: 'PATCH', body: data }),
+      returnToSupplier: async (id, data) =>
+        authedJsonRequest(`/api/admin/purchases/${encodeURIComponent(String(id ?? ''))}/return`, { method: 'POST', body: data }),
     },
     FaqItem: {
       list: async (limit = 500) => {
@@ -605,6 +607,10 @@ export const base44 = {
           get: async () => authedJsonRequest('/api/admin/content/appointments'),
           update: async (data) => authedJsonRequest('/api/admin/content/appointments', { method: 'PATCH', body: data }),
         },
+        returns: {
+          get: async () => authedJsonRequest('/api/admin/content/returns'),
+          update: async (data) => authedJsonRequest('/api/admin/content/returns', { method: 'PATCH', body: data }),
+        },
         },
         coupons: {
           list: async (order = '-created_date', limit = 200) => {
@@ -659,6 +665,7 @@ export const base44 = {
         shipping: async () => jsonRequest('/api/content/shipping'),
         branding: async () => jsonRequest('/api/content/branding'),
         loyalty: async () => jsonRequest('/api/content/loyalty'),
+        returns: async () => jsonRequest('/api/content/returns'),
 		  },
       newsletter: {
         subscribe: async (data) => jsonRequest('/api/newsletter/subscribe', { method: 'POST', body: data, token: getToken() }),
