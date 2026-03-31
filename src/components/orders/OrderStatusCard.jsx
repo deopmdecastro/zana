@@ -71,12 +71,12 @@ export default function OrderStatusCard({ order, onRepeat }) {
 
   const canRequestReturn = returnsEnabled && String(order?.status ?? '') === 'delivered' && withinWindow;
 
-  const createTicketMutation = useMutation({
-    mutationFn: async ({ subject, message }) => base44.support.tickets.create({ subject, message }),
+  const returnRequestMutation = useMutation({
+    mutationFn: (payload) => base44.returns.request(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['support-tickets'] });
+      await queryClient.invalidateQueries({ queryKey: ['my-notifications'] });
       await queryClient.invalidateQueries({ queryKey: ['my-notifications-bell'] });
-      toast.success('Pedido enviado. Vamos responder o mais breve possível.');
+      toast.success('Pedido de devolução enviado.');
       setReturnOpen(false);
       setReturnReason('');
     },
@@ -87,10 +87,24 @@ export default function OrderStatusCard({ order, onRepeat }) {
     const reason = String(returnReason ?? '').trim();
     if (!reason) return toast.error('Explique o motivo da devolução.');
     const orderId = String(order?.id ?? '').trim();
-    const subject = orderId ? `Pedido de devolução — Encomenda ${orderId}` : 'Pedido de devolução';
-    const lines = (items ?? []).map((it) => `- ${it.product_name ?? 'Produto'} x${Number(it.quantity ?? 0) || 0}`).join('\n');
-    const message = [`Encomenda: ${orderId || '—'}`, '', 'Itens:', lines || '- (sem itens)', '', 'Motivo:', reason, '', 'Reembolso: solicito análise conforme política de devoluções.'].join('\n');
-    createTicketMutation.mutate({ subject, message });
+    if (!orderId) return toast.error('Encomenda inválida.');
+
+    const payloadItems = (items ?? [])
+      .map((it) => {
+        const id = it?.id ?? it?.order_item_id ?? null;
+        const qty = Number(it?.quantity ?? 0) || 0;
+        return id && qty > 0 ? { order_item_id: String(id), quantity: qty } : null;
+      })
+      .filter(Boolean);
+
+    if (!payloadItems.length) return toast.error('Sem itens elegíveis para devolução.');
+
+    returnRequestMutation.mutate({
+      order_id: orderId,
+      reason,
+      refund_requested: true,
+      items: payloadItems,
+    });
   };
 
   return (
@@ -232,9 +246,9 @@ export default function OrderStatusCard({ order, onRepeat }) {
             <Button
               className="rounded-none font-body text-sm"
               onClick={submitReturnRequest}
-              disabled={!canRequestReturn || createTicketMutation.isPending}
+              disabled={!canRequestReturn || returnRequestMutation.isPending}
             >
-              {createTicketMutation.isPending ? 'A enviar…' : 'Enviar pedido'}
+              {returnRequestMutation.isPending ? 'A enviar…' : 'Enviar pedido'}
             </Button>
           </DialogFooter>
         </DialogContent>

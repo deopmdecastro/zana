@@ -41,6 +41,14 @@ export function friendlyTitle(log) {
     return 'Notificação';
   }
 
+  if (type === 'Order') {
+    if (action === 'return_request') return 'Pedido de devolução';
+    if (action === 'return_approved') return 'Devolução aprovada';
+    if (action === 'return_rejected') return 'Devolução rejeitada';
+    if (action === 'return_received') return 'Devolução recebida (stock atualizado)';
+    if (action === 'refund_recorded') return 'Reembolso registado';
+  }
+
   if (type === 'SupportTicket' && action === 'create') return 'Novo pedido de suporte';
   if (type === 'SupportTicket' && action === 'update') return 'Pedido de suporte atualizado';
   if (type === 'SupportMessage' && action === 'create') return 'Nova mensagem no suporte';
@@ -56,6 +64,41 @@ export function friendlyTitle(log) {
     if (action === 'create') return 'Instagram: link adicionado';
     if (action === 'update') return 'Instagram: link atualizado';
     if (action === 'delete') return 'Instagram: link removido';
+  }
+
+  if (type === 'Supplier') {
+    if (action === 'create') return 'Fornecedor criado';
+    if (action === 'update') return 'Fornecedor atualizado';
+    if (action === 'delete') return 'Fornecedor removido';
+  }
+
+  if (type === 'Product') {
+    if (action === 'create') return 'Produto criado';
+    if (action === 'update') return 'Produto atualizado';
+    if (action === 'delete') return 'Produto removido';
+  }
+
+  if (type === 'Purchase') {
+    if (action === 'create') return 'Compra registada';
+    if (action === 'update') return 'Compra atualizada';
+    if (action === 'return') return 'Devolução ao fornecedor registada';
+  }
+
+  if (type === 'NewsletterCampaign') {
+    if (action === 'create') return 'Campanha de newsletter criada';
+    if (action === 'update') return 'Campanha de newsletter atualizada';
+    if (action === 'delete') return 'Campanha de newsletter removida';
+  }
+
+  if (type === 'SmtpTest') {
+    if (action === 'create') return 'Teste de email (SMTP) enviado';
+    if (action === 'update') return 'Teste de email (SMTP) atualizado';
+  }
+
+  if (type === 'Appointment') {
+    if (action === 'create') return 'Marcação criada';
+    if (action === 'update') return 'Marcação atualizada';
+    if (action === 'reminder') return 'Lembrete de marcação enviado';
   }
 
   if (type === 'SalesTarget') {
@@ -83,7 +126,18 @@ export function friendlyTitle(log) {
   if (type === 'SiteContent' && action === 'update') return 'Conteúdo do site atualizado';
   if (type === 'Inventory' && action === 'update') return 'Stock atualizado';
 
-  return `${action} ${type}`.trim() || 'Atualização';
+  const actionLabel =
+    action === 'create'
+      ? 'criado'
+      : action === 'update'
+        ? 'atualizado'
+        : action === 'delete'
+          ? 'removido'
+          : action === 'return'
+            ? 'devolução registada'
+            : action;
+
+  return `${type || 'Item'} ${actionLabel}`.trim() || 'Atualização';
 }
 
 export function friendlyDetail(log) {
@@ -94,8 +148,8 @@ export function friendlyDetail(log) {
 
   if (action === 'notify') {
     const kind = String(meta?.kind ?? '');
-    if (kind === 'sales_target_expired' || kind === 'sales_target_achieved') return meta?.name ? String(meta.name) : id ? `SalesTarget · ${id}` : '';
-    if (kind === 'coupon_expired' || kind === 'coupon_expiring') return meta?.code ? `Cupom · ${meta.code}` : id ? `Coupon · ${id}` : '';
+    if (kind === 'sales_target_expired' || kind === 'sales_target_achieved') return meta?.name ? String(meta.name) : id ? `Meta · ${id}` : '';
+    if (kind === 'coupon_expired' || kind === 'coupon_expiring') return meta?.code ? `Cupom · ${meta.code}` : id ? `Cupom · ${id}` : '';
     return '';
   }
 
@@ -104,6 +158,9 @@ export function friendlyDetail(log) {
   if (type === 'Coupon' && meta?.code) return `Cupom · ${meta.code}`;
   if (type === 'SalesTarget' && meta?.name) return `Meta · ${meta.name}`;
   if (type === 'SiteContent') return `Conteúdo · ${id}`;
+  if (type === 'Supplier' && meta?.name) return `Fornecedor · ${meta.name}`;
+  if (type === 'Product' && meta?.name) return `Produto · ${meta.name}`;
+  if (type === 'Purchase' && meta?.supplier_name) return `Compra · ${meta.supplier_name}`;
   return `${type} · ${id}`;
 }
 
@@ -129,4 +186,3 @@ export function isCouponNotify(log) {
   const kind = String(log?.meta?.kind ?? '');
   return kind === 'coupon_expired' || kind === 'coupon_expiring';
 }
-

@@ -1045,6 +1045,22 @@ const returnsContentSchema = z
   })
   .passthrough()
 
+const orderReturnRequestSchema = z
+  .object({
+    order_id: z.string().min(1),
+    reason: z.string().max(5000).optional().nullable(),
+    refund_requested: z.boolean().optional(),
+    items: z
+      .array(
+        z.object({
+          order_item_id: z.string().min(1),
+          quantity: z.union([z.number(), z.string()]),
+        }),
+      )
+      .min(1),
+  })
+  .passthrough()
+
 const appointmentServicePayloadSchema = z 
   .object({ 
     name: z.string().min(1).max(120), 
@@ -4568,6 +4584,85 @@ app.get('/api/notifications', async (req, res) => {
 	    .slice(0, 20)
 
   res.json(items)
+})
+
+// Returns (customer)
+app.post('/api/returns/request', async (req, res) => {
+  const user = await requireUser(req, res)
+  if (!user) return
+
+  const parsed = orderReturnRequestSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const { content } = await getReturnsContent()
+  if (!content?.enabled) return res.status(409).json({ error: 'returns_disabled' })
+
+  const orderId = String(parsed.data.order_id ?? '').trim()
+  const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } })
+  if (!order) return res.status(404).json({ error: 'not_found' })
+
+  const userEmail = user.email ? String(user.email).trim().toLowerCase() : ''
+  if (!userEmail || String(order.customerEmail ?? '').trim().toLowerCase() !== userEmail) {
+    return res.status(403).json({ error: 'forbidden' })
+  }
+
+  if (String(order.status ?? '') !== 'delivered') return res.status(409).json({ error: 'order_not_delivered' })
+
+  const deliveredAt = order.updatedAt ?? order.createdAt ?? null
+  const daysAllowed = Math.max(0, Math.min(Math.floor(coerceNumber(content.days_allowed, 14)), 60))
+  if (daysAllowed <= 0) return res.status(409).json({ error: 'returns_disabled' })
+  if (deliveredAt) {
+    const ms = Date.now() - new Date(deliveredAt).getTime()
+    if (Number.isFinite(ms) && ms > daysAllowed * 24 * 60 * 60 * 1000) {
+      return res.status(409).json({ error: 'return_window_expired' })
+    }
+  }
+
+  const byItemId = new Map((order.items ?? []).map((it) => [it.id, it]))
+  const requested = parsed.data.items
+    .map((r) => {
+      const item = byItemId.get(r.order_item_id) ?? null
+      if (!item) return null
+      const qtyNumber = typeof r.quantity === 'string' ? Number(r.quantity) : r.quantity
+      const qty = Number.isFinite(qtyNumber) ? Math.floor(qtyNumber) : 0
+      if (qty <= 0) return null
+      if (qty > item.quantity) return { error: 'invalid_quantity', item_id: item.id }
+      return { item, quantity: qty }
+    })
+    .filter(Boolean)
+
+  const invalid = requested.find((x) => x && x.error)
+  if (invalid) return res.status(400).json({ error: invalid.error, item_id: invalid.item_id })
+  if (!requested.length) return res.status(400).json({ error: 'invalid_items' })
+
+  const returnId = crypto.randomUUID()
+  const reason = parsed.data.reason ? String(parsed.data.reason).trim() : ''
+  const refundRequested = parsed.data.refund_requested !== false
+
+  await writeAuditLog({
+    actorId: user.id,
+    action: 'return_request',
+    entityType: 'Order',
+    entityId: order.id,
+    meta: {
+      kind: 'customer_return',
+      return_id: returnId,
+      order_id: order.id,
+      customer_email: order.customerEmail ?? null,
+      days_allowed: daysAllowed,
+      refund_requested: refundRequested,
+      reason: reason || null,
+      items: requested.map((r) => ({
+        order_item_id: r.item.id,
+        product_id: r.item.productId ?? null,
+        product_name: r.item.productName,
+        quantity: r.quantity,
+        unit_price: decimalToNumber(r.item.price) ?? 0,
+      })),
+    },
+  })
+
+  res.status(201).json({ ok: true, return_id: returnId })
 })
 
 app.post('/api/orders', async (req, res) => {
@@ -8244,6 +8339,289 @@ app.post('/api/admin/purchases/:id/return', async (req, res) => {
     entityType: 'Inventory',
     entityId: purchase.id,
     meta: { source: 'purchase_return' },
+  })
+
+  res.json({ ok: true })
+})
+
+// Returns (admin)
+app.get('/api/admin/returns/requests', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const limit = parseLimit(req.query.limit, 200)
+  const requests = await prisma.auditLog.findMany({
+    where: { action: 'return_request', entityType: 'Order' },
+    orderBy: { createdAt: 'desc' },
+    take: limit,
+  })
+
+  const ids = requests
+    .map((r) => (r?.meta && typeof r.meta === 'object' ? String(r.meta.return_id ?? '').trim() : ''))
+    .filter(Boolean)
+
+  const statusLogs = ids.length
+    ? await prisma.auditLog
+        .findMany({
+          where: {
+            action: { in: ['return_approved', 'return_rejected', 'return_received', 'refund_recorded'] },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 2000,
+        })
+        .then((rows) => {
+          const set = new Set(ids)
+          return (rows ?? []).filter((l) => {
+            const meta = l?.meta && typeof l.meta === 'object' ? l.meta : {}
+            const id = meta?.return_id ? String(meta.return_id).trim() : ''
+            return id && set.has(id)
+          })
+        })
+        .catch(() => [])
+    : []
+
+  const lastById = new Map()
+  for (const l of statusLogs) {
+    const meta = l?.meta && typeof l.meta === 'object' ? l.meta : {}
+    const id = meta?.return_id ? String(meta.return_id).trim() : ''
+    if (!id || lastById.has(id)) continue
+    lastById.set(id, l)
+  }
+
+  res.json(
+    requests.map((r) => {
+      const meta = r?.meta && typeof r.meta === 'object' ? r.meta : {}
+      const returnId = meta?.return_id ? String(meta.return_id).trim() : null
+      const last = returnId ? lastById.get(returnId) ?? null : null
+      const lastMeta = last?.meta && typeof last.meta === 'object' ? last.meta : {}
+      return {
+        id: r.id,
+        return_id: returnId,
+        order_id: r.entityId ?? (meta?.order_id ? String(meta.order_id) : null),
+        customer_email: meta?.customer_email ?? null,
+        reason: meta?.reason ?? null,
+        refund_requested: meta?.refund_requested !== false,
+        items: Array.isArray(meta?.items) ? meta.items : [],
+        created_date: r.createdAt,
+        status: last ? String(last.action ?? 'return_request') : 'return_request',
+        status_date: last ? last.createdAt : r.createdAt,
+        refund_amount: lastMeta?.refund_amount ?? null,
+        refund_method: lastMeta?.refund_method ?? null,
+      }
+    }),
+  )
+})
+
+function normalizeReturnItems(items) {
+  const list = Array.isArray(items) ? items : []
+  return list
+    .map((it) => ({
+      order_item_id: it?.order_item_id ? String(it.order_item_id) : null,
+      product_id: it?.product_id ? String(it.product_id) : null,
+      product_name: it?.product_name ? String(it.product_name) : null,
+      quantity: Number.isFinite(Number(it?.quantity)) ? Math.floor(Number(it.quantity)) : 0,
+      unit_price: Number.isFinite(Number(it?.unit_price)) ? Number(it.unit_price) : null,
+    }))
+    .filter((it) => it.order_item_id && it.quantity > 0)
+}
+
+async function getReturnRequestByReturnId(returnId) {
+  const id = String(returnId ?? '').trim()
+  if (!id) return null
+  const request = await prisma.auditLog.findFirst({
+    where: { action: 'return_request', entityType: 'Order', meta: { path: ['return_id'], equals: id } },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!request) return null
+  const meta = request.meta && typeof request.meta === 'object' ? request.meta : {}
+  const orderId = request.entityId ?? (meta?.order_id ? String(meta.order_id) : null)
+  const items = normalizeReturnItems(meta?.items)
+  return { request, meta, orderId, items, returnId: id }
+}
+
+app.post('/api/admin/returns/:returnId/approve', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const found = await getReturnRequestByReturnId(req.params.returnId)
+  if (!found) return res.status(404).json({ error: 'not_found' })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'return_approved',
+    entityType: 'Order',
+    entityId: found.orderId ?? null,
+    meta: { return_id: found.returnId, kind: 'customer_return' },
+  })
+
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/returns/:returnId/reject', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const schema = z.object({ reason: z.string().max(2000).optional().nullable() }).passthrough()
+  const parsed = schema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const found = await getReturnRequestByReturnId(req.params.returnId)
+  if (!found) return res.status(404).json({ error: 'not_found' })
+
+  const reason = parsed.data.reason ? String(parsed.data.reason).trim() : ''
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'return_rejected',
+    entityType: 'Order',
+    entityId: found.orderId ?? null,
+    meta: { return_id: found.returnId, kind: 'customer_return', reason: reason || null },
+  })
+
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/returns/:returnId/receive', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const schema = z
+    .object({
+      items: z
+        .array(
+          z.object({
+            order_item_id: z.string().min(1),
+            quantity: z.union([z.number(), z.string()]),
+          }),
+        )
+        .min(1),
+    })
+    .passthrough()
+
+  const parsed = schema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const found = await getReturnRequestByReturnId(req.params.returnId)
+  if (!found) return res.status(404).json({ error: 'not_found' })
+
+  const reqItems = parsed.data.items
+    .map((it) => {
+      const qtyNumber = typeof it.quantity === 'string' ? Number(it.quantity) : it.quantity
+      const qty = Number.isFinite(qtyNumber) ? Math.floor(qtyNumber) : 0
+      if (!it.order_item_id || qty <= 0) return null
+      return { order_item_id: String(it.order_item_id), quantity: qty }
+    })
+    .filter(Boolean)
+
+  if (!reqItems.length) return res.status(400).json({ error: 'invalid_items' })
+
+  const byOrderItemId = new Map(found.items.map((it) => [it.order_item_id, it]))
+  const finalItems = reqItems
+    .map((r) => {
+      const base = byOrderItemId.get(r.order_item_id) ?? null
+      if (!base) return null
+      const qty = Math.min(r.quantity, base.quantity)
+      if (qty <= 0) return null
+      return { ...base, quantity: qty }
+    })
+    .filter(Boolean)
+
+  if (!finalItems.length) return res.status(400).json({ error: 'invalid_items' })
+
+  await prisma.$transaction(async (tx) => {
+    for (const it of finalItems) {
+      if (!it.product_id) continue
+      await tx.product.update({
+        where: { id: it.product_id },
+        data: { stock: { increment: it.quantity } },
+      })
+
+      try {
+        await tx.inventoryMovement.create({
+          data: {
+            productId: it.product_id,
+            type: 'manual',
+            quantityChange: it.quantity,
+            unitCost: null,
+            purchaseId: null,
+            actorId: admin.id,
+            meta: { kind: 'customer_return', return_id: found.returnId, order_id: found.orderId, order_item_id: it.order_item_id },
+          },
+        })
+      } catch (err) {
+        console.error('inventory movement create failed (customer_return_receive)', err)
+      }
+    }
+  })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'return_received',
+    entityType: 'Order',
+    entityId: found.orderId ?? null,
+    meta: { return_id: found.returnId, kind: 'customer_return', items: finalItems },
+  })
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'update',
+    entityType: 'Inventory',
+    entityId: found.orderId ?? null,
+    meta: { source: 'customer_return_receive', return_id: found.returnId },
+  })
+
+  res.json({ ok: true })
+})
+
+app.post('/api/admin/returns/:returnId/refund', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const schema = z
+    .object({
+      refund_amount: z.union([z.number(), z.string()]).optional().nullable(),
+      refund_method: z.string().max(80).optional().nullable(),
+      notes: z.string().max(5000).optional().nullable(),
+    })
+    .passthrough()
+
+  const parsed = schema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const found = await getReturnRequestByReturnId(req.params.returnId)
+  if (!found) return res.status(404).json({ error: 'not_found' })
+
+  const amount = parsed.data.refund_amount === null || parsed.data.refund_amount === undefined ? null : Number(parsed.data.refund_amount) || 0
+  const method = parsed.data.refund_method ? String(parsed.data.refund_method).trim() : ''
+  const notes = parsed.data.notes ? String(parsed.data.notes).trim() : ''
+
+  if (amount !== null && amount <= 0) return res.status(400).json({ error: 'invalid_refund_amount' })
+
+  if (found.orderId) {
+    const line = `Reembolso: ${amount === null ? '—' : `${Number(amount).toFixed(2)} €`} ${method ? `(${method})` : ''}${notes ? ` — ${notes}` : ''}`.trim()
+    try {
+      const existing = await prisma.order.findUnique({ where: { id: found.orderId } })
+      if (existing) {
+        const prevNotes = existing.notes ? String(existing.notes) : ''
+        const nextNotes = prevNotes ? `${prevNotes}\n${line}` : line
+        await prisma.order.update({ where: { id: found.orderId }, data: { notes: nextNotes } })
+      }
+    } catch (err) {
+      console.error('order notes update failed (refund)', err)
+    }
+  }
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'refund_recorded',
+    entityType: 'Order',
+    entityId: found.orderId ?? null,
+    meta: {
+      return_id: found.returnId,
+      kind: 'customer_return',
+      refund_amount: amount === null ? null : Number(amount).toFixed(2),
+      refund_method: method || null,
+      notes: notes || null,
+    },
   })
 
   res.json({ ok: true })

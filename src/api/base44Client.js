@@ -657,6 +657,23 @@ export const base44 = {
       },
       adjust: async (data) => authedJsonRequest('/api/admin/inventory/adjust', { method: 'POST', body: data }),
     },
+    returns: {
+      requests: {
+        list: async (limit = 200) => {
+          const params = new URLSearchParams();
+          if (limit) params.set('limit', String(limit));
+          return authedJsonRequest(`/api/admin/returns/requests?${params.toString()}`);
+        },
+      },
+      approve: async (returnId) =>
+        authedJsonRequest(`/api/admin/returns/${encodeURIComponent(String(returnId ?? ''))}/approve`, { method: 'POST' }),
+      reject: async (returnId, data) =>
+        authedJsonRequest(`/api/admin/returns/${encodeURIComponent(String(returnId ?? ''))}/reject`, { method: 'POST', body: data }),
+      receive: async (returnId, data) =>
+        authedJsonRequest(`/api/admin/returns/${encodeURIComponent(String(returnId ?? ''))}/receive`, { method: 'POST', body: data }),
+      refund: async (returnId, data) =>
+        authedJsonRequest(`/api/admin/returns/${encodeURIComponent(String(returnId ?? ''))}/refund`, { method: 'POST', body: data }),
+    },
   },
 		  content: {
 		    about: async () => jsonRequest('/api/content/about'),
@@ -735,6 +752,9 @@ export const base44 = {
 	  notifications: {
 	    list: async () => authedJsonRequest('/api/notifications'),
 	  },
+    returns: {
+      request: async (data) => authedJsonRequest('/api/returns/request', { method: 'POST', body: data }),
+    },
 		  support: {
 		    tickets: {
 		      list: async (limit = 200) => {

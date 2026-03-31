@@ -2,6 +2,17 @@ import React, { useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Download, Euro, TrendingUp, Package, ShoppingCart } from 'lucide-react';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
 import { base44 } from '@/api/base44Client';
 import zanaLogoPrimary from '@/img/zana_logo_primary.svg';
@@ -12,6 +23,44 @@ import { downloadCsv, exportFinancePdf } from '@/lib/reportExport';
 function moneyPt(value) {
   const n = Number(value ?? 0) || 0;
   return n.toFixed(2).replace('.', ',');
+}
+
+function monthKey(value) {
+  const d = value instanceof Date ? value : new Date(value);
+  if (!Number.isFinite(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+}
+
+function monthLabel(key) {
+  const [y, m] = String(key ?? '').split('-');
+  if (!y || !m) return String(key ?? '');
+  return `${m}/${String(y).slice(-2)}`;
+}
+
+function FinanceHealthTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload ?? {};
+  return (
+    <div className="rounded-md border border-border bg-card px-3 py-2 shadow-sm">
+      <div className="font-body text-xs text-muted-foreground">{monthLabel(label)}</div>
+      <div className="mt-2 grid grid-cols-1 gap-1">
+        <div className="flex items-center justify-between gap-4">
+          <span className="font-body text-xs text-muted-foreground">Receita</span>
+          <span className="font-body text-xs font-semibold">{moneyPt(row.receita)} €</span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="font-body text-xs text-muted-foreground">Compras</span>
+          <span className="font-body text-xs font-semibold">{moneyPt(row.compras)} €</span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="font-body text-xs text-muted-foreground">Resultado</span>
+          <span className="font-body text-xs font-semibold">{moneyPt(row.resultado)} €</span>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function AdminFinance() {
@@ -86,6 +135,76 @@ export default function AdminFinance() {
       revenueCancelled: revenueByStatus.cancelled ?? 0,
     };
   }, [inventory, purchases, orders]);
+
+  const health = useMemo(() => {
+    const now = new Date();
+    const months = [];
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const k = monthKey(d);
+      if (k) months.push(k);
+    }
+
+    const byMonth = new Map(months.map((k) => [k, { month: k, receita: 0, compras: 0 }]));
+
+    for (const o of orders ?? []) {
+      if (String(o?.status ?? '') !== 'delivered') continue;
+      const k = monthKey(o?.created_date ?? o?.created_at);
+      if (!k || !byMonth.has(k)) continue;
+      byMonth.get(k).receita += Number(o?.total ?? 0) || 0;
+    }
+
+    for (const p of purchases ?? []) {
+      const k = monthKey(p?.purchased_at ?? p?.purchased_date ?? p?.created_date ?? p?.created_at);
+      if (!k || !byMonth.has(k)) continue;
+      byMonth.get(k).compras += Number(p?.total ?? 0) || 0;
+    }
+
+    const series = months.map((k) => {
+      const row = byMonth.get(k) ?? { receita: 0, compras: 0 };
+      const receita = Number(row.receita ?? 0) || 0;
+      const compras = Number(row.compras ?? 0) || 0;
+      return {
+        month: k,
+        receita: Number(receita.toFixed(2)),
+        compras: Number(compras.toFixed(2)),
+        resultado: Number((receita - compras).toFixed(2)),
+      };
+    });
+
+    const sumPeriod = (days) => {
+      const start = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      let receita = 0;
+      let compras = 0;
+
+      for (const o of orders ?? []) {
+        if (String(o?.status ?? '') !== 'delivered') continue;
+        const d = new Date(o?.created_date ?? o?.created_at ?? 0);
+        if (!Number.isFinite(d.getTime()) || d < start) continue;
+        receita += Number(o?.total ?? 0) || 0;
+      }
+
+      for (const p of purchases ?? []) {
+        const d = new Date(p?.purchased_at ?? p?.purchased_date ?? p?.created_date ?? p?.created_at ?? 0);
+        if (!Number.isFinite(d.getTime()) || d < start) continue;
+        compras += Number(p?.total ?? 0) || 0;
+      }
+
+      return { receita, compras, resultado: receita - compras };
+    };
+
+    const last30 = sumPeriod(30);
+    const last90 = sumPeriod(90);
+    const last3Months = series.slice(-3).reduce((acc, r) => acc + (Number(r.resultado ?? 0) || 0), 0);
+
+    return {
+      series,
+      last30,
+      last90,
+      profitable: last3Months >= 0,
+    };
+  }, [orders, purchases]);
 
   const cards = [
     { title: 'Investido em Stock', value: `${stats.invested.toFixed(2)} €`, icon: Euro, color: 'text-primary' },
@@ -230,6 +349,80 @@ export default function AdminFinance() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mt-6">
+              <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+                <CardTitle className="font-heading text-xl">Saúde do negócio</CardTitle>
+                <div
+                  className={`px-2 py-1 rounded-full text-[11px] font-body tracking-widest uppercase ${
+                    health.profitable ? 'bg-green-100 text-green-800' : 'bg-destructive/10 text-destructive'
+                  }`}
+                >
+                  {health.profitable ? 'Lucrativo' : 'Atenção'}
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="font-body text-xs text-muted-foreground">Resultado (30 dias)</div>
+                      <div className="font-heading text-2xl mt-2">{health.last30.resultado.toFixed(2)} €</div>
+                      <div className="font-body text-xs text-muted-foreground mt-1">
+                        Receita: {moneyPt(health.last30.receita)} € · Compras: {moneyPt(health.last30.compras)} €
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="font-body text-xs text-muted-foreground">Resultado (90 dias)</div>
+                      <div className="font-heading text-2xl mt-2">{health.last90.resultado.toFixed(2)} €</div>
+                      <div className="font-body text-xs text-muted-foreground mt-1">
+                        Receita: {moneyPt(health.last90.receita)} € · Compras: {moneyPt(health.last90.compras)} €
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="font-body text-xs text-muted-foreground">Leitura rápida</div>
+                      <div className="font-body text-sm mt-2 text-muted-foreground">
+                        Este gráfico compara{' '}
+                        <span className="text-foreground font-medium">receita (encomendas entregues)</span> com{' '}
+                        <span className="text-foreground font-medium">compras ao fornecedor</span> (estimativa de caixa).
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="h-72 mt-6">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={health.series} margin={{ top: 16, right: 16, bottom: 8, left: 0 }}>
+                      <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                      <XAxis
+                        dataKey="month"
+                        tickLine={false}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        tickFormatter={monthLabel}
+                        interval={0}
+                        height={32}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={{ stroke: 'hsl(var(--border))' }}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        width={46}
+                      />
+                      <Tooltip cursor={{ stroke: 'hsl(var(--border))' }} content={<FinanceHealthTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <ReferenceLine y={0} stroke="hsl(var(--border))" strokeDasharray="4 4" />
+                      <Line type="monotone" dataKey="receita" name="Receita" stroke="hsl(var(--chart-1))" strokeWidth={2.5} dot={false} />
+                      <Line type="monotone" dataKey="compras" name="Compras" stroke="hsl(var(--chart-2))" strokeWidth={2.5} dot={false} />
+                      <Line type="monotone" dataKey="resultado" name="Resultado" stroke="hsl(var(--chart-5))" strokeWidth={2.5} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="mt-6">
               <ul className="font-body text-sm text-muted-foreground list-disc pl-5 space-y-2">

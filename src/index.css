@@ -87,9 +87,8 @@
     overscroll-behavior: none;
     min-height: 100%;
     height: 100%;
-    background-color: #782641;
-    scrollbar-width: none; /* Firefox: hide window scrollbar */
-    -ms-overflow-style: none; /* IE/Edge Legacy */
+    background-color: hsl(var(--background));
+    overflow-x: hidden;
   }
 
   body {
@@ -97,17 +96,12 @@
     min-height: 100%;
     min-height: var(--app-height, 100vh);
     background-color: hsl(var(--background));
-    scrollbar-width: none; /* Firefox: hide window scrollbar */
-    -ms-overflow-style: none; /* IE/Edge Legacy */
-  }
-
-  html::-webkit-scrollbar,
-  body::-webkit-scrollbar {
-    display: none; /* Chromium/Safari: hide window scrollbar */
+    overflow-x: hidden;
   }
 
   #root {
     min-height: var(--app-height, 100vh);
+    overflow-x: hidden;
   }
 
   input,

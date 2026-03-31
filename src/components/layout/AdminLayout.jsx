@@ -6,6 +6,7 @@ import {
  	  Boxes,
   CalendarClock,
   Bell,
+  RotateCcw,
  	  CreditCard,
  	  Euro,
  	  FileText,
@@ -39,6 +40,7 @@ const navSections = [
     items: [
       { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
       { to: '/admin/notificacoes', icon: Bell, label: 'Notificações' },
+      { to: '/admin/devolucoes', icon: RotateCcw, label: 'Devoluções' },
 	      { to: '/admin/produtos', icon: Package, label: 'Produtos' },
 	      { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
 	      { to: '/admin/financeiro', icon: Euro, label: 'Financeiro' },
