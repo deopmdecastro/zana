@@ -4595,12 +4595,28 @@ app.get('/api/notifications', async (req, res) => {
 	    include: { comment: { include: { post: true } } },
 	  })
 
+	const recentOrderIds = userEmail
+	    ? (
+	        await prisma.order.findMany({
+	          where: { customerEmail: userEmail },
+	          orderBy: { createdAt: 'desc' },
+	          take: 20,
+	          select: { id: true },
+	        })
+	      ).map((o) => o.id)
+	    : []
+
 	const orderStatusLogs = userEmail 
 	    ? await prisma.auditLog.findMany({ 
 	        where: { 
-	          entityType: 'Order', 
-	          action: { in: ['create', 'update'] }, 
-	          meta: { path: ['customer_email'], equals: userEmail }, 
+	          entityType: 'Order',
+	          OR: [
+	            {
+	              action: { in: ['create', 'update'] },
+	              meta: { path: ['customer_email'], equals: userEmail },
+	            },
+	            ...(recentOrderIds.length ? [{ action: 'create', entityId: { in: recentOrderIds } }] : []),
+	          ],
 	        }, 
 	        orderBy: { createdAt: 'desc' }, 
 	        take: 20, 
