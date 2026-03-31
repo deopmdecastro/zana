@@ -125,8 +125,8 @@ export default function AdminLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="sticky top-0 z-50 relative bg-card/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
+    <div className="h-[var(--app-height,100vh)] overflow-hidden bg-background flex flex-col">
+      <div className="relative bg-card/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
@@ -212,12 +212,12 @@ export default function AdminLayout() {
         </div>
       </div>
 
-      <div className="flex">
-        <aside className="w-64 bg-card border-r border-border hidden md:block sticky top-[56px] h-[calc(100vh-56px)] overflow-y-auto">
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="w-64 bg-card border-r border-border hidden md:block overflow-y-auto canvas-scroll">
           {renderNav()}
         </aside>
 
-        <main className="flex-1 p-4 md:p-8 min-w-0">
+        <main className="flex-1 overflow-y-auto canvas-scroll p-4 md:p-8 min-w-0">
           <Outlet />
         </main>
       </div>

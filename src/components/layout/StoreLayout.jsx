@@ -14,15 +14,17 @@ export default function StoreLayout() {
     trackPageView(location.pathname + (location.search ?? ''));
   }, [location.pathname, location.search]);
 
-	  return (
-	    <div className="min-h-screen flex flex-col">
-	      <Navbar />
-	      <main className="flex-1">
-	        <Outlet />
-	      </main>
-	      <Footer />
-	      <SupportChatWidget />
-	      <CookieConsent />
-	    </div>
-	  );
+  return (
+    <div className="h-[var(--app-height,100vh)] overflow-hidden flex flex-col">
+      <Navbar />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden canvas-scroll">
+        <main>
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+      <SupportChatWidget />
+      <CookieConsent />
+    </div>
+  );
 }

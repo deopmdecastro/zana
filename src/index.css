@@ -88,7 +88,7 @@
     min-height: 100%;
     height: 100%;
     background-color: hsl(var(--background));
-    overflow-x: hidden;
+    overflow: hidden;
   }
 
   body {
@@ -96,12 +96,14 @@
     min-height: 100%;
     min-height: var(--app-height, 100vh);
     background-color: hsl(var(--background));
-    overflow-x: hidden;
+    overflow: hidden;
+    height: var(--app-height, 100vh);
   }
 
   #root {
     min-height: var(--app-height, 100vh);
-    overflow-x: hidden;
+    height: var(--app-height, 100vh);
+    overflow: hidden;
   }
 
   input,
@@ -145,5 +147,25 @@
 
   *:not(html):not(body)::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--primary) / 0.9);
+  }
+
+  /* Canvas scroll (main app scroller) */
+  .canvas-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  /* No visible scrollbar on phones/tablets (but still scrollable) */
+  @media (pointer: coarse) {
+    .canvas-scroll {
+      scrollbar-width: none; /* Firefox */
+      -ms-overflow-style: none; /* IE/Edge Legacy */
+    }
+
+    .canvas-scroll::-webkit-scrollbar {
+      display: none; /* Chromium/Safari */
+      width: 0;
+      height: 0;
+    }
   }
 }

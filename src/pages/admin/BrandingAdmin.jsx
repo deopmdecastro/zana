@@ -18,6 +18,10 @@ const defaults = {
   background_color: '#f8f5f2',
   secondary_color: '#f1e7db',
   site_name: 'Zana',
+  contact_email: 'info@zanaacessorios.com',
+  instagram_handle: '@zana.acessorios_',
+  contact_address: 'Portugal',
+  footer_rights_text: '',
 };
 
 export default function BrandingAdmin() {
@@ -49,6 +53,10 @@ export default function BrandingAdmin() {
       theme_color: String(form.theme_color ?? '').trim() || null,
       background_color: String(form.background_color ?? '').trim() || null,
       secondary_color: String(form.secondary_color ?? '').trim() || null,
+      contact_email: String(form.contact_email ?? '').trim() || null,
+      instagram_handle: String(form.instagram_handle ?? '').trim() || null,
+      contact_address: String(form.contact_address ?? '').trim() || null,
+      footer_rights_text: String(form.footer_rights_text ?? '').trim() || null,
     };
 
     await toastApiPromise(saveMutation.mutateAsync(payload), {
@@ -178,6 +186,55 @@ export default function BrandingAdmin() {
                 recommended="1120×630 ou retângulo widescreen"
                 onChange={(url) => setForm((p) => ({ ...p, share_image_url: url }))}
               />
+            </div>
+          </div>
+
+          <div className="bg-card border border-border rounded-lg p-5">
+            <h3 className="font-heading text-xl mb-4">Contacto e Rodapé</h3>
+            <p className="font-body text-sm text-muted-foreground mb-4">
+              Estes dados aparecem no rodapé e na página de contacto.
+            </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <Label className="font-body text-xs">Email</Label>
+                <Input
+                  value={form.contact_email ?? ''}
+                  onChange={(e) => setForm((p) => ({ ...p, contact_email: e.target.value }))}
+                  className="rounded-none mt-1"
+                  placeholder="ex.: info@zanaacessorios.com"
+                />
+              </div>
+              <div>
+                <Label className="font-body text-xs">Instagram (user)</Label>
+                <Input
+                  value={form.instagram_handle ?? ''}
+                  onChange={(e) => setForm((p) => ({ ...p, instagram_handle: e.target.value }))}
+                  className="rounded-none mt-1"
+                  placeholder="@zana.acessorios_"
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <Label className="font-body text-xs">Endereço</Label>
+                <Input
+                  value={form.contact_address ?? ''}
+                  onChange={(e) => setForm((p) => ({ ...p, contact_address: e.target.value }))}
+                  className="rounded-none mt-1"
+                  placeholder="ex.: Lisboa, Portugal"
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <Label className="font-body text-xs">Texto “Todos os direitos”</Label>
+                <Input
+                  value={form.footer_rights_text ?? ''}
+                  onChange={(e) => setForm((p) => ({ ...p, footer_rights_text: e.target.value }))}
+                  className="rounded-none mt-1"
+                  placeholder="© {{year}} {{site_name}}. Todos os direitos reservados."
+                />
+                <div className="font-body text-[11px] text-muted-foreground mt-2">
+                  Dica: pode usar <span className="font-mono text-[11px]">{'{{year}}'}</span> e{' '}
+                  <span className="font-mono text-[11px]">{'{{site_name}}'}</span>.
+                </div>
+              </div>
             </div>
           </div>
         </div>

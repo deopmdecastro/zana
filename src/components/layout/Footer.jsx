@@ -8,6 +8,17 @@ import { useBranding } from '@/lib/useBranding';
 export default function Footer() {
   const { branding } = useBranding();
   const logoSrc = String(branding?.logo_url ?? '').trim() || zanaLogo;
+  const email = String(branding?.contact_email ?? '').trim() || 'info@zanaacessorios.com';
+  const instagramHandleRaw = String(branding?.instagram_handle ?? '').trim() || '@zana.acessorios_';
+  const instagramHandle = instagramHandleRaw.startsWith('@') ? instagramHandleRaw : `@${instagramHandleRaw}`;
+  const instagramUrl = `https://instagram.com/${instagramHandle.replace(/^@/, '')}`;
+  const address = String(branding?.contact_address ?? '').trim() || 'Portugal';
+  const year = new Date().getFullYear();
+  const rightsTemplate = String(branding?.footer_rights_text ?? '').trim();
+  const rightsText = (rightsTemplate || '© {{year}} {{site_name}}. Todos os direitos reservados.')
+    .replaceAll('{{year}}', String(year))
+    .replaceAll('{{site_name}}', String(branding?.site_name ?? 'Zana'))
+    .replaceAll('{{store_name}}', String(branding?.site_name ?? 'Zana'));
   return (
     <footer className="bg-primary text-primary-foreground">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
@@ -65,21 +76,21 @@ export default function Footer() {
           <div>
             <h4 className="font-heading text-lg mb-4">Contacto</h4>
             <div className="space-y-3">
-              <a href="mailto:info@zanaacessorios.com" className="flex items-center gap-2 text-sm opacity-70 hover:opacity-100">
-                <Mail className="w-4 h-4" /> info@zanaacessorios.com
+              <a href={`mailto:${email}`} className="flex items-center gap-2 text-sm opacity-70 hover:opacity-100">
+                <Mail className="w-4 h-4" /> {email}
               </a>
-              <a href="https://instagram.com/zanaacessorios" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm opacity-70 hover:opacity-100">
-                <Instagram className="w-4 h-4" /> @zanaacessorios
+              <a href={instagramUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-sm opacity-70 hover:opacity-100">
+                <Instagram className="w-4 h-4" /> {instagramHandle}
               </a>
               <div className="flex items-center gap-2 text-sm opacity-70">
-                <MapPin className="w-4 h-4" /> Portugal
+                <MapPin className="w-4 h-4" /> {address}
               </div>
             </div>
           </div>
         </div>
 
         <div className="border-t border-primary-foreground/20 mt-10 pt-6 text-center">
-          <p className="text-xs opacity-60">© 2025 Zana Acessórios. Todos os direitos reservados.</p>
+          <p className="text-xs opacity-60">{rightsText}</p>
         </div>
       </div>
     </footer>

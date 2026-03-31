@@ -16,6 +16,10 @@ const defaults = {
   theme_color: '#782641',
   background_color: '#f8f5f2',
   secondary_color: '#f1e7db',
+  contact_email: 'info@zanaacessorios.com',
+  instagram_handle: '@zana.acessorios_',
+  contact_address: 'Portugal',
+  footer_rights_text: '',
 };
 
 function getOrCreateLink(rel, type) {
