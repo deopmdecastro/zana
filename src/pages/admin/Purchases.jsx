@@ -701,9 +701,9 @@ export default function AdminPurchases() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="draft">draft</SelectItem>
-                    <SelectItem value="received">received</SelectItem>
-                    <SelectItem value="cancelled">cancelled</SelectItem>
+                    <SelectItem value="draft">Rascunho</SelectItem>
+                    <SelectItem value="received">Recebida</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -969,9 +969,9 @@ export default function AdminPurchases() {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="draft">draft</SelectItem>
-                              <SelectItem value="received">received</SelectItem>
-                              <SelectItem value="cancelled">cancelled</SelectItem>
+                              <SelectItem value="draft">Rascunho</SelectItem>
+                              <SelectItem value="received">Recebida</SelectItem>
+                              <SelectItem value="cancelled">Cancelada</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>

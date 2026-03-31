@@ -4303,7 +4303,7 @@ app.get('/api/notifications', async (req, res) => {
 	    include: { comment: { include: { post: true } } },
 	  })
 
-	  const orderStatusLogs = userEmail 
+	const orderStatusLogs = userEmail 
 	    ? await prisma.auditLog.findMany({ 
 	        where: { 
 	          entityType: 'Order', 
@@ -4345,6 +4345,30 @@ app.get('/api/notifications', async (req, res) => {
       take: 30,
     })
 
+    const orderStatusLabelPt = (value) => {
+      const status = String(value ?? '').trim()
+      const map = {
+        pending: 'Pendente',
+        confirmed: 'Confirmada',
+        processing: 'Em preparação',
+        shipped: 'Enviada',
+        delivered: 'Entregue',
+        cancelled: 'Cancelada',
+      }
+      return map[status] ?? status
+    }
+
+    const appointmentStatusLabelPt = (value) => {
+      const status = String(value ?? '').trim()
+      const map = {
+        pending: 'Pendente',
+        confirmed: 'Confirmada',
+        cancelled: 'Cancelada',
+        completed: 'Concluída',
+      }
+      return map[status] ?? status
+    }
+
 	  const items = [ 
     ...appointmentReminderLogs.map((l) => {
       const serviceName = typeof l.meta?.service_name === 'string' ? l.meta.service_name : null
@@ -4374,7 +4398,7 @@ app.get('/api/notifications', async (req, res) => {
         const status = statusFromMeta ?? statusFromPatch
         const prev = typeof meta?.previous_status === 'string' ? meta.previous_status : null
 
-        const baseText = [serviceName, staffName, when].filter(Boolean).join(' â€¢ ') || null
+        const baseText = [serviceName, staffName, when].filter(Boolean).join(' • ') || null
 
         if (l.action === 'create') {
           return {
@@ -4394,14 +4418,17 @@ app.get('/api/notifications', async (req, res) => {
           pending: 'Marcação atualizada',
         }
 
-        const statusText =
-          status && prev && prev !== status ? `Estado: ${prev} → ${status}` : status ? `Estado: ${status}` : null
+        const statusText = status
+          ? prev && prev !== status
+            ? `Estado: ${appointmentStatusLabelPt(prev)} → ${appointmentStatusLabelPt(status)}`
+            : `Estado: ${appointmentStatusLabelPt(status)}`
+          : null
 
         return {
           id: `appt-change:${l.id}`,
           type: 'appointment_update',
           title: status && statusTitleMap[status] ? statusTitleMap[status] : 'Marcação atualizada',
-          text: [baseText, statusText].filter(Boolean).join(' â€¢ ') || 'A sua marcação foi atualizada.',
+          text: [baseText, statusText].filter(Boolean).join(' • ') || 'A sua marcação foi atualizada.',
           link: '/conta/marcacoes',
           created_date: l.createdAt,
         }
@@ -4444,7 +4471,7 @@ app.get('/api/notifications', async (req, res) => {
           id: `points:${l.id}`,
           type: 'points',
           title,
-          text: textParts.join(' â€¢ ') || null,
+          text: textParts.join(' • ') || null,
           link: '/conta',
           created_date: l.createdAt,
         }
@@ -4470,11 +4497,11 @@ app.get('/api/notifications', async (req, res) => {
 	      const status = typeof l.meta?.status === 'string' ? l.meta.status : null
 	      const prev = typeof l.meta?.previous_status === 'string' ? l.meta.previous_status : null
 	      const orderId = l.entityId ?? null
-	      const title = status === 'delivered' ? 'Encomenda entregue â€” avalie e ganhe pontos' : 'Estado da encomenda atualizado'
+	      const title = status === 'delivered' ? 'Encomenda entregue — avalie e ganhe pontos' : 'Estado da encomenda atualizado'
 	      const inner = status
 	        ? prev
-	          ? `Estado: ${prev} → ${status}`
-	          : `Novo estado: ${status}`
+	          ? `Estado: ${orderStatusLabelPt(prev)} → ${orderStatusLabelPt(status)}`
+	          : `Novo estado: ${orderStatusLabelPt(status)}`
 	        : 'A sua encomenda foi atualizada.'
 	      return {
 	        id: `order:${l.id}`,
@@ -4482,7 +4509,7 @@ app.get('/api/notifications', async (req, res) => {
 	        title,
 	        text:
 	          status === 'delivered'
-	            ? 'A sua encomenda foi entregue. Deixe uma avaliaÃ§Ã£o com foto/vÃ­deo e ganhe pontos.'
+	            ? 'A sua encomenda foi entregue. Deixe uma avaliação com foto/vídeo e ganhe pontos.'
 	            : orderId
 	            ? `Encomenda ${orderId}: ${inner}`
 	            : inner,

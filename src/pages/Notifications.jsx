@@ -47,7 +47,11 @@ export default function Notifications() {
     const list = Array.isArray(notifications) ? notifications : [];
     return list
       .slice()
-      .sort((a, b) => new Date(b?.created_at ?? 0).getTime() - new Date(a?.created_at ?? 0).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b?.created_at ?? b?.created_date ?? 0).getTime() -
+          new Date(a?.created_at ?? a?.created_date ?? 0).getTime(),
+      );
   }, [notifications]);
 
   const readSet = useMemo(() => new Set(readIds), [readIds]);
@@ -156,9 +160,9 @@ export default function Notifications() {
                             {n.text}
                           </div>
                         ) : null}
-                        {n?.created_at ? (
+                        {n?.created_at || n?.created_date ? (
                           <div className="font-body text-[11px] text-muted-foreground mt-2">
-                            {new Date(n.created_at).toLocaleString('pt-PT')}
+                            {new Date(n.created_at ?? n.created_date).toLocaleString('pt-PT')}
                           </div>
                         ) : null}
                       </div>
@@ -203,9 +207,9 @@ export default function Notifications() {
             <DialogTitle className="font-heading text-xl">
               {selectedNotification?.title ?? 'Notificação'}
             </DialogTitle>
-            {selectedNotification?.created_at ? (
+            {selectedNotification?.created_at || selectedNotification?.created_date ? (
               <DialogDescription className="font-body text-xs">
-                {new Date(selectedNotification.created_at).toLocaleString('pt-PT')}
+                {new Date(selectedNotification.created_at ?? selectedNotification.created_date).toLocaleString('pt-PT')}
               </DialogDescription>
             ) : (
               <DialogDescription className="font-body text-xs text-muted-foreground">

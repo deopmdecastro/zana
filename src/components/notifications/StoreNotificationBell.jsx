@@ -17,9 +17,12 @@ import { Link } from 'react-router-dom';
 
 const statusLabel = {
   ...appointmentStatusLabels,
+  pending: 'Pendente',
+  confirmed: 'Confirmada',
   processing: 'Em preparação',
   shipped: 'Enviada',
   delivered: 'Entregue',
+  cancelled: 'Cancelada',
 };
 
 const READ_STORAGE_KEY = 'zana_notifications_read';

@@ -5,6 +5,7 @@ import {
   BarChartBig,
  	  Boxes,
   CalendarClock,
+  Bell,
  	  CreditCard,
  	  Euro,
  	  FileText,
@@ -37,6 +38,7 @@ const navSections = [
     label: 'Gestão',
     items: [
       { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
+      { to: '/admin/notificacoes', icon: Bell, label: 'Notificações' },
 	      { to: '/admin/produtos', icon: Package, label: 'Produtos' },
 	      { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
 	      { to: '/admin/financeiro', icon: Euro, label: 'Financeiro' },
