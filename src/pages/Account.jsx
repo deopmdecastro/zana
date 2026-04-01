@@ -187,6 +187,8 @@ export default function Account() {
     mutationFn: (payload) => base44.user.addresses.create(payload),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['my-addresses'] });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      void queryClient.refetchQueries({ queryKey: ['me'] });
       toast.success('Endereço adicionado.');
       setAddressDialogOpen(false);
       setEditingAddress(null);
@@ -198,6 +200,8 @@ export default function Account() {
     mutationFn: ({ id, patch }) => base44.user.addresses.update(id, patch),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['my-addresses'] });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      void queryClient.refetchQueries({ queryKey: ['me'] });
       toast.success('Endereço atualizado.');
       setAddressDialogOpen(false);
       setEditingAddress(null);
@@ -209,6 +213,8 @@ export default function Account() {
     mutationFn: (id) => base44.user.addresses.delete(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['my-addresses'] });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      void queryClient.refetchQueries({ queryKey: ['me'] });
       toast.success('Endereço removido.');
     },
     onError: () => toast.error('Não foi possível remover o endereço.'),
@@ -218,6 +224,8 @@ export default function Account() {
     mutationFn: (id) => base44.user.addresses.update(id, { is_default: true }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['my-addresses'] });
+      await queryClient.invalidateQueries({ queryKey: ['me'] });
+      void queryClient.refetchQueries({ queryKey: ['me'] });
       toast.success('Endereço padrão atualizado.');
     },
     onError: () => toast.error('Não foi possível definir como padrão.'),

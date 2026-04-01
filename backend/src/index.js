@@ -3556,6 +3556,24 @@ function userAddressToApi(a) {
   }
 }
 
+async function syncLegacyAddressFromDefault(tx, userId) {
+  const defaultAddress = await tx.userAddress.findFirst({
+    where: { userId, isDefault: true },
+    orderBy: [{ createdAt: 'desc' }],
+  })
+
+  await tx.user.update({
+    where: { id: userId },
+    data: {
+      addressLine1: defaultAddress?.line1 ?? null,
+      addressLine2: defaultAddress?.line2 ?? null,
+      city: defaultAddress?.city ?? null,
+      postalCode: defaultAddress?.postalCode ?? null,
+      country: defaultAddress?.country ?? null,
+    },
+  })
+}
+
 const userAddressCreateSchema = z
   .object({
     label: optionalNullableTrimmedString({ min: 1, max: 80 }),
@@ -3631,7 +3649,7 @@ app.post('/api/users/me/addresses', async (req, res) => {
       await tx.userAddress.updateMany({ where: { userId: user.id }, data: { isDefault: false } })
     }
 
-    return tx.userAddress.create({
+    const createdAddress = await tx.userAddress.create({
       data: {
         userId: user.id,
         label: data.label ?? null,
@@ -3643,6 +3661,12 @@ app.post('/api/users/me/addresses', async (req, res) => {
         isDefault: makeDefault,
       },
     })
+
+    if (makeDefault) {
+      await syncLegacyAddressFromDefault(tx, user.id)
+    }
+
+    return createdAddress
   })
 
   res.status(201).json({ address: userAddressToApi(created) })
@@ -3676,7 +3700,13 @@ app.patch('/api/users/me/addresses/:id', async (req, res) => {
       isDefault: makeDefault ? true : undefined,
     }
 
-    return tx.userAddress.update({ where: { id: address.id }, data })
+    const updatedAddress = await tx.userAddress.update({ where: { id: address.id }, data })
+
+    if (updatedAddress?.isDefault) {
+      await syncLegacyAddressFromDefault(tx, user.id)
+    }
+
+    return updatedAddress
   })
 
   res.json({ address: userAddressToApi(updated) })
@@ -3699,6 +3729,8 @@ app.delete('/api/users/me/addresses/:id', async (req, res) => {
       })
       if (next) await tx.userAddress.update({ where: { id: next.id }, data: { isDefault: true } })
     }
+
+    await syncLegacyAddressFromDefault(tx, user.id)
   })
 
   res.json({ ok: true })

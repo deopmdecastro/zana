@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Pencil } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
+import ImageUpload from '@/components/uploads/ImageUpload';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 
@@ -29,19 +30,33 @@ export default function BlogAdmin() {
 
   const createMutation = useMutation({
     mutationFn: (data) => base44.entities.BlogPost.create(data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-blog'] }); setDialogOpen(false); toast.success('Artigo criado'); },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-blog'] });
+      void queryClient.refetchQueries({ queryKey: ['admin-blog'] });
+      setDialogOpen(false);
+      toast.success('Artigo criado');
+    },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível criar o artigo.')),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.BlogPost.update(id, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-blog'] }); setDialogOpen(false); toast.success('Artigo atualizado'); },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-blog'] });
+      void queryClient.refetchQueries({ queryKey: ['admin-blog'] });
+      setDialogOpen(false);
+      toast.success('Artigo atualizado');
+    },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível atualizar o artigo.')),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.BlogPost.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-blog'] }); toast.success('Artigo removido'); },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['admin-blog'] });
+      void queryClient.refetchQueries({ queryKey: ['admin-blog'] });
+      toast.success('Artigo removido');
+    },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover o artigo.')),
   });
 
@@ -111,7 +126,26 @@ export default function BlogAdmin() {
             <div><Label className="font-body text-xs">Título *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="rounded-none mt-1" /></div>
             <div><Label className="font-body text-xs">Excerto</Label><Input value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className="rounded-none mt-1" /></div>
             <div><Label className="font-body text-xs">Conteúdo (Markdown)</Label><Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="rounded-none mt-1" rows={8} /></div>
-            <div><Label className="font-body text-xs">URL da Imagem</Label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} className="rounded-none mt-1" /></div>
+            <div>
+              <Label className="font-body text-xs">Imagem do artigo</Label>
+              <Input
+                value={form.image_url}
+                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                className="rounded-none mt-1"
+                placeholder="Cole a URL da imagem (opcional)"
+              />
+              <div className="mt-3">
+                <ImageUpload
+                  value={form.image_url}
+                  onChange={(v) => setForm({ ...form, image_url: v })}
+                  variant="compact"
+                  label="Ou faça upload"
+                  recommended="1200x630"
+                  helper="JPG/PNG, ideal para capa/preview do artigo."
+                  buttonLabel="Upload"
+                />
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="font-body text-xs">Categoria</Label>
