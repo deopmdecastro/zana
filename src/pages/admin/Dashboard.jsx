@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { Euro, Package, ShoppingCart, TrendingUp } from 'lucide-react';
@@ -14,6 +14,38 @@ const STATUS_META = {
   shipped: { label: 'Enviada', color: 'hsl(var(--chart-4))' },
   delivered: { label: 'Entregue', color: 'hsl(var(--chart-5))' },
 };
+
+const STATUS_LABEL_SHORT = {
+  pending: 'Pend.',
+  confirmed: 'Conf.',
+  processing: 'Prep.',
+  shipped: 'Env.',
+  delivered: 'Entr.',
+};
+
+function useMediaQuery(query) {
+  const getMatches = () => {
+    if (typeof window === 'undefined' || !window.matchMedia) return false;
+    return window.matchMedia(query).matches;
+  };
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return undefined;
+    const mql = window.matchMedia(query);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    if (mql.addEventListener) mql.addEventListener('change', onChange);
+    else mql.addListener(onChange);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener('change', onChange);
+      else mql.removeListener(onChange);
+    };
+  }, [query]);
+
+  return matches;
+}
 
 function OrdersByStatusTooltip({ active, payload }) {
   if (!active || !payload?.length) return null;
@@ -31,6 +63,7 @@ function OrdersByStatusTooltip({ active, payload }) {
 }
 
 export default function Dashboard() {
+  const isSmallChart = useMediaQuery('(max-width: 420px)');
   const { data: products = [] } = useQuery({
     queryKey: ['admin-products'],
     queryFn: () => base44.entities.Product.list('-created_date', 500),
@@ -91,25 +124,37 @@ export default function Dashboard() {
           ) : (
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={statusData} margin={{ top: 18, right: 16, bottom: 10, left: 0 }} barCategoryGap={18}>
+                <BarChart
+                  data={statusData}
+                  margin={{ top: 18, right: 10, bottom: isSmallChart ? 44 : 10, left: 0 }}
+                  barCategoryGap={isSmallChart ? 10 : 18}
+                >
                   <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
                   <XAxis
-                    dataKey="name"
+                    dataKey="key"
                     tickLine={false}
                     axisLine={{ stroke: 'hsl(var(--border))' }}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isSmallChart ? 11 : 12 }}
                     interval={0}
-                    height={46}
+                    height={isSmallChart ? 64 : 46}
+                    angle={isSmallChart ? -25 : 0}
+                    textAnchor={isSmallChart ? 'end' : 'middle'}
+                    tickMargin={isSmallChart ? 12 : 8}
+                    tickFormatter={(statusKey) => {
+                      const k = String(statusKey ?? '');
+                      if (isSmallChart) return STATUS_LABEL_SHORT[k] ?? STATUS_META[k]?.label ?? k;
+                      return STATUS_META[k]?.label ?? k;
+                    }}
                   />
                   <YAxis
                     allowDecimals={false}
                     tickLine={false}
                     axisLine={{ stroke: 'hsl(var(--border))' }}
-                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                    width={28}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isSmallChart ? 11 : 12 }}
+                    width={isSmallChart ? 24 : 28}
                   />
                   <Tooltip cursor={{ fill: 'hsl(var(--secondary) / 0.35)' }} content={<OrdersByStatusTooltip />} />
-                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={56}>
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={isSmallChart ? 40 : 56}>
                     <LabelList dataKey="value" position="top" className="font-body text-xs fill-foreground" />
                     {statusData.map((entry) => (
                       <Cell key={entry.key} fill={entry.fill} />
@@ -190,4 +235,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

@@ -301,6 +301,235 @@ function getThemeColorRgb(varName, fallbackTriplet) {
   return hexToRgb(hex) ?? { r: 107, g: 27, b: 58 };
 }
 
+function rgbToHex({ r, g, b } = {}) {
+  const to = (n) => Math.max(0, Math.min(255, Number(n) || 0)).toString(16).padStart(2, '0');
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+
+function createPdfHtmlReportElement({
+  reportTitle,
+  createdAt,
+  logoDataUrl,
+  sectionTitle = 'Resumo',
+  summaryCards = [],
+  sections = [],
+} = {}) {
+  if (typeof document === 'undefined') throw new Error('document_not_available');
+
+  const brandRgb = getThemeColorRgb('--primary', '340 52% 31%');
+  const brandHex = rgbToHex(brandRgb) || '#722f37';
+  const when = createdAt ? new Date(createdAt) : new Date();
+  const whenLabel = when.toLocaleString('pt-PT');
+
+  const root = document.createElement('div');
+  root.className = 'zana-pdf-report';
+  root.style.position = 'fixed';
+  root.style.left = '-10000px';
+  root.style.top = '0';
+  // A4 @ ~96dpi ≈ 794px wide. Keep a fixed width so html2canvas -> PDF scales nicely.
+  root.style.width = '794px';
+  root.style.zIndex = '-1';
+
+  const headerLogoHtml = logoDataUrl
+    ? `<img src="${escapeHtml(logoDataUrl)}" alt="ZANA" style="height:34px;width:auto;display:block" />`
+    : `<div class="logo">ZANA <small>acessórios</small></div>`;
+
+  const summaryHtml = (summaryCards ?? [])
+    .map((c) => {
+      const valueColor = c?.valueColor ? `color:${escapeHtml(c.valueColor)};` : '';
+      return `
+        <div class="stat-card">
+          <label>${escapeHtml(c?.label ?? '')}</label>
+          <div class="value" style="${valueColor}">${escapeHtml(c?.value ?? '')}</div>
+        </div>
+      `;
+    })
+    .join('');
+
+  const sectionsHtml = (sections ?? [])
+    .map((s) => {
+      const headers = Array.isArray(s?.headers) ? s.headers : [];
+      const rows = Array.isArray(s?.rows) ? s.rows : [];
+      const thead = headers.length
+        ? `<thead><tr>${headers
+            .map((h) => {
+              const alignValue = h?.headerAlign ?? h?.align ?? 'left';
+              const align = `text-align:${escapeHtml(alignValue)};`;
+              return `<th style="${align}">${escapeHtml(h?.label ?? '')}</th>`;
+            })
+            .join('')}</tr></thead>`
+        : '';
+
+      const tbody = `<tbody>${rows
+        .map((r) => {
+          const cols = Array.isArray(r) ? r : [];
+          return `<tr>${cols
+            .map((cell, idx) => {
+              const align = headers[idx]?.align ? `text-align:${escapeHtml(headers[idx].align)};` : '';
+              return `<td style="${align}">${escapeHtml(cell)}</td>`;
+            })
+            .join('')}</tr>`;
+        })
+        .join('')}</tbody>`;
+
+      return `
+        <h2 class="section-title">${escapeHtml(s?.title ?? '')}</h2>
+        <table>
+          ${thead}
+          ${tbody}
+        </table>
+      `;
+    })
+    .join('');
+
+  root.innerHTML = `
+    <style>
+      .zana-pdf-report {
+        --primary-color: ${brandHex};
+        --bg-light: #f6f7f9;
+        --text-dark: #333;
+        --border-radius: 0px;
+        --border: #e6e7ea;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+        color: var(--text-dark);
+        box-sizing: border-box;
+      }
+      .zana-pdf-report * { box-sizing: border-box; }
+      .zana-pdf-report .report-container {
+        width: 100%;
+        margin: 0;
+        background: #fff;
+        padding: 32px 34px;
+        border-radius: 0;
+        border: 1px solid var(--border);
+        min-height: 1123px; /* A4 @ 96dpi */
+        display: flex;
+        flex-direction: column;
+      }
+      .zana-pdf-report header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 20px;
+        margin-bottom: 30px;
+        gap: 20px;
+      }
+      .zana-pdf-report .logo { font-size: 26px; font-weight: bold; letter-spacing: 2px; color: var(--primary-color); }
+      .zana-pdf-report .logo small { font-size: 10px; display: block; font-weight: normal; letter-spacing: 0; margin-top: 2px; }
+      .zana-pdf-report .report-info { text-align: right; }
+      .zana-pdf-report .report-info h1 { margin: 0; font-size: 20px; color: var(--primary-color); letter-spacing: .5px; }
+      .zana-pdf-report .report-info span { font-size: 11px; color: #777; }
+
+      .zana-pdf-report .report-body { flex: 1; }
+
+      .zana-pdf-report .section-title {
+        font-size: 16px;
+        text-align: center;
+        border-left: 0;
+        padding-left: 0;
+        margin: 30px 0 20px;
+      }
+      .zana-pdf-report .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px 16px;
+      }
+      .zana-pdf-report .stat-card {
+        background: var(--bg-light);
+        padding: 16px 18px;
+        border-radius: 0;
+        border: 1px solid var(--border);
+      }
+      .zana-pdf-report .stat-card label {
+        display: block;
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 5px;
+      }
+      .zana-pdf-report .stat-card .value {
+        font-size: 22px;
+        font-weight: bold;
+        color: var(--primary-color);
+        letter-spacing: .2px;
+      }
+      .zana-pdf-report table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-bottom: 30px;
+        background: #fff;
+        table-layout: fixed;
+      }
+      .zana-pdf-report th {
+        background-color: var(--primary-color);
+        color: white;
+        text-align: left;
+        padding: 0 12px;
+        height: 32px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .6px;
+        vertical-align: middle;
+        line-height: 32px;
+        white-space: nowrap;
+      }
+      .zana-pdf-report td {
+        padding: 10px 12px;
+        border-bottom: 1px solid #eee;
+        font-size: 12px;
+        vertical-align: top;
+        word-break: break-word;
+      }
+      .zana-pdf-report tr:nth-child(even) { background-color: #fafafa; }
+
+      .zana-pdf-report .report-footer {
+        margin-top: 18px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #888;
+      }
+      .zana-pdf-report .report-footer .brand {
+        color: var(--primary-color);
+        letter-spacing: 1px;
+        font-weight: 600;
+      }
+    </style>
+
+    <div class="report-container">
+      <header>
+        <div>${headerLogoHtml}</div>
+        <div class="report-info">
+          <h1>${escapeHtml(reportTitle ?? '')}</h1>
+          <span>Emitido em: ${escapeHtml(whenLabel)}</span>
+        </div>
+      </header>
+
+      <div class="report-body">
+        <h2 class="section-title">${escapeHtml(sectionTitle)}</h2>
+        <div class="stats-grid">
+          ${summaryHtml}
+        </div>
+
+        ${sectionsHtml}
+      </div>
+
+      <div class="report-footer">
+        <div class="brand">ZANA</div>
+        <div>Relatório gerado automaticamente</div>
+      </div>
+    </div>
+  `;
+
+  return root;
+}
+
 function finalizePdf(doc) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -635,69 +864,64 @@ export async function exportReportsPdf({
   analytics,
   mode = 'download',
 } = {}) {
-  const jsPDF = await loadJsPdf();
-  const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-
   const logoDataUrl = await safeSvgUrlToPngDataUrl(logoUrl, { width: 120 });
-  let y = addHeader(doc, { title, logoDataUrl, createdAt });
-
-  y = addSectionTitle(doc, 'Resumo', { startY: y });
-  y = addKeyValues(
-    doc,
-    [
-      ['Produtos', stats?.productsCount ?? 0],
-      ['Unidades em Stock', stats?.stockUnits ?? 0],
-      ['Baixo Stock (≤2)', stats?.lowStock ?? 0],
-      ['Total em Compras (€)', moneyPt(stats?.purchasesTotal ?? 0)],
-    ],
-    { startY: y },
-  );
+  const outName = filename ?? 'relatorios.pdf';
+  const summaryCards = [
+    { label: 'Produtos Cadastrados', value: stats?.productsCount ?? 0 },
+    { label: 'Unidades em Stock', value: stats?.stockUnits ?? 0 },
+    { label: 'Baixo Stock (≤2)', value: stats?.lowStock ?? 0, valueColor: '#d9534f' },
+    { label: 'Total em Compras', value: `€ ${moneyPt(stats?.purchasesTotal ?? 0)}` },
+  ];
 
   const topViewed = analytics?.top_viewed_products ?? [];
-  y = addSectionTitle(doc, 'Produtos mais vistos (30 dias)', { startY: y });
-  y = addTable(doc, {
-    headers: ['Produto', 'Views'],
-    rows: topViewed.slice(0, 30).map((p) => [p.product_name ?? '', p.views ?? 0]),
-    startY: y,
-    columnWidths: [360, 120],
-    columnAlign: ['left', 'right'],
-  });
-
   const topSearches = analytics?.top_searches ?? [];
-  y = addSectionTitle(doc, 'Mais pesquisas (30 dias)', { startY: y });
-  y = addTable(doc, {
-    headers: ['Pesquisa', 'Count'],
-    rows: topSearches.slice(0, 30).map((q) => [q.query ?? '', q.count ?? 0]),
-    startY: y,
-    columnWidths: [360, 120],
-    columnAlign: ['left', 'right'],
-  });
-
   const largestOrders = analytics?.largest_orders ?? [];
-  y = addSectionTitle(doc, 'Maiores encomendas (30 dias)', { startY: y });
-  y = addTable(doc, {
-    headers: ['Email', 'Status', 'Total (€)'],
-    rows: largestOrders
-      .slice(0, 30)
-      .map((o) => [o.customer_email ?? '', orderStatusLabelsPt[String(o.status ?? '')] ?? (o.status ?? ''), moneyPt(o.total ?? 0)]),
-    startY: y,
-    columnWidths: [260, 110, 110],
-    columnAlign: ['left', 'left', 'right'],
+
+  const element = createPdfHtmlReportElement({
+    reportTitle: String(title ?? 'Relatórios'),
+    createdAt,
+    logoDataUrl,
+    sectionTitle: 'Resumo Operacional',
+    summaryCards,
+    sections: [
+      {
+        title: 'Produtos mais vistos (30 dias)',
+        headers: [
+          { label: 'Produto', align: 'left' },
+          { label: 'Visualizações', align: 'right' },
+        ],
+        rows: topViewed.slice(0, 30).map((p) => [p.product_name ?? '', String(p.views ?? 0)]),
+      },
+      {
+        title: 'Mais pesquisas (30 dias)',
+        headers: [
+          { label: 'Pesquisa', align: 'left' },
+          { label: 'Total', align: 'right' },
+        ],
+        rows: topSearches.slice(0, 30).map((q) => [q.query ?? '', String(q.count ?? 0)]),
+      },
+      {
+        title: 'Maiores encomendas (30 dias)',
+        headers: [
+          { label: 'Email Cliente', align: 'left' },
+          { label: 'Status', align: 'center' },
+          { label: 'Total (€)', align: 'right' },
+        ],
+        rows: largestOrders.slice(0, 30).map((o) => [
+          o.customer_email ?? '',
+          orderStatusLabelsPt[String(o.status ?? '')] ?? String(o.status ?? ''),
+          moneyPt(o.total ?? 0),
+        ]),
+      },
+    ],
   });
 
-  const outName = filename ?? 'relatorios.pdf';
-  finalizePdf(doc);
-  if (mode === 'blob') return doc.output('blob');
-  if (mode === 'open') {
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    if (!w) downloadBlob(outName, blob);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
+  document.body.appendChild(element);
+  try {
+    return await exportElementToPdf(element, outName, { mode });
+  } finally {
+    element.remove();
   }
-
-  doc.save(outName);
 }
 
 export async function exportFinancePdf({
@@ -708,60 +932,68 @@ export async function exportFinancePdf({
   stats,
   mode = 'download',
 } = {}) {
-  const jsPDF = await loadJsPdf();
-  const doc = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
-
   const logoDataUrl = await safeSvgUrlToPngDataUrl(logoUrl, { width: 120 });
-  let y = addHeader(doc, { title, logoDataUrl, createdAt });
+  const outName = filename ?? 'financeiro.pdf';
 
-  y = addSectionTitle(doc, 'Resumo', { startY: y });
-  y = addKeyValues(
-    doc,
-    [
-      ['Investido em Stock (€)', moneyPt(stats?.invested ?? 0)],
-      ['Valor Esperado (PVP) (€)', moneyPt(stats?.expected ?? 0)],
-      ['Margem Potencial (€)', moneyPt(stats?.marginPotential ?? 0)],
-      ['Receita (Entregue) (€)', moneyPt(stats?.revenueDelivered ?? 0)],
-      ['Receita pendente (€)', moneyPt(stats?.revenueOpen ?? 0)],
-      ['Canceladas (€)', moneyPt(stats?.revenueCancelled ?? 0)],
-      ['Compras (Stock) (€)', moneyPt(stats?.purchasesStockTotal ?? 0)],
-      ['Despesas (Logística) (€)', moneyPt(stats?.purchasesLogisticsTotal ?? 0)],
-      ['Total em Compras (€)', moneyPt(stats?.purchasesTotal ?? 0)],
+  const summaryCards = [
+    { label: 'Investido em Stock (€)', value: moneyPt(stats?.invested ?? 0) },
+    { label: 'Valor Esperado (PVP) (€)', value: moneyPt(stats?.expected ?? 0) },
+    { label: 'Margem Potencial (€)', value: moneyPt(stats?.marginPotential ?? 0) },
+    { label: 'Receita (Entregue) (€)', value: moneyPt(stats?.revenueDelivered ?? 0) },
+  ];
+
+  const byCategory = Array.isArray(stats?.byCategory) ? stats.byCategory : [];
+
+  const element = createPdfHtmlReportElement({
+    reportTitle: String(title ?? 'Financeiro'),
+    createdAt,
+    logoDataUrl,
+    sectionTitle: 'Resumo',
+    summaryCards,
+    sections: [
+      {
+        title: 'Detalhes',
+        headers: [
+          { label: 'Métrica', align: 'left' },
+          { label: 'Valor', align: 'right' },
+        ],
+        rows: [
+          ['Receita pendente (€)', moneyPt(stats?.revenueOpen ?? 0)],
+          ['Canceladas (€)', moneyPt(stats?.revenueCancelled ?? 0)],
+          ['Compras (Stock) (€)', moneyPt(stats?.purchasesStockTotal ?? 0)],
+          ['Despesas (Logística) (€)', moneyPt(stats?.purchasesLogisticsTotal ?? 0)],
+          ['Total em Compras (€)', moneyPt(stats?.purchasesTotal ?? 0)],
+        ],
+      },
+      {
+        title: 'Investimento por categoria',
+        headers: [
+          { label: 'Categoria', align: 'left' },
+          { label: 'Unidades', align: 'right' },
+          { label: 'Investido (€)', align: 'right' },
+          { label: 'Valor Esperado (€)', align: 'right' },
+          { label: 'Margem (€)', align: 'right' },
+        ],
+        rows: byCategory.map((r) => [
+          r.category ?? '',
+          String(r.units ?? 0),
+          moneyPt(r.invested ?? 0),
+          moneyPt(r.expected ?? 0),
+          moneyPt((r.expected ?? 0) - (r.invested ?? 0)),
+        ]),
+      },
     ],
-    { startY: y },
-  );
-
-  y = addSectionTitle(doc, 'Investimento por categoria', { startY: y });
-  y = addTable(doc, {
-    headers: ['Categoria', 'Unidades', 'Investido (€)', 'Valor Esperado (€)', 'Margem (€)'],
-    rows: (stats?.byCategory ?? []).map((r) => [
-      r.category ?? '',
-      r.units ?? 0,
-      moneyPt(r.invested ?? 0),
-      moneyPt(r.expected ?? 0),
-      moneyPt((r.expected ?? 0) - (r.invested ?? 0)),
-    ]),
-    startY: y,
-    columnWidths: [150, 70, 110, 110, 110],
-    columnAlign: ['left', 'right', 'right', 'right', 'right'],
   });
 
-  const outName = filename ?? 'financeiro.pdf';
-  finalizePdf(doc);
-  if (mode === 'blob') return doc.output('blob');
-  if (mode === 'open') {
-    const blob = doc.output('blob');
-    const url = URL.createObjectURL(blob);
-    const w = window.open(url, '_blank');
-    if (!w) downloadBlob(outName, blob);
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-    return;
+  document.body.appendChild(element);
+  try {
+    return await exportElementToPdf(element, outName, { mode });
+  } finally {
+    element.remove();
   }
-
-  doc.save(outName);
 }
 
-export async function exportElementToPdf(element, filename, { title } = {}) {
+export async function exportElementToPdf(element, filename, { title, mode = 'download' } = {}) {
   if (!element) throw new Error('missing_element');
 
   const [{ default: html2canvas }, jspdfMod] = await Promise.all([import('html2canvas'), import('jspdf')]);
@@ -823,5 +1055,16 @@ export async function exportElementToPdf(element, filename, { title } = {}) {
     pageIndex += 1;
   }
 
-  pdf.save(filename);
+  const outName = filename ?? 'export.pdf';
+  const blob = pdf.output('blob');
+  if (mode === 'blob') return blob;
+  if (mode === 'open') {
+    const url = URL.createObjectURL(blob);
+    const w = window.open(url, '_blank');
+    if (!w) downloadBlob(outName, blob);
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    return;
+  }
+
+  downloadBlob(outName, blob);
 }
