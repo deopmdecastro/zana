@@ -576,6 +576,12 @@ export const base44 = {
           export: async () => authedJsonRequest('/api/admin/backup/export'),
           import: async (data) => authedJsonRequest('/api/admin/backup/import', { method: 'POST', body: data }),
         },
+        settings: {
+          updateCredentials: async (data) =>
+            authedJsonRequest('/api/admin/settings/credentials', { method: 'PATCH', body: data }),
+          purgeDatabase: async (data) =>
+            authedJsonRequest('/api/admin/settings/purge', { method: 'POST', body: data }),
+        },
         smtp: {
           test: async (data) => authedJsonRequest('/api/admin/smtp/test', { method: 'POST', body: data }),
         },

@@ -1,12 +1,11 @@
 import React from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { CreditCard, Database, RotateCcw, Truck } from 'lucide-react';
+import { CreditCard, RotateCcw, Truck } from 'lucide-react';
 
 const tabs = [
   { to: 'pagamentos', label: 'Pagamentos', icon: CreditCard },
   { to: 'envios', label: 'Envios', icon: Truck },
   { to: 'devolucoes', label: 'Devoluções', icon: RotateCcw },
-  { to: 'backup', label: 'Backup', icon: Database },
 ];
 
 export default function SettingsLayout() {
@@ -14,7 +13,7 @@ export default function SettingsLayout() {
     <div className="space-y-6">
       <div>
         <h1 className="font-heading text-3xl">Definições</h1>
-        <p className="font-body text-sm text-muted-foreground mt-1">Configurações e métodos de pagamento.</p>
+        <p className="font-body text-sm text-muted-foreground mt-1">Configurações de pagamentos, envios e devoluções.</p>
       </div>
 
       <div className="bg-card border border-border rounded-lg p-2">

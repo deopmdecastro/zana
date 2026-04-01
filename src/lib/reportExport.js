@@ -57,75 +57,150 @@ async function safeSvgUrlToPngDataUrl(svgUrl, { width = 120 } = {}) {
 
 function addHeader(doc, { title, logoDataUrl, createdAt } = {}) {
   const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 36;
 
-  let x = margin;
-  const top = 26;
+  const brand = getThemeColorRgb('--primary', '340 52% 31%');
+  const border = { r: 225, g: 225, b: 225 };
+  const text = { r: 20, g: 20, b: 20 };
+  const muted = { r: 120, g: 120, b: 120 };
+
+  // Accent bar (brand)
+  doc.setFillColor(brand.r, brand.g, brand.b);
+  doc.rect(0, 0, pageWidth, 6, 'F');
+
+  const titleY = 34;
+  const metaY = 52;
 
   if (logoDataUrl) {
     try {
-      doc.addImage(logoDataUrl, 'PNG', margin, 18, 84, 22, undefined, 'FAST');
-      x = margin + 92;
+      doc.addImage(logoDataUrl, 'PNG', margin, 16, 96, 24, undefined, 'FAST');
     } catch (err) {
       console.warn('failed to embed logo', err);
     }
   }
 
-  doc.setTextColor(20, 20, 20);
-  doc.setFontSize(18);
-  doc.text(String(title ?? ''), x, top);
+  doc.setTextColor(text.r, text.g, text.b);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text(String(title ?? ''), pageWidth - margin, titleY, { align: 'right' });
 
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setTextColor(110, 110, 110);
+  doc.setTextColor(muted.r, muted.g, muted.b);
   const when = createdAt ? new Date(createdAt) : new Date();
-  doc.text(when.toLocaleString('pt-PT'), margin, 48);
+  const meta = when.toLocaleString('pt-PT');
 
-  doc.setDrawColor(220, 220, 220);
-  doc.line(margin, 56, pageWidth - margin, 56);
-  return 68;
+  const pillPadX = 10;
+  const pillH = 16;
+  const pillW = Math.min(pageWidth - margin * 2, doc.getTextWidth(meta) + pillPadX * 2);
+  const pillX = pageWidth - margin - pillW;
+  const pillY = metaY - 12;
+
+  doc.setFillColor(245, 245, 245);
+  doc.roundedRect(pillX, pillY, pillW, pillH, 8, 8, 'F');
+  doc.setTextColor(muted.r, muted.g, muted.b);
+  doc.text(meta, pillX + pillW / 2, metaY - 1, { align: 'center' });
+
+  doc.setDrawColor(border.r, border.g, border.b);
+  doc.line(margin, 66, pageWidth - margin, 66);
+
+  // Subtle footer baseline margin guidance (not visible in content area)
+  doc.setDrawColor(255, 255, 255);
+  doc.line(margin, pageHeight - 28, pageWidth - margin, pageHeight - 28);
+
+  return 84;
 }
 
-function addKeyValues(doc, items, { startY } = {}) {
+function addKeyValues(doc, items, { startY, columns = 2 } = {}) {
   const margin = 36;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  let y = startY ?? 68;
-  doc.setTextColor(20, 20, 20);
-  doc.setFontSize(11);
+  const brand = getThemeColorRgb('--primary', '340 52% 31%');
+  const border = { r: 228, g: 228, b: 228 };
+  const bg = { r: 250, g: 250, b: 250 };
+  const text = { r: 20, g: 20, b: 20 };
+  const muted = { r: 115, g: 115, b: 115 };
+
+  const gap = 12;
+  const cols = Math.max(1, Math.min(3, Number(columns) || 2));
+  const cardW = (pageWidth - margin * 2 - gap * (cols - 1)) / cols;
+  const cardH = 46;
+
+  let y = startY ?? 84;
+  let i = 0;
 
   for (const [label, value] of items) {
-    if (y > pageHeight - 48) {
+    const row = Math.floor(i / cols);
+    const col = i % cols;
+    const x = margin + col * (cardW + gap);
+    const cardY = y + row * (cardH + gap);
+
+    if (cardY + cardH > pageHeight - 42) {
       doc.addPage();
-      y = 68;
+      y = 84;
+      i = 0;
+      continue;
     }
-    doc.setTextColor(110, 110, 110);
-    doc.text(String(label), margin, y);
-    doc.setTextColor(20, 20, 20);
-    doc.text(String(value), pageWidth - margin, y, { align: 'right' });
-    y += 16;
+
+    doc.setFillColor(bg.r, bg.g, bg.b);
+    doc.setDrawColor(border.r, border.g, border.b);
+    doc.roundedRect(x, cardY, cardW, cardH, 10, 10, 'FD');
+
+    // Accent line
+    doc.setFillColor(brand.r, brand.g, brand.b);
+    doc.roundedRect(x, cardY, 4, cardH, 10, 10, 'F');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(muted.r, muted.g, muted.b);
+    doc.text(String(label), x + 12, cardY + 16);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(text.r, text.g, text.b);
+    doc.text(String(value), x + cardW - 12, cardY + 32, { align: 'right' });
+
+    i += 1;
   }
-  return y + 6;
+
+  const rowsCount = Math.ceil((items?.length ?? 0) / cols);
+  return y + rowsCount * cardH + Math.max(0, rowsCount - 1) * gap + 8;
 }
 
 function addSectionTitle(doc, title, { startY } = {}) {
   const margin = 36;
   const pageHeight = doc.internal.pageSize.getHeight();
-  let y = startY ?? 68;
+  let y = startY ?? 84;
   if (y > pageHeight - 60) {
     doc.addPage();
-    y = 68;
+    y = 84;
   }
-  doc.setTextColor(20, 20, 20);
+
+  const brand = getThemeColorRgb('--primary', '340 52% 31%');
+  const text = { r: 20, g: 20, b: 20 };
+
+  doc.setFillColor(brand.r, brand.g, brand.b);
+  doc.roundedRect(margin, y - 12, 4, 16, 2, 2, 'F');
+
+  doc.setTextColor(text.r, text.g, text.b);
+  doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text(String(title), margin, y);
-  return y + 16;
+  doc.text(String(title), margin + 10, y);
+  return y + 18;
 }
 
-function addTable(doc, { headers = [], rows = [], startY, columnWidths } = {}) {
+function addTable(doc, { headers = [], rows = [], startY, columnWidths, columnAlign } = {}) {
   const margin = 36;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
+
+  const brand = getThemeColorRgb('--primary', '340 52% 31%');
+  const border = { r: 230, g: 230, b: 230 };
+  const text = { r: 20, g: 20, b: 20 };
+  const muted = { r: 100, g: 100, b: 100 };
+  const zebra = { r: 250, g: 250, b: 250 };
 
   const widths =
     Array.isArray(columnWidths) && columnWidths.length === headers.length
@@ -138,30 +213,42 @@ function addTable(doc, { headers = [], rows = [], startY, columnWidths } = {}) {
 
   const lineHeight = 12;
   const padY = 6;
-  const padX = 6;
+  const padX = 8;
+
+  const aligns = Array.isArray(columnAlign) && columnAlign.length === headers.length ? columnAlign : headers.map(() => 'left');
+  const getCellX = (x, w, align) => {
+    if (align === 'right') return x + w - padX;
+    if (align === 'center') return x + w / 2;
+    return x + padX;
+  };
+  const getTextOpts = (align) => (align === 'right' || align === 'center' ? { align } : undefined);
 
   const drawHeader = (y) => {
     let x = margin;
-    doc.setFillColor(245, 245, 245);
-    doc.setDrawColor(220, 220, 220);
-    doc.rect(margin, y - 12, pageWidth - margin * 2, 18, 'FD');
-    doc.setTextColor(60, 60, 60);
+    doc.setFillColor(brand.r, brand.g, brand.b);
+    doc.setDrawColor(brand.r, brand.g, brand.b);
+    doc.roundedRect(margin, y - 14, pageWidth - margin * 2, 22, 8, 8, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     for (let i = 0; i < headers.length; i += 1) {
       const text = doc.splitTextToSize(String(headers[i] ?? ''), widths[i] - padX * 2);
-      doc.text(text, x + padX, y - 2);
+      const align = aligns[i] ?? 'left';
+      doc.text(text, getCellX(x, widths[i], align), y, getTextOpts(align));
       x += widths[i];
     }
-    return y + 14;
+    return y + 18;
   };
 
-  let y = startY ?? 68;
+  let y = startY ?? 84;
   y = drawHeader(y);
 
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.setTextColor(20, 20, 20);
-  doc.setDrawColor(235, 235, 235);
+  doc.setTextColor(text.r, text.g, text.b);
+  doc.setDrawColor(border.r, border.g, border.b);
 
+  let rowIndex = 0;
   for (const row of rows) {
     const cells = headers.map((_, i) => doc.splitTextToSize(String(row?.[i] ?? ''), widths[i] - padX * 2));
     const rowLines = Math.max(1, ...cells.map((c) => c.length));
@@ -169,26 +256,65 @@ function addTable(doc, { headers = [], rows = [], startY, columnWidths } = {}) {
 
     if (y + rowHeight > pageHeight - 36) {
       doc.addPage();
-      y = 68;
+      y = 84;
       y = drawHeader(y);
     }
 
     let x = margin;
-    doc.setFillColor(255, 255, 255);
+    const isZebra = rowIndex % 2 === 1;
+    if (isZebra) {
+      doc.setFillColor(zebra.r, zebra.g, zebra.b);
+      doc.rect(margin, y - 10, pageWidth - margin * 2, rowHeight, 'F');
+    }
+    doc.setDrawColor(border.r, border.g, border.b);
     doc.rect(margin, y - 10, pageWidth - margin * 2, rowHeight, 'S');
 
     for (let i = 0; i < headers.length; i += 1) {
       const text = cells[i];
-      const cellX = x + padX;
+      const align = aligns[i] ?? 'left';
+      const cellX = getCellX(x, widths[i], align);
       const cellY = y + padY;
-      doc.text(text, cellX, cellY);
+      doc.setTextColor(text.r, text.g, text.b);
+      doc.text(text, cellX, cellY, getTextOpts(align));
       x += widths[i];
     }
 
     y += rowHeight;
+    rowIndex += 1;
   }
 
   return y + 10;
+}
+
+function hexToRgb(hex) {
+  const cleaned = String(hex ?? '').trim().replace(/^#/, '');
+  if (cleaned.length !== 6) return null;
+  const r = Number.parseInt(cleaned.slice(0, 2), 16);
+  const g = Number.parseInt(cleaned.slice(2, 4), 16);
+  const b = Number.parseInt(cleaned.slice(4, 6), 16);
+  if (![r, g, b].every((n) => Number.isFinite(n))) return null;
+  return { r, g, b };
+}
+
+function getThemeColorRgb(varName, fallbackTriplet) {
+  const hex = getThemeColorHex(varName, fallbackTriplet);
+  return hexToRgb(hex) ?? { r: 107, g: 27, b: 58 };
+}
+
+function finalizePdf(doc) {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 36;
+  const muted = { r: 140, g: 140, b: 140 };
+
+  const total = doc.getNumberOfPages?.() ?? 1;
+  for (let i = 1; i <= total; i += 1) {
+    doc.setPage(i);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(muted.r, muted.g, muted.b);
+    doc.text(`Página ${i} de ${total}`, pageWidth - margin, pageHeight - 18, { align: 'right' });
+  }
 }
 
 function moneyPt(value) {
@@ -534,6 +660,7 @@ export async function exportReportsPdf({
     rows: topViewed.slice(0, 30).map((p) => [p.product_name ?? '', p.views ?? 0]),
     startY: y,
     columnWidths: [360, 120],
+    columnAlign: ['left', 'right'],
   });
 
   const topSearches = analytics?.top_searches ?? [];
@@ -543,20 +670,23 @@ export async function exportReportsPdf({
     rows: topSearches.slice(0, 30).map((q) => [q.query ?? '', q.count ?? 0]),
     startY: y,
     columnWidths: [360, 120],
+    columnAlign: ['left', 'right'],
   });
 
   const largestOrders = analytics?.largest_orders ?? [];
   y = addSectionTitle(doc, 'Maiores encomendas (30 dias)', { startY: y });
-  addTable(doc, {
+  y = addTable(doc, {
     headers: ['Email', 'Status', 'Total (€)'],
     rows: largestOrders
       .slice(0, 30)
       .map((o) => [o.customer_email ?? '', orderStatusLabelsPt[String(o.status ?? '')] ?? (o.status ?? ''), moneyPt(o.total ?? 0)]),
     startY: y,
     columnWidths: [260, 110, 110],
+    columnAlign: ['left', 'left', 'right'],
   });
 
   const outName = filename ?? 'relatorios.pdf';
+  finalizePdf(doc);
   if (mode === 'blob') return doc.output('blob');
   if (mode === 'open') {
     const blob = doc.output('blob');
@@ -602,7 +732,7 @@ export async function exportFinancePdf({
   );
 
   y = addSectionTitle(doc, 'Investimento por categoria', { startY: y });
-  addTable(doc, {
+  y = addTable(doc, {
     headers: ['Categoria', 'Unidades', 'Investido (€)', 'Valor Esperado (€)', 'Margem (€)'],
     rows: (stats?.byCategory ?? []).map((r) => [
       r.category ?? '',
@@ -613,9 +743,11 @@ export async function exportFinancePdf({
     ]),
     startY: y,
     columnWidths: [150, 70, 110, 110, 110],
+    columnAlign: ['left', 'right', 'right', 'right', 'right'],
   });
 
   const outName = filename ?? 'financeiro.pdf';
+  finalizePdf(doc);
   if (mode === 'blob') return doc.output('blob');
   if (mode === 'open') {
     const blob = doc.output('blob');

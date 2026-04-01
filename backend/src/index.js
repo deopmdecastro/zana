@@ -5961,6 +5961,158 @@ app.post('/api/admin/backup/import', async (req, res) => {
   }
 })
 
+const adminCredentialsSchema = z
+  .object({
+    email: z.string().email().optional().nullable(),
+    current_password: z.string().min(1),
+    new_password: z.string().min(8).optional().nullable(),
+  })
+  .passthrough()
+
+app.patch('/api/admin/settings/credentials', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = adminCredentialsSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const ok = verifyPassword(parsed.data.current_password, admin.passwordSalt, admin.passwordHash)
+  if (!ok) return res.status(401).json({ error: 'invalid_credentials' })
+
+  const nextEmailRaw = parsed.data.email === undefined || parsed.data.email === null ? null : normalizeEmail(parsed.data.email)
+  const wantsEmailChange = nextEmailRaw && nextEmailRaw !== admin.email
+  const wantsPasswordChange = parsed.data.new_password !== undefined && parsed.data.new_password !== null && String(parsed.data.new_password).trim().length > 0
+
+  if (!wantsEmailChange && !wantsPasswordChange) {
+    return res.json({ user: pickPublicUser(admin) })
+  }
+
+  if (wantsEmailChange) {
+    const existing = await prisma.user.findFirst({
+      where: {
+        email: nextEmailRaw,
+        NOT: { id: admin.id },
+      },
+      select: { id: true },
+    })
+    if (existing) return res.status(409).json({ error: 'email_taken' })
+  }
+
+  const data = {}
+  if (wantsEmailChange) data.email = nextEmailRaw
+  if (wantsPasswordChange) {
+    const { saltHex, hashHex } = hashPassword(parsed.data.new_password)
+    data.passwordSalt = saltHex
+    data.passwordHash = hashHex
+  }
+
+  try {
+    const updated = await prisma.user.update({ where: { id: admin.id }, data })
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'update',
+      entityType: 'AdminSettings',
+      entityId: admin.id,
+      meta: { email_changed: wantsEmailChange, password_changed: wantsPasswordChange },
+    })
+    res.json({ user: pickPublicUser(updated) })
+  } catch (err) {
+    if (err?.code === 'P2002') return res.status(409).json({ error: 'email_taken' })
+    sendInternalError(res, err, 'admin_settings_update_failed')
+  }
+})
+
+const adminPurgeSchema = z
+  .object({
+    confirm: z.string().min(1),
+    current_password: z.string().min(1),
+    keep_customers: z.boolean().optional(),
+    keep_products: z.boolean().optional(),
+  })
+  .passthrough()
+
+app.post('/api/admin/settings/purge', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const parsed = adminPurgeSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const confirm = String(parsed.data.confirm ?? '').trim().toUpperCase()
+  if (confirm !== 'APAGAR') return res.status(400).json({ error: 'confirmation_required' })
+
+  const ok = verifyPassword(parsed.data.current_password, admin.passwordSalt, admin.passwordHash)
+  if (!ok) return res.status(401).json({ error: 'invalid_credentials' })
+
+  const keepCustomers = Boolean(parsed.data.keep_customers)
+  const keepProducts = Boolean(parsed.data.keep_products)
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.auditLog.deleteMany({})
+
+      await tx.blogCommentReply.deleteMany({})
+      await tx.blogComment.deleteMany({})
+      await tx.blogPost.deleteMany({})
+
+      await tx.supportMessage.deleteMany({})
+      await tx.supportTicket.deleteMany({})
+
+      await tx.wishlistItem.deleteMany({})
+      await tx.review.deleteMany({})
+
+      await tx.orderItem.deleteMany({})
+      await tx.order.deleteMany({})
+
+      await tx.inventoryMovement.deleteMany({})
+      await tx.purchaseItem.deleteMany({})
+      await tx.purchase.deleteMany({})
+      await tx.supplier.deleteMany({})
+
+      await tx.appointment.deleteMany({})
+      await tx.staffService.deleteMany({})
+      await tx.staffMember.deleteMany({})
+      await tx.service.deleteMany({})
+
+      await tx.cashClosure.deleteMany({})
+      await tx.salesTarget.deleteMany({})
+      await tx.coupon.deleteMany({})
+
+      await tx.pageView.deleteMany({})
+      await tx.productView.deleteMany({})
+      await tx.searchEvent.deleteMany({})
+
+      await tx.faqQuestion.deleteMany({})
+      await tx.faqItem.deleteMany({})
+      await tx.instagramPost.deleteMany({})
+      await tx.siteContent.deleteMany({})
+
+      await tx.newsletterSubscriber.deleteMany({})
+      await tx.passwordResetToken.deleteMany({})
+
+      if (!keepCustomers) {
+        await tx.user.deleteMany({ where: { isAdmin: false } })
+      }
+
+      if (!keepProducts) {
+        await tx.product.deleteMany({})
+      }
+    })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'delete',
+      entityType: 'DatabasePurge',
+      entityId: null,
+      meta: { keep_customers: keepCustomers, keep_products: keepProducts },
+    })
+
+    res.json({ success: true })
+  } catch (err) {
+    sendInternalError(res, err, 'database_purge_failed')
+  }
+})
+
 app.patch('/api/admin/users/:id', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return

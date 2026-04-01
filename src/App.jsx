@@ -74,10 +74,10 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 	const ContentLayout = lazy(() => import('@/pages/admin/ContentLayout'));
 	const SettingsLayout = lazy(() => import('@/pages/admin/SettingsLayout'));
 	const LandingAdmin = lazy(() => import('@/pages/admin/LandingAdmin'));
-	const PaymentSettingsAdmin = lazy(() => import('@/pages/admin/PaymentSettingsAdmin'));
+  const PaymentSettingsAdmin = lazy(() => import('@/pages/admin/PaymentSettingsAdmin'));
   const ShippingSettingsAdmin = lazy(() => import('@/pages/admin/ShippingSettingsAdmin'));
-  const BackupSettingsAdmin = lazy(() => import('@/pages/admin/BackupSettingsAdmin'));
   const ReturnsSettingsAdmin = lazy(() => import('@/pages/admin/ReturnsSettingsAdmin'));
+  const AdminSettings = lazy(() => import('@/pages/admin/AdminSettings'));
 		const BlogAdmin = lazy(() => import('@/pages/admin/BlogAdmin'));
 		const BlogCommentsAdmin = lazy(() => import('@/pages/admin/BlogCommentsAdmin'));
 		const AboutAdmin = lazy(() => import('@/pages/admin/AboutAdmin'));
@@ -146,18 +146,19 @@ const AuthenticatedApp = () => {
 	      </Route>
 
       {/* Admin Layout */}
-	      <Route
-	        element={(
-	          <RequireAdmin>
-	            <AdminLayout />
-	          </RequireAdmin>
-	        )}
-	      >
+        <Route
+          element={(
+            <RequireAdmin>
+              <AdminLayout />
+            </RequireAdmin>
+          )}
+        >
 	        <Route path="/admin" element={<Dashboard />} />
 	        <Route path="/admin/produtos" element={<AdminProducts />} />
 	        <Route path="/admin/encomendas" element={<AdminOrders />} />
           <Route path="/admin/notificacoes" element={<AdminNotifications />} />
           <Route path="/admin/devolucoes" element={<ReturnsAdmin />} />
+          <Route path="/admin/configuracoes" element={<AdminSettings />} />
 		        <Route path="/admin/clientes" element={<AdminCustomers />} />
 		        <Route path="/admin/suporte" element={<SupportAdmin />} />
 		        <Route path="/admin/logs" element={<AdminLogs />} />
@@ -174,13 +175,13 @@ const AuthenticatedApp = () => {
               <Route path="branding" element={<BrandingAdmin />} />
               <Route path="marketing" element={<MarketingAdmin />} />
 		        </Route>
-		        <Route path="/admin/definicoes" element={<SettingsLayout />}>
-		          <Route index element={<Navigate to="pagamentos" replace />} />
-		          <Route path="pagamentos" element={<PaymentSettingsAdmin />} />
+          <Route path="/admin/definicoes" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="pagamentos" replace />} />
+            <Route path="pagamentos" element={<PaymentSettingsAdmin />} />
               <Route path="envios" element={<ShippingSettingsAdmin />} />
               <Route path="devolucoes" element={<ReturnsSettingsAdmin />} />
-              <Route path="backup" element={<BackupSettingsAdmin />} />
-		        </Route>
+              <Route path="backup" element={<Navigate to="/admin/configuracoes#backup" replace />} />
+          </Route>
 	        <Route path="/admin/fornecedores" element={<AdminSuppliers />} />
 	        <Route path="/admin/compras" element={<AdminPurchases />} />
 	        <Route path="/admin/inventario" element={<AdminInventory />} />
