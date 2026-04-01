@@ -144,61 +144,104 @@ export default function BlogAdmin() {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-xl">{editing ? 'Editar Artigo' : 'Novo Artigo'}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div><Label className="font-body text-xs">Título *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="rounded-none mt-1" /></div>
-            <div><Label className="font-body text-xs">Excerto</Label><Input value={form.excerpt} onChange={(e) => setForm({ ...form, excerpt: e.target.value })} className="rounded-none mt-1" /></div>
-            <div><Label className="font-body text-xs">Conteúdo (Markdown)</Label><Textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="rounded-none mt-1" rows={8} /></div>
-            <div>
-              <Label className="font-body text-xs">Imagem do artigo</Label>
-              <Input
-                value={form.image_url}
-                onChange={(e) => setForm({ ...form, image_url: e.target.value })}
-                className="rounded-none mt-1"
-                placeholder="Cole a URL da imagem (opcional)"
-              />
-              <div className="mt-3">
-                <ImageUpload
-                  value={form.image_url}
-                  onChange={(v) => setForm({ ...form, image_url: v })}
-                  variant="compact"
-                  label="Ou faça upload"
-                  recommended="1200x630"
-                  helper="JPG/PNG, ideal para capa/preview do artigo."
-                  buttonLabel="Upload"
-                />
+        <DialogContent className="w-[calc(100vw-24px)] sm:w-full max-w-4xl h-[85vh] overflow-hidden rounded-2xl p-0">
+          <div className="flex flex-col h-full">
+            <div className="px-6 pt-6 pb-4">
+              <DialogHeader>
+                <DialogTitle className="font-heading text-xl">{editing ? 'Editar Artigo' : 'Novo Artigo'}</DialogTitle>
+              </DialogHeader>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 pb-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <div>
+                    <Label className="font-body text-xs">Título *</Label>
+                    <Input
+                      value={form.title}
+                      onChange={(e) => setForm({ ...form, title: e.target.value })}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs">Excerto</Label>
+                    <Input
+                      value={form.excerpt}
+                      onChange={(e) => setForm({ ...form, excerpt: e.target.value })}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs">Conteúdo (Markdown)</Label>
+                    <Textarea
+                      value={form.content}
+                      onChange={(e) => setForm({ ...form, content: e.target.value })}
+                      className="rounded-none mt-1 min-h-[320px]"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <Label className="font-body text-xs">Imagem do artigo</Label>
+                    <Input
+                      value={form.image_url}
+                      onChange={(e) => setForm({ ...form, image_url: e.target.value })}
+                      className="rounded-none mt-1"
+                      placeholder="Cole a URL da imagem (opcional)"
+                    />
+                    <div className="mt-3">
+                      <ImageUpload
+                        value={form.image_url}
+                        onChange={(v) => setForm({ ...form, image_url: v })}
+                        variant="compact"
+                        label="Ou faça upload"
+                        recommended="1200x630"
+                        helper="JPG/PNG, ideal para capa/preview do artigo."
+                        buttonLabel="Upload"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label className="font-body text-xs">Categoria</Label>
+                      <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
+                        <SelectTrigger className="rounded-none mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="tendencias">Tendências</SelectItem>
+                          <SelectItem value="dicas">Dicas</SelectItem>
+                          <SelectItem value="novidades">Novidades</SelectItem>
+                          <SelectItem value="inspiracao">Inspiração</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="font-body text-xs">Estado</Label>
+                      <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
+                        <SelectTrigger className="rounded-none mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="draft">Rascunho</SelectItem>
+                          <SelectItem value="published">Publicado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleSubmit}
+                    className="w-full rounded-none font-body text-sm tracking-wider"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? 'A guardar...' : editing ? 'Guardar' : 'Criar Artigo'}
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="font-body text-xs">Categoria</Label>
-                <Select value={form.category} onValueChange={(v) => setForm({ ...form, category: v })}>
-                  <SelectTrigger className="rounded-none mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tendencias">Tendências</SelectItem>
-                    <SelectItem value="dicas">Dicas</SelectItem>
-                    <SelectItem value="novidades">Novidades</SelectItem>
-                    <SelectItem value="inspiracao">Inspiração</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="font-body text-xs">Estado</Label>
-                <Select value={form.status} onValueChange={(v) => setForm({ ...form, status: v })}>
-                  <SelectTrigger className="rounded-none mt-1"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">Rascunho</SelectItem>
-                    <SelectItem value="published">Publicado</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <Button onClick={handleSubmit} className="w-full rounded-none font-body text-sm tracking-wider" disabled={isSubmitting}>
-              {isSubmitting ? 'A guardar...' : editing ? 'Guardar' : 'Criar Artigo'}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>

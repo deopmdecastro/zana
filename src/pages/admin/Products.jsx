@@ -171,15 +171,34 @@ export default function AdminProducts() {
       const items = Array.isArray(p?.items) ? p.items : [];
       for (const it of items) {
         const name = String(it?.product_name ?? it?.productName ?? '').trim();
-        if (!name || map.has(name)) continue;
+        if (!name) continue;
 
         const unitCost = Number(it?.unit_cost ?? it?.unitCost ?? it?.cost ?? 0) || 0;
         const image = String(it?.product_image ?? it?.productImage ?? it?.image ?? '').trim();
-        map.set(name, { unitCost, image });
+
+        const existing = map.get(name) ?? { unitCost: 0, image: '', receivedQtyUnlinked: 0 };
+        if (!existing.unitCost && unitCost) existing.unitCost = unitCost;
+        if (!existing.image && image) existing.image = image;
+
+        const qty = Number(it?.quantity ?? 0) || 0;
+        const isReceived = String(p?.status ?? '') === 'received';
+        const isUnlinked = !it?.product_id && !it?.productId;
+        if (isReceived && isUnlinked && qty > 0) existing.receivedQtyUnlinked += qty;
+
+        map.set(name, existing);
       }
     }
     return map;
   }, [purchases]);
+
+  const purchaseSuggestion = useMemo(() => {
+    if (editing) return null;
+    const key = String(form?.name ?? '').trim();
+    if (!key) return null;
+    return purchaseSuggestionByName.get(key) ?? null;
+  }, [editing, form?.name, purchaseSuggestionByName]);
+
+  const isPurchaseInherited = Boolean(purchaseSuggestion) && nameChoice !== '__manual__' && !editing;
 
   const purchasedProductNameOptions = useMemo(() => {
     const set = new Set();
@@ -566,6 +585,9 @@ export default function AdminProducts() {
                             const current = Array.isArray(next.images) ? next.images : [];
                             next.images = current.includes(suggestion.image) ? current : [suggestion.image, ...current];
                           }
+                          if ((Number(next.stock) || 0) === 0 && (Number(suggestion.receivedQtyUnlinked) || 0) > 0) {
+                            next.stock = Number(suggestion.receivedQtyUnlinked) || 0;
+                          }
                         }
                       }
                       return next;
@@ -605,7 +627,13 @@ export default function AdminProducts() {
                   value={form.acquisition_cost}
                   onChange={(e) => setForm({ ...form, acquisition_cost: e.target.value })}
                   className="rounded-none mt-1"
+                  disabled={isPurchaseInherited}
                 />
+                {isPurchaseInherited ? (
+                  <p className="font-body text-[11px] text-muted-foreground mt-1">
+                    Herdado das compras (bloqueado).
+                  </p>
+                ) : null}
               </div>
               <div>
                 <Label className="font-body text-xs">Preço Original (€)</Label>
@@ -738,10 +766,26 @@ export default function AdminProducts() {
             </div>
             <div>
               <Label className="font-body text-xs">Stock</Label>
-              <Input type="number" value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className="rounded-none mt-1" />
+              <Input
+                type="number"
+                value={form.stock}
+                onChange={(e) => setForm({ ...form, stock: e.target.value })}
+                className="rounded-none mt-1"
+                disabled={isPurchaseInherited}
+              />
+              {isPurchaseInherited ? (
+                <p className="font-body text-[11px] text-muted-foreground mt-1">
+                  Herdado das compras recebidas (bloqueado).
+                </p>
+              ) : null}
             </div>
 	            <div>
 	              <Label className="font-body text-xs">Imagens</Label>
+              {isPurchaseInherited ? (
+                <p className="font-body text-[11px] text-muted-foreground mt-1">
+                  Imagens herdadas das compras (pode editar).
+                </p>
+              ) : null}
               <div className="flex gap-2 mt-1 flex-wrap">
                 {form.images?.map((img, i) => (
                   <div key={i} className="relative w-16 h-16 rounded overflow-hidden">
@@ -751,13 +795,25 @@ export default function AdminProducts() {
                       className="w-full h-full object-cover"
                       iconClassName="w-6 h-6 text-muted-foreground/40"
                     />
-                    <button onClick={() => setForm({ ...form, images: form.images.filter((_, j) => j !== i) })} className="absolute top-0 right-0 bg-destructive text-destructive-foreground w-4 h-4 text-[10px] flex items-center justify-center">×</button>
+                    <button
+                      onClick={() => setForm({ ...form, images: form.images.filter((_, j) => j !== i) })}
+                      className="absolute top-0 right-0 bg-destructive text-destructive-foreground w-4 h-4 text-[10px] flex items-center justify-center"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </div>
               <div className="flex gap-2 mt-2">
-                <Input placeholder="URL da imagem" value={imageInput} onChange={(e) => setImageInput(e.target.value)} className="rounded-none flex-1" />
-                <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-none">+</Button>
+                <Input
+                  placeholder="URL da imagem"
+                  value={imageInput}
+                  onChange={(e) => setImageInput(e.target.value)}
+                  className="rounded-none flex-1"
+                />
+                <Button type="button" variant="outline" onClick={addImageUrl} className="rounded-none">
+                  +
+                </Button>
               </div>
               <div className="mt-3">
                 <ImageUpload
@@ -770,7 +826,7 @@ export default function AdminProducts() {
                     setForm((prev) => ({ ...prev, images: [...(prev.images || []), url] }));
                   }}
                 />
-	              </div>
+              </div>
 	            </div>
 	            <div>
 	              <Label className="font-body text-xs">Vídeos</Label>

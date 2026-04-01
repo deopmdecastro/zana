@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,16 @@ const statusLabels = {
   cancelled: 'Cancelada',
 };
 
+function derivePurchaseType(purchase) {
+  const items = Array.isArray(purchase?.items) ? purchase.items : [];
+  if (items.length === 0) return 'products';
+  const hasStockItems = items.some((it) => Boolean(it?.product_id));
+  const hasNonStockItems = items.some((it) => !it?.product_id);
+  if (hasNonStockItems && !hasStockItems) return 'logistics';
+  if (hasNonStockItems && hasStockItems) return 'mixed';
+  return 'products';
+}
+
 function getPurchaseKindLabel(purchase) {
   const items = Array.isArray(purchase?.items) ? purchase.items : [];
   if (items.length === 0) return null;
@@ -45,6 +55,26 @@ function getPurchaseKindLabel(purchase) {
   if (hasNonStockItems && !hasStockItems) return 'Logística';
   if (hasNonStockItems && hasStockItems) return 'Mista';
   return null;
+}
+
+function getPurchaseProductsSummary(purchase) {
+  const items = Array.isArray(purchase?.items) ? purchase.items : [];
+  if (items.length === 0) return null;
+
+  const map = new Map();
+  for (const it of items) {
+    const name = String(it?.product_name ?? '').trim();
+    if (!name) continue;
+    const qty = Number(it?.quantity ?? 0) || 0;
+    map.set(name, (map.get(name) ?? 0) + qty);
+  }
+
+  const entries = Array.from(map.entries());
+  if (entries.length === 0) return null;
+
+  const top = entries.slice(0, 2).map(([name, qty]) => `${name} ×${qty || 0}`);
+  const remaining = entries.length - top.length;
+  return remaining > 0 ? `${top.join(', ')} +${remaining}` : top.join(', ');
 }
 
 const emptyPurchase = {
@@ -69,6 +99,7 @@ export default function AdminPurchases() {
   const [fixupItems, setFixupItems] = useState([]);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPurchase);
+  const [purchaseType, setPurchaseType] = useState('products'); // products | logistics | mixed
   const [jsonText, setJsonText] = useState('');
   const [returnOpen, setReturnOpen] = useState(false);
   const [returnReason, setReturnReason] = useState('');
@@ -144,6 +175,7 @@ export default function AdminPurchases() {
   const openCreate = () => {
     setEditing(null);
     setForm({ ...emptyPurchase, purchased_at: new Date().toISOString() });
+    setPurchaseType('products');
     setJsonText('');
     setDialogOpen(true);
   };
@@ -157,6 +189,7 @@ export default function AdminPurchases() {
 
 	  const openEdit = (p) => {
 	    setEditing(p);
+      setPurchaseType(derivePurchaseType(p));
 	    setForm({
 	      supplier_id: p.supplier_id ?? null,
       reference: p.reference ?? '',
@@ -174,6 +207,14 @@ export default function AdminPurchases() {
     setJsonText('');
     setDialogOpen(true);
   };
+
+  useEffect(() => {
+    if (purchaseType !== 'logistics') return;
+    setForm((p) => ({
+      ...p,
+      items: (p.items ?? []).map((it) => ({ ...it, product_id: null })),
+    }));
+  }, [purchaseType]);
 
   const runJsonImport = (objects, fallbackSupplierId = null) => {
     (async () => {
@@ -565,9 +606,10 @@ export default function AdminPurchases() {
   };
 
   const updateItem = (idx, patch) => {
+    const nextPatch = purchaseType === 'logistics' ? { ...patch, product_id: null } : patch;
     setForm((p) => ({
       ...p,
-      items: p.items.map((it, i) => (i === idx ? { ...it, ...patch } : it)),
+      items: p.items.map((it, i) => (i === idx ? { ...it, ...nextPatch } : it)),
     }));
   };
 
@@ -748,6 +790,14 @@ export default function AdminPurchases() {
                   <div className="font-medium">{p.supplier?.name ?? '-'}</div>
                   {p.reference ? <div className="text-xs text-muted-foreground">{p.reference}</div> : null}
                   {(() => {
+                    const summary = getPurchaseProductsSummary(p);
+                    return summary ? (
+                      <div className="text-xs text-muted-foreground mt-1 truncate" title={summary}>
+                        {summary}
+                      </div>
+                    ) : null;
+                  })()}
+                  {(() => {
                     const kind = getPurchaseKindLabel(p);
                     return kind ? (
                       <div className="mt-2">
@@ -790,6 +840,26 @@ export default function AdminPurchases() {
 
 	            <div className="space-y-4">
 		            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+	              <div>
+	                <Label className="font-body text-xs">Tipo de compra</Label>
+	                <Select
+	                  value={purchaseType}
+	                  onValueChange={(v) => setPurchaseType(v)}
+	                  disabled={isLocked}
+	                >
+	                  <SelectTrigger className="rounded-none mt-1">
+	                    <SelectValue />
+	                  </SelectTrigger>
+	                  <SelectContent>
+	                    <SelectItem value="products">Produtos (stock)</SelectItem>
+	                    <SelectItem value="logistics">Logística / consumíveis</SelectItem>
+	                    <SelectItem value="mixed">Mista</SelectItem>
+	                  </SelectContent>
+	                </Select>
+	                <p className="font-body text-[11px] text-muted-foreground mt-1">
+	                  Logística não atualiza stock; entra no financeiro como despesa.
+	                </p>
+	              </div>
 	              <div>
 	                <Label className="font-body text-xs">Fornecedor</Label>
                   {suppliers.length > 10 ? (
@@ -873,56 +943,65 @@ export default function AdminPurchases() {
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-12 gap-3">
-                    <div className="md:col-span-4">
-                      <Label className="font-body text-xs">Produto (opcional)</Label>
-                      {productOptions.length > 10 ? (
-                        <SearchableSelect
-                          value={it.product_id ?? 'none'}
-                          onChange={(v) => {
-                            const productId = v === 'none' ? null : v;
-                            const product = productOptions.find((p) => p.id === productId) ?? null;
-                            const nextImage = product ? getPrimaryImage(product.images) : '';
-                            updateItem(idx, {
-                              product_id: productId,
-                              product_name: product?.name ?? it.product_name,
-                              product_image: nextImage ?? it.product_image,
-                            });
-                          }}
-                          options={productPickerOptions}
-                          placeholder="-"
-                          searchPlaceholder="Pesquisar produto..."
-                          className="mt-1"
-                          disabled={isLocked}
-                        />
-                      ) : (
-                        <Select
-                          value={it.product_id ?? 'none'}
-                          onValueChange={(v) => {
-                            const productId = v === 'none' ? null : v;
-                            const product = productOptions.find((p) => p.id === productId) ?? null;
-                            const nextImage = product ? getPrimaryImage(product.images) : '';
-                            updateItem(idx, {
-                              product_id: productId,
-                              product_name: product?.name ?? it.product_name,
-                              product_image: nextImage ?? it.product_image,
-                            });
-                          }}
-                          disabled={isLocked}
-                        >
-                          <SelectTrigger className="rounded-none mt-1">
-                            <SelectValue placeholder="-" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">-</SelectItem>
-                            {productOptions.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
+                    {purchaseType === 'logistics' ? (
+                      <div className="md:col-span-4">
+                        <Label className="font-body text-xs">Produto</Label>
+                        <div className="mt-1 text-xs text-muted-foreground bg-secondary/30 border border-border rounded-none px-3 py-2">
+                          Item de logística (não comercializado)
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="md:col-span-4">
+                        <Label className="font-body text-xs">Produto (opcional)</Label>
+                        {productOptions.length > 10 ? (
+                          <SearchableSelect
+                            value={it.product_id ?? 'none'}
+                            onChange={(v) => {
+                              const productId = v === 'none' ? null : v;
+                              const product = productOptions.find((p) => p.id === productId) ?? null;
+                              const nextImage = product ? getPrimaryImage(product.images) : '';
+                              updateItem(idx, {
+                                product_id: productId,
+                                product_name: product?.name ?? it.product_name,
+                                product_image: nextImage ?? it.product_image,
+                              });
+                            }}
+                            options={productPickerOptions}
+                            placeholder="-"
+                            searchPlaceholder="Pesquisar produto..."
+                            className="mt-1"
+                            disabled={isLocked}
+                          />
+                        ) : (
+                          <Select
+                            value={it.product_id ?? 'none'}
+                            onValueChange={(v) => {
+                              const productId = v === 'none' ? null : v;
+                              const product = productOptions.find((p) => p.id === productId) ?? null;
+                              const nextImage = product ? getPrimaryImage(product.images) : '';
+                              updateItem(idx, {
+                                product_id: productId,
+                                product_name: product?.name ?? it.product_name,
+                                product_image: nextImage ?? it.product_image,
+                              });
+                            }}
+                            disabled={isLocked}
+                          >
+                            <SelectTrigger className="rounded-none mt-1">
+                              <SelectValue placeholder="-" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">-</SelectItem>
+                              {productOptions.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                      </div>
+                    )}
 
                     <div className="md:col-span-4">
                       <Label className="font-body text-xs">Nome do item</Label>

@@ -6421,33 +6421,58 @@ app.post('/api/admin/products', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
   const data = parsed.data
-  const created = await prisma.product.create({
-	    data: {
-	      name: data.name,
-	      description: data.description ?? null,
-	      price: String(data.price),
-        acquisitionCost:
-          data.acquisition_cost === undefined
-            ? undefined
-            : data.acquisition_cost === null
-              ? null
-              : String(data.acquisition_cost),
-	      originalPrice: data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
-	      category: data.category,
-	      material: data.material ?? null,
-	      colors: data.colors ?? [],
-        sizes: data.sizes ?? [],
-		      images: data.images ?? [],
-		      videos: data.videos ?? [],
-		      stock:
-		        data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
-		      freeShipping: data.free_shipping ?? undefined,
-		      isFeatured: data.is_featured ?? undefined,
-		      isNew: data.is_new ?? undefined,
-	      isBestseller: data.is_bestseller ?? undefined,
-	      status: data.status ?? undefined,
-    },
+
+  const buildProductCreateData = (overrideName) => ({
+    name: overrideName ?? data.name,
+    description: data.description ?? null,
+    price: String(data.price),
+    acquisitionCost:
+      data.acquisition_cost === undefined ? undefined : data.acquisition_cost === null ? null : String(data.acquisition_cost),
+    originalPrice: data.original_price === undefined ? undefined : data.original_price === null ? null : String(data.original_price),
+    category: data.category,
+    material: data.material ?? null,
+    colors: data.colors ?? [],
+    sizes: data.sizes ?? [],
+    images: data.images ?? [],
+    videos: data.videos ?? [],
+    stock: data.stock === undefined || data.stock === null ? undefined : Number.parseInt(String(data.stock), 10) || 0,
+    freeShipping: data.free_shipping ?? undefined,
+    isFeatured: data.is_featured ?? undefined,
+    isNew: data.is_new ?? undefined,
+    isBestseller: data.is_bestseller ?? undefined,
+    status: data.status ?? undefined,
   })
+
+  const buildVariantSuffix = () => {
+    const color = Array.isArray(data.colors) && data.colors.length ? String(data.colors[0] ?? '').trim() : ''
+    const size = Array.isArray(data.sizes) && data.sizes.length ? String(data.sizes[0] ?? '').trim() : ''
+    const parts = [color, size].filter(Boolean)
+    if (!parts.length) return ''
+    return ` (${parts.join(' · ')})`
+  }
+
+  let created = null
+  try {
+    created = await prisma.product.create({ data: buildProductCreateData() })
+  } catch (e) {
+    // If the DB has a unique constraint on `name`, allow same base product by suffixing variant (color/size).
+    if (e?.code === 'P2002') {
+      const suffix = buildVariantSuffix()
+      if (suffix) {
+        const base = String(data.name ?? '').trim()
+        const nextName = `${base}${suffix}`.slice(0, 180)
+        try {
+          created = await prisma.product.create({ data: buildProductCreateData(nextName) })
+        } catch (err2) {
+          return sendInternalError(res, err2, 'product_create_failed')
+        }
+      } else {
+        return res.status(409).json({ error: 'already_exists' })
+      }
+    } else {
+      return sendInternalError(res, e, 'product_create_failed')
+    }
+  }
 
   await writeAuditLog({ actorId: admin.id, action: 'create', entityType: 'Product', entityId: created.id, meta: req.body })
   res.status(201).json(toApiAdminProduct(created))
