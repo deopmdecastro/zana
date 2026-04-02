@@ -56,6 +56,7 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
 	const AdminProducts = lazy(() => import('@/pages/admin/Products'));
 	const AdminOrders = lazy(() => import('@/pages/admin/Orders'));
 	const AdminCustomers = lazy(() => import('@/pages/admin/Customers'));
+  const AdminUsers = lazy(() => import('@/pages/admin/Users'));
 		const AdminLogs = lazy(() => import('@/pages/admin/Logs'));
     const AdminNotifications = lazy(() => import('@/pages/admin/NotificationsAdmin'));
     const ReturnsAdmin = lazy(() => import('@/pages/admin/ReturnsAdmin'));
@@ -160,6 +161,7 @@ const AuthenticatedApp = () => {
           <Route path="/admin/devolucoes" element={<ReturnsAdmin />} />
           <Route path="/admin/configuracoes" element={<AdminSettings />} />
 		        <Route path="/admin/clientes" element={<AdminCustomers />} />
+            <Route path="/admin/usuarios" element={<AdminUsers />} />
 		        <Route path="/admin/suporte" element={<SupportAdmin />} />
 		        <Route path="/admin/logs" element={<AdminLogs />} />
 	        <Route path="/admin/blog" element={<Navigate to="/admin/conteudo/blog" replace />} />

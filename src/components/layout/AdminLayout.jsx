@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import {
   BarChart3,
@@ -36,11 +36,11 @@ import { useBranding } from '@/lib/useBranding';
 
 const navSections = [
   {
-    label: 'Gestão',
+    label: 'GestÃ£o',
     items: [
       { to: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/admin/notificacoes', icon: Bell, label: 'Notificações' },
-      { to: '/admin/devolucoes', icon: RotateCcw, label: 'Devoluções' },
+      { to: '/admin/notificacoes', icon: Bell, label: 'NotificaÃ§Ãµes' },
+      { to: '/admin/devolucoes', icon: RotateCcw, label: 'DevoluÃ§Ãµes' },
 	      { to: '/admin/produtos', icon: Package, label: 'Produtos' },
 	      { to: '/admin/encomendas', icon: ShoppingCart, label: 'Encomendas' },
 	      { to: '/admin/financeiro', icon: Euro, label: 'Financeiro' },
@@ -49,34 +49,35 @@ const navSections = [
 	      { to: '/admin/metas-vendas', icon: TrendingUp, label: 'Metas de Vendas' },
 	      { to: '/admin/fecho-de-caixa', icon: CreditCard, label: 'Fecho de Caixa' },
 	      { to: '/admin/clientes', icon: Users, label: 'Clientes' },
-        { to: '/admin/marcacoes', icon: CalendarClock, label: 'Marcações' },
+	      { to: '/admin/usuarios', icon: Users, label: 'Usuários' },
+        { to: '/admin/marcacoes', icon: CalendarClock, label: 'MarcaÃ§Ãµes' },
 	      { to: '/admin/suporte', icon: MessageSquare, label: 'Suporte' },
 	    ],
 	  },
   {
-    label: 'Conteúdo',
+    label: 'ConteÃºdo',
     items: [
-      { to: '/admin/conteudo/landing', icon: FileText, label: 'Conteúdo' },
+      { to: '/admin/conteudo/landing', icon: FileText, label: 'ConteÃºdo' },
       { to: '/admin/conteudo/blog', icon: BarChart3, label: 'Blog' },
     ],
   },
   {
-    label: 'Definições',
+    label: 'DefiniÃ§Ãµes',
     items: [
       { to: '/admin/definicoes/pagamentos', icon: CreditCard, label: 'Pagamentos' },
       { to: '/admin/definicoes/envios', icon: Truck, label: 'Envios' },
-      { to: '/admin/configuracoes', icon: Settings, label: 'Configurações' },
+      { to: '/admin/configuracoes', icon: Settings, label: 'ConfiguraÃ§Ãµes' },
     ],
   },
 
   {
-    label: 'Operação',
+    label: 'OperaÃ§Ã£o',
     items: [
       { to: '/admin/fornecedores', icon: Truck, label: 'Fornecedores' },
       { to: '/admin/compras', icon: ShoppingBasket, label: 'Compras' },
-      { to: '/admin/inventario', icon: Boxes, label: 'Inventário' },
-      { to: '/admin/relatorios', icon: BarChartBig, label: 'Relatórios' },
-      { to: '/admin/avaliacoes', icon: MessageSquare, label: 'Avaliações' },
+      { to: '/admin/inventario', icon: Boxes, label: 'InventÃ¡rio' },
+      { to: '/admin/relatorios', icon: BarChartBig, label: 'RelatÃ³rios' },
+      { to: '/admin/avaliacoes', icon: MessageSquare, label: 'AvaliaÃ§Ãµes' },
       { to: '/admin/logs', icon: ScrollText, label: 'Logs' },
     ],
   },
@@ -164,7 +165,7 @@ export default function AdminLayout() {
                     <LogOut className="w-4 h-4" />
                     Sair
                   </Button>
-                  <Link to="/" className="w-full inline-flex" onClick={() => setMobileOpen(false)} title="Voltar à loja">
+                  <Link to="/" className="w-full inline-flex" onClick={() => setMobileOpen(false)} title="Voltar Ã  loja">
                     <Button variant="ghost" className="w-full rounded-none font-body text-xs gap-2">
                       <ShoppingBag className="w-4 h-4" />
                       Loja
@@ -197,7 +198,7 @@ export default function AdminLayout() {
             />
           </div>
           <AdminNotificationBell />
-          <Link to="/" className="hidden md:inline-flex" title="Voltar à loja">
+          <Link to="/" className="hidden md:inline-flex" title="Voltar Ã  loja">
             <Button variant="ghost" size="icon" aria-label="Loja">
               <ShoppingBag className="w-4 h-4" />
             </Button>
@@ -224,3 +225,4 @@ export default function AdminLayout() {
     </div>
   );
 }
+

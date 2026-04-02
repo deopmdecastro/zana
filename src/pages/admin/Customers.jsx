@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Users, Eye, Search, Heart } from 'lucide-react';
+import { Users, Eye, Search, Heart, KeyRound } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,7 @@ export default function AdminCustomers() {
   const { data: users = [], isLoading: isLoadingUsers } = useQuery({
     queryKey: ['admin-users', limit],
     queryFn: () => base44.entities.User.list('-created_date', limit),
+    select: (data) => (Array.isArray(data) ? data.filter((u) => !u?.is_admin) : []),
   });
 
   const canLoadMore = !isLoadingUsers && Array.isArray(users) && users.length === limit && limit < 500;
@@ -51,6 +52,12 @@ export default function AdminCustomers() {
       toast.success('Cliente atualizado');
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível atualizar o cliente.')),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: ({ email }) => base44.auth.requestPasswordReset({ email }),
+    onSuccess: () => toast.success('Email de redefinição enviado'),
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível enviar a redefinição de senha.')),
   });
 
   const pointsMutation = useMutation({
@@ -106,7 +113,6 @@ export default function AdminCustomers() {
       country: u.address?.country ?? '',
       newsletter_opt_in: Boolean(u.settings?.newsletter_opt_in),
       order_updates_email: u.settings?.order_updates_email !== false,
-      is_admin: Boolean(u.is_admin),
     });
     setPointsForm({ delta: '', balance: String(Number(u.points_balance ?? 0) || 0), reason: '' });
   };
@@ -207,7 +213,25 @@ export default function AdminCustomers() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="font-body text-xs">Email</Label>
-                    <Input value={selected.email} disabled className="rounded-none mt-1" />
+                    <div className="mt-1 flex gap-2">
+                      <Input value={selected.email} disabled className="rounded-none" />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none font-body text-xs gap-2 shrink-0"
+                        onClick={() => {
+                          const email = String(selected?.email ?? '').trim();
+                          if (!email) return;
+                          if (!window.confirm(`Enviar email de redefinição de senha para ${email}?`)) return;
+                          resetMutation.mutate({ email });
+                        }}
+                        disabled={resetMutation.isPending}
+                        title="Envia um email com link para redefinir a senha"
+                      >
+                        <KeyRound className="w-4 h-4" />
+                        Redefinir senha
+                      </Button>
+                    </div>
                   </div>
                   <div>
                     <Label className="font-body text-xs">Nome</Label>
@@ -289,10 +313,6 @@ export default function AdminCustomers() {
                     />
                     <Label className="font-body text-xs">Emails de encomendas</Label>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch checked={form.is_admin} onCheckedChange={(v) => setForm((p) => ({ ...p, is_admin: v }))} />
-                    <Label className="font-body text-xs">Admin</Label>
-                  </div>
                 </div>
 
                 <Button
@@ -311,7 +331,6 @@ export default function AdminCustomers() {
                     <div className="font-heading text-2xl">{Number(selected.points_balance ?? 0) || 0} pontos</div>
                     <div className="font-body text-xs text-muted-foreground">1 ponto = 0,01€</div>
                   </div>
-                  {selected.is_admin ? <Badge className="bg-primary text-primary-foreground text-[10px]">Admin</Badge> : null}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
