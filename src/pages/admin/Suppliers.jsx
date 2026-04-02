@@ -11,6 +11,7 @@ import { getErrorMessage } from '@/lib/toast';
 import { Code, Eye, Plus, Pencil, Truck } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 const emptySupplier = { name: '', email: '', phone: '', link: '', address: '', notes: '' };
 
@@ -291,12 +292,11 @@ export default function AdminSuppliers() {
 	            ))}
           </tbody>
         </table>
-        {suppliers.length === 0 && (
-          <div className="text-center py-10">
-            <Truck className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="font-body text-sm text-muted-foreground">Sem fornecedores</p>
-          </div>
-        )}
+        {isLoading && (Array.isArray(suppliers) ? suppliers.length : 0) === 0 ? (
+          <EmptyState icon={Truck} description="A carregar..." />
+        ) : suppliers.length === 0 ? (
+          <EmptyState icon={Truck} description="Sem fornecedores" />
+        ) : null}
       </div>
 
       <LoadMoreControls

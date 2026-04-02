@@ -960,7 +960,7 @@ const orderItemPayloadSchema = z.object({
   color: z.string().optional().nullable(),
 })
 
-const orderPayloadSchema = z
+  const orderPayloadSchema = z
   .object({
     customer_name: z.string().min(1).max(200),
     customer_email: z.string().email().max(320),
@@ -976,6 +976,8 @@ const orderPayloadSchema = z
 	    total: z.union([z.number(), z.string()]),
     status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).optional(),
     payment_method: z.enum(['mbway', 'transferencia', 'multibanco', 'paypal']).optional().nullable(),
+    // Can be an URL or a data URL (upload stub in dev).
+    payment_proof_url: z.string().max(2_500_000).optional().nullable(),
     notes: z.string().optional().nullable(),
     coupon_code: z.string().optional().nullable(),
     points_to_use: z.union([z.number(), z.string()]).optional().nullable(),
@@ -1750,6 +1752,7 @@ function toApiOrder(o) {
     total: decimalToNumber(o.total) ?? 0,
     status: o.status,
     payment_method: o.paymentMethod ?? null,
+    payment_proof_url: o.paymentProofUrl ?? null,
     notes: o.notes ?? null,
     created_date: o.createdAt,
     updated_date: o.updatedAt,
@@ -5078,6 +5081,7 @@ app.post('/api/orders', async (req, res) => {
         pointsDiscount: String(pointsDiscount.toFixed(2)),
         status: data.status ?? 'pending',
         paymentMethod: data.payment_method ?? null,
+        paymentProofUrl: data.payment_proof_url ?? null,
         notes: data.notes ?? null,
         items: {
           create: data.items.map((it) => ({

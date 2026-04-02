@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { downloadBlob, exportReportsExcel, exportReportsPdf } from '@/lib/reportExport';
+import EmptyState from '@/components/ui/empty-state';
 
 function numberOrZero(value) {
   const n = Number(value ?? 0);
@@ -335,7 +336,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                     </Badge>
                   </div>
                   {(purchaseAdjustments?.latestEvents ?? []).length === 0 ? (
-                    <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+                    <EmptyState icon={TrendingUp} description="Sem dados" className="py-6" />
                   ) : (
                     <div className="space-y-2">
                       {(purchaseAdjustments.latestEvents ?? []).map((e) => {
@@ -404,7 +405,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                   </Badge>
                 </div>
                 {(analytics?.top_viewed_products ?? []).length === 0 ? (
-                  <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+                  <EmptyState icon={Eye} description="Sem dados" className="py-6" />
                 ) : (
                   <div className="space-y-2">
                     {(analytics?.top_viewed_products ?? []).slice(0, 6).map((p, idx) => (
@@ -433,7 +434,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                   </Badge>
                 </div>
                 {(analytics?.top_searches ?? []).length === 0 ? (
-                  <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+                  <EmptyState icon={Search} description="Sem dados" className="py-6" />
                 ) : (
                   <div className="space-y-2">
                     {(analytics?.top_searches ?? []).slice(0, 6).map((q, idx) => (
@@ -462,7 +463,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                   </Badge>
                 </div>
                 {(analytics?.largest_orders ?? []).length === 0 ? (
-                  <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+                  <EmptyState icon={Euro} description="Sem dados" className="py-6" />
                 ) : (
                   <div className="space-y-2">
                     <div className="grid grid-cols-[1fr_auto] gap-3 text-xs text-muted-foreground font-body">

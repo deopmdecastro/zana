@@ -1,11 +1,12 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Euro, Package, ShoppingCart, TrendingUp } from 'lucide-react';
+import { BarChart3, Euro, Package, ShoppingCart, TrendingUp } from 'lucide-react';
 
 import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
+import EmptyState from '@/components/ui/empty-state';
 
 const STATUS_META = {
   pending: { label: 'Pendente', color: 'hsl(var(--chart-3))' },
@@ -88,7 +89,7 @@ export default function Dashboard() {
   const latestProducts = products.slice(0, 5);
 
   const stats = [
-    { title: 'Receita Total', value: `${totalRevenue.toFixed(2)} â‚¬`, icon: Euro, color: 'text-green-600' },
+    { title: 'Receita Total', value: `${totalRevenue.toFixed(2)} €`, icon: Euro, color: 'text-green-600' },
     { title: 'Encomendas', value: orders.length, icon: ShoppingCart, color: 'text-primary' },
     { title: 'Pendentes', value: pendingOrders, icon: TrendingUp, color: 'text-accent' },
     { title: 'Produtos Ativos', value: activeProducts, icon: Package, color: 'text-blue-600' },
@@ -119,7 +120,12 @@ export default function Dashboard() {
         <CardContent>          <div className="h-72 relative">
             {orders.length === 0 ? (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <p className="font-body text-sm text-muted-foreground">Sem dados para mostrar.</p>
+                <EmptyState
+                  icon={BarChart3}
+                  description="Sem dados para mostrar."
+                  className="py-0"
+                  iconClassName="w-8 h-8"
+                />
               </div>
             ) : null}
 
@@ -174,7 +180,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {orders.slice(0, 5).length === 0 ? (
-            <p className="font-body text-sm text-muted-foreground text-center py-6">Sem encomendas ainda</p>
+            <EmptyState icon={ShoppingCart} description="Sem encomendas ainda" className="py-6" />
           ) : (
             <div className="space-y-3">
               {orders.slice(0, 5).map((order) => {
@@ -195,7 +201,7 @@ export default function Dashboard() {
                         <p className="font-body text-xs text-muted-foreground">{order.items?.length || 0} itens</p>
                       </div>
                     </div>
-                    <p className="font-body text-sm font-semibold">{order.total?.toFixed(2)} â‚¬</p>
+                    <p className="font-body text-sm font-semibold">{order.total?.toFixed(2)} €</p>
                   </div>
                 );
               })}
@@ -210,7 +216,7 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           {latestProducts.length === 0 ? (
-            <p className="font-body text-sm text-muted-foreground text-center py-6">Sem produtos cadastrados</p>
+            <EmptyState icon={Package} description="Sem produtos cadastrados" className="py-6" />
           ) : (
             <div className="space-y-3">
               {latestProducts.map((product) => (

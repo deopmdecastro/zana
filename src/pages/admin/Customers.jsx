@@ -15,6 +15,7 @@ import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 import { entityCode } from '@/utils/entityCode';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 export default function AdminCustomers() {
   const queryClient = useQueryClient();
@@ -168,12 +169,11 @@ export default function AdminCustomers() {
             ))}
           </tbody>
         </table>
-        {filteredUsers.length === 0 && (
-          <div className="text-center py-8">
-            <Users className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-            <p className="font-body text-sm text-muted-foreground">Sem clientes</p>
-          </div>
-        )}
+        {isLoadingUsers && (Array.isArray(users) ? users.length : 0) === 0 ? (
+          <EmptyState icon={Users} description="A carregar..." className="py-8" />
+        ) : filteredUsers.length === 0 ? (
+          <EmptyState icon={Users} description="Sem clientes" className="py-8" />
+        ) : null}
       </div>
 
       <LoadMoreControls

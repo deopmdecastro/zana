@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { PackageSearch, Search, SlidersHorizontal, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import ProductCard from '@/components/products/ProductCard';
 import { trackSearch } from '@/lib/analytics';
+import EmptyState from '@/components/ui/empty-state';
 
 const categories = [
   { value: 'all', label: 'Todas' },
@@ -200,10 +201,12 @@ export default function Catalog() {
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="font-heading text-2xl text-muted-foreground mb-2">Nenhum produto encontrado</p>
-            <p className="font-body text-sm text-muted-foreground">Tente ajustar os filtros de pesquisa</p>
-          </div>
+          <EmptyState
+            icon={PackageSearch}
+            title="Nenhum produto encontrado"
+            description="Tente ajustar os filtros de pesquisa"
+            className="py-20"
+          />
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
             {filtered.map(product => (

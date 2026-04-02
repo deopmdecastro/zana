@@ -136,7 +136,11 @@ export default function AdminLayout() {
                   <Menu className="w-5 h-5" />
                 </Button>
               </SheetTrigger>
-              <SheetContent side="left" className="p-0 w-[280px] flex flex-col">
+              <SheetContent
+                side="left"
+                overlayClassName="bg-background/70 backdrop-blur-[2px]"
+                className="p-0 w-[280px] flex flex-col"
+              >
                 <div className="px-4 py-3 border-b border-border flex items-center gap-3">
                   <ImageWithFallback
                     src={logoSrc}

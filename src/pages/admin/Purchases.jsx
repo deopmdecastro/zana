@@ -11,10 +11,11 @@ import SearchableSelect from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, CheckCircle, Code, RotateCcw, Trash2 } from 'lucide-react';
+import { Plus, Pencil, CheckCircle, Code, RotateCcw, Trash2, ShoppingBasket } from 'lucide-react';
 import { getPrimaryImage } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -863,7 +864,11 @@ export default function AdminPurchases() {
             ))}
           </tbody>
         </table>
-        {purchases.length === 0 && <p className="text-center py-8 font-body text-sm text-muted-foreground">Sem compras</p>}
+        {isLoadingPurchases && (Array.isArray(purchases) ? purchases.length : 0) === 0 ? (
+          <EmptyState icon={ShoppingBasket} description="A carregar..." className="py-8" />
+        ) : purchases.length === 0 ? (
+          <EmptyState icon={ShoppingBasket} description="Sem compras" className="py-8" />
+        ) : null}
       </div>
 
       <LoadMoreControls

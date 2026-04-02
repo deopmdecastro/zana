@@ -66,6 +66,9 @@ export default function Checkout() {
   const [step, setStep] = useState('form');
   const [submitting, setSubmitting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [paymentProofUrl, setPaymentProofUrl] = useState(null);
+  const [paymentProofName, setPaymentProofName] = useState('');
+  const [paymentProofUploading, setPaymentProofUploading] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [coupon, setCoupon] = useState(null);
   const [couponError, setCouponError] = useState('');
@@ -222,6 +225,37 @@ export default function Checkout() {
 
   const handleChange = (field, value) => setForm((prev) => ({ ...prev, [field]: value }));
 
+  useEffect(() => {
+    if (form.payment_method === 'transferencia') return;
+    setPaymentProofUrl(null);
+    setPaymentProofName('');
+    setPaymentProofUploading(false);
+  }, [form.payment_method]);
+
+  const handleProofSelected = async (file) => {
+    if (!file) return;
+    const maxBytes = 3 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast.error('O comprovativo deve ter no máximo 3MB.');
+      return;
+    }
+
+    setPaymentProofUploading(true);
+    try {
+      const uploaded = await base44.integrations.Core.UploadFile({ file });
+      const url = String(uploaded?.file_url ?? '').trim();
+      if (!url) throw new Error('upload_failed');
+      setPaymentProofUrl(url);
+      setPaymentProofName(file.name || 'comprovativo');
+      toast.success('Comprovativo anexado.');
+    } catch (error) {
+      console.error(error);
+      toast.error('Não foi possível anexar o comprovativo.');
+    } finally {
+      setPaymentProofUploading(false);
+    }
+  };
+
   const handleApplyCoupon = async () => {
     const trimmed = couponCode.trim()
     if (!trimmed) {
@@ -263,6 +297,16 @@ export default function Checkout() {
       return;
     }
 
+    if (form.payment_method === 'transferencia' && !paymentProofUrl) {
+      toast.error('Anexe o comprovativo de transferência para continuar.');
+      return;
+    }
+
+    if (form.payment_method === 'transferencia' && paymentProofUploading) {
+      toast.error('Aguarde o upload do comprovativo.');
+      return;
+    }
+
     setConfirmOpen(true);
   };
 
@@ -277,6 +321,7 @@ export default function Checkout() {
           shipping_method_label: selectedShipping?.label ?? null,
           coupon_code: coupon?.code ?? null,
           points_to_use: pointsUsed || null,
+          payment_proof_url: form.payment_method === 'transferencia' ? paymentProofUrl : null,
           items: items.map((i) => ({
             product_id: i.product_id,
             product_name: i.product_name,
@@ -594,6 +639,48 @@ export default function Checkout() {
               </RadioGroup>
 
               {renderPaymentDetails()}
+
+              {form.payment_method === 'transferencia' ? (
+                <div className="mt-4 rounded-md border border-border bg-secondary/10 p-4">
+                  <div className="font-body text-xs tracking-wider uppercase text-muted-foreground mb-2">Comprovativo</div>
+                  <Label className="font-body text-xs">Anexar comprovativo de transferência (imagem ou PDF) *</Label>
+                  <Input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    className="rounded-none mt-2"
+                    disabled={paymentProofUploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      void handleProofSelected(file);
+                      e.target.value = '';
+                    }}
+                  />
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <div className="font-body text-[11px] text-muted-foreground min-w-0 truncate">
+                      {paymentProofUploading ? 'A anexar...' : paymentProofUrl ? `Anexado: ${paymentProofName || 'comprovativo'}` : 'Nenhum ficheiro anexado.'}
+                    </div>
+                    {paymentProofUrl ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="rounded-none font-body text-xs"
+                        onClick={() => {
+                          setPaymentProofUrl(null);
+                          setPaymentProofName('');
+                        }}
+                        disabled={paymentProofUploading}
+                      >
+                        Remover
+                      </Button>
+                    ) : null}
+                  </div>
+                  {paymentProofUrl && String(paymentProofUrl).startsWith('data:image') ? (
+                    <div className="mt-3 border border-border bg-background p-2">
+                      <img src={paymentProofUrl} alt="Comprovativo" className="w-full max-h-56 object-contain" />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -711,6 +798,11 @@ export default function Checkout() {
                 <div className="text-sm">
                   <span className="font-semibold">Pagamento:</span> {form.payment_method}
                 </div>
+                {form.payment_method === 'transferencia' ? (
+                  <div className="text-sm">
+                    <span className="font-semibold">Comprovativo:</span> {paymentProofUrl ? 'Anexado' : 'Não anexado'}
+                  </div>
+                ) : null}
                 <div className="text-sm">
                   <span className="font-semibold">Total:</span> {totalAfterPoints.toFixed(2)} €
                 </div>

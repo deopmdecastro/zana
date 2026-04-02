@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Code, Plus, Pencil, Search } from 'lucide-react';
+import { Code, Plus, Pencil, Search, Package } from 'lucide-react';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
@@ -21,6 +21,7 @@ import { entityCode } from '@/utils/entityCode';
 import DeleteIcon from '@/components/ui/delete-icon';
 import SearchableSelect from '@/components/ui/searchable-select';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 const emptyProduct = {
   name: '', description: '', price: '', acquisition_cost: '', original_price: '', category: 'colares',
@@ -547,7 +548,11 @@ export default function AdminProducts() {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && <p className="text-center py-8 font-body text-sm text-muted-foreground">Sem produtos</p>}
+        {isLoading && (Array.isArray(products) ? products.length : 0) === 0 ? (
+          <EmptyState icon={Package} description="A carregar..." className="py-8" />
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={Package} description="Sem produtos" className="py-8" />
+        ) : null}
       </div>
 
       <LoadMoreControls

@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Check, ChevronDown, Eye, Plus } from 'lucide-react';
+import { Check, ChevronDown, Eye, Plus, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import { getPrimaryImage } from '@/lib/images';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -377,9 +378,11 @@ export default function AdminOrders() {
             ))}
           </tbody>
         </table>
-        {filtered.length === 0 && (
-          <p className="text-center py-8 font-body text-sm text-muted-foreground">Sem encomendas</p>
-        )}
+        {isLoadingOrders && (Array.isArray(orders) ? orders.length : 0) === 0 ? (
+          <EmptyState icon={ShoppingCart} description="A carregar..." className="py-8" />
+        ) : filtered.length === 0 ? (
+          <EmptyState icon={ShoppingCart} description="Sem encomendas" className="py-8" />
+        ) : null}
       </div>
 
       <LoadMoreControls

@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { appointmentStatusLabels } from '@/lib/appointmentStatus';
 import { entityCode } from '@/utils/entityCode';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -272,7 +273,7 @@ export default function AdminLogs() {
               <TrendingUp className="w-4 h-4 text-primary" />
             </div>
             {(analytics?.top_customers ?? []).length === 0 ? (
-              <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+              <EmptyState icon={FileText} description="Sem dados" className="py-6" />
             ) : (
               <div className="space-y-2">
                 {(analytics?.top_customers ?? []).slice(0, 4).map((c) => (
@@ -293,7 +294,7 @@ export default function AdminLogs() {
               <MapPin className="w-4 h-4 text-accent" />
             </div>
             {(analytics?.orders_by_country ?? []).length === 0 ? (
-              <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+              <EmptyState icon={TrendingUp} description="Sem dados" className="py-6" />
             ) : (
               <div className="space-y-2">
                 {(analytics?.orders_by_country ?? []).slice(0, 4).map((c) => (
@@ -319,7 +320,7 @@ export default function AdminLogs() {
                 <div className="text-muted-foreground">{peakHour.count} visitas</div>
               </div>
             ) : (
-              <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+              <EmptyState icon={MapPin} description="Sem dados" className="py-6" />
             )}
           </CardContent>
         </Card>

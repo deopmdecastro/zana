@@ -19,6 +19,7 @@ import zanaLogoPrimary from '@/img/zana_logo_primary.svg';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { downloadBlob, exportFinanceExcel, exportFinancePdf } from '@/lib/reportExport';
+import EmptyState from '@/components/ui/empty-state';
 
 function moneyPt(value) {
   const n = Number(value ?? 0) || 0;
@@ -339,7 +340,7 @@ export default function AdminFinance() {
           </CardHeader>
           <CardContent>
             {stats.byCategory.length === 0 ? (
-              <p className="font-body text-sm text-muted-foreground">Sem dados</p>
+              <EmptyState icon={Package} description="Sem dados" className="py-6" />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">

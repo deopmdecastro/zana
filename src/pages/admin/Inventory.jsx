@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 import { PackageSearch } from 'lucide-react';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import EmptyState from '@/components/ui/empty-state';
 
 export default function AdminInventory() {
   const queryClient = useQueryClient();
@@ -67,7 +68,7 @@ export default function AdminInventory() {
       </div>
 
       {isLoading ? (
-        <p className="font-body text-sm text-muted-foreground">A carregar...</p>
+        <EmptyState icon={PackageSearch} description="A carregar..." className="py-10" />
       ) : (
         <div>
           <div className="bg-card rounded-lg border border-border overflow-x-auto">
@@ -104,10 +105,7 @@ export default function AdminInventory() {
             </tbody>
             </table>
             {products.length === 0 && (
-              <div className="text-center py-10">
-                <PackageSearch className="w-10 h-10 text-muted-foreground/30 mx-auto mb-2" />
-                <p className="font-body text-sm text-muted-foreground">Sem produtos</p>
-              </div>
+              <EmptyState icon={PackageSearch} description="Sem produtos" />
             )}
           </div>
 
