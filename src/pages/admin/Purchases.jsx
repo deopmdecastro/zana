@@ -42,7 +42,7 @@ function derivePurchaseType(purchase) {
   if (items.length === 0) return 'products';
   const hasStockItems = items.some((it) => Boolean(it?.product_id));
   const hasNonStockItems = items.some((it) => !it?.product_id);
-  if (hasNonStockItems && !hasStockItems) return 'logistics';
+if (hasNonStockItems && !hasStockItems) return 'consumiveis';
   if (hasNonStockItems && hasStockItems) return 'mixed';
   return 'products';
 }
@@ -52,7 +52,7 @@ function getPurchaseKindLabel(purchase) {
   if (items.length === 0) return null;
   const hasStockItems = items.some((it) => Boolean(it?.product_id));
   const hasNonStockItems = items.some((it) => !it?.product_id);
-  if (hasNonStockItems && !hasStockItems) return 'Logística';
+if (hasNonStockItems && !hasStockItems) return 'Consumíveis';
   if (hasNonStockItems && hasStockItems) return 'Mista';
   return null;
 }
@@ -801,7 +801,7 @@ export default function AdminPurchases() {
                     const kind = getPurchaseKindLabel(p);
                     return kind ? (
                       <div className="mt-2">
-                        <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
+                      <Badge className="bg-secondary text-foreground text-[10px]">{kind === 'Logística' ? 'Consumíveis' : kind}</Badge>
                       </div>
                     ) : null;
                   })()}
@@ -947,7 +947,7 @@ export default function AdminPurchases() {
                       <div className="md:col-span-4">
                         <Label className="font-body text-xs">Produto</Label>
                         <div className="mt-1 text-xs text-muted-foreground bg-secondary/30 border border-border rounded-none px-3 py-2">
-                          Item de logística (não comercializado)
+                          Item de consumíveis (não comercializado)
                         </div>
                       </div>
                     ) : (
