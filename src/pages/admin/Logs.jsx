@@ -340,49 +340,54 @@ export default function AdminLogs() {
             </tr>
           </thead>
           <tbody>
-            {(isLoading ? [] : filtered).map((l) => (
-              <tr key={l.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">
-                  {new Date(l.created_date).toLocaleString('pt-PT')}
-                </td>
-                <td className="p-3 font-body text-sm">{l.actor?.email ?? '-'}</td>
-                <td className="p-3">
-                  <Badge className={`${actionColor[l.action] ?? 'bg-secondary text-foreground'} text-[10px]`}>
-                    {l.action}
-                  </Badge>
-                </td>
-                <td className="p-3 font-body text-sm">
-                  <div className="font-medium">{entityLabel(l.entity_type)}</div>
-                  {l.entity_type && l.entity_id ? (
-                    <div className="font-body text-[11px] text-muted-foreground truncate max-w-[260px]">
-                      <span title={String(l.entity_id)}>
-                        {entityCode({
-                          entityType: l.entity_type,
-                          entityId: l.entity_id,
-                          createdDate: entityFirstSeen.get(`${l.entity_type}:${l.entity_id}`) ?? l.created_date,
-                        })}
-                      </span>
-                    </div>
-                  ) : null}
-                </td>
-                <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">{logCode(l)}</td>
-                <td className="p-3 font-body text-xs text-muted-foreground">
-                  <span className="line-clamp-2">
-                    {metaSummary(safeJson(l.meta), { action: l.action, entityType: l.entity_type }) ?? '—'}
-                  </span>
-                </td>
-                <td className="p-3 text-right">
-                  <Button variant="ghost" size="icon" onClick={() => setSelected(l)} title="Ver detalhes">
-                    <FileText className="w-4 h-4" />
-                  </Button>
+            {!isLoading && filtered.length === 0 ? (
+              <tr className="border-b border-border last:border-0">
+                <td colSpan={7} className="p-0">
+                  <EmptyState icon={FileText} description="Sem logs" className="py-6" />
                 </td>
               </tr>
-            ))}
+            ) : (
+              (isLoading ? [] : filtered).map((l) => (
+                <tr key={l.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
+                  <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(l.created_date).toLocaleString('pt-PT')}
+                  </td>
+                  <td className="p-3 font-body text-sm">{l.actor?.email ?? '-'}</td>
+                  <td className="p-3">
+                    <Badge className={`${actionColor[l.action] ?? 'bg-secondary text-foreground'} text-[10px]`}>
+                      {l.action}
+                    </Badge>
+                  </td>
+                  <td className="p-3 font-body text-sm">
+                    <div className="font-medium">{entityLabel(l.entity_type)}</div>
+                    {l.entity_type && l.entity_id ? (
+                      <div className="font-body text-[11px] text-muted-foreground truncate max-w-[260px]">
+                        <span title={String(l.entity_id)}>
+                          {entityCode({
+                            entityType: l.entity_type,
+                            entityId: l.entity_id,
+                            createdDate: entityFirstSeen.get(`${l.entity_type}:${l.entity_id}`) ?? l.created_date,
+                          })}
+                        </span>
+                      </div>
+                    ) : null}
+                  </td>
+                  <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">{logCode(l)}</td>
+                  <td className="p-3 font-body text-xs text-muted-foreground">
+                    <span className="line-clamp-2">
+                      {metaSummary(safeJson(l.meta), { action: l.action, entityType: l.entity_type }) ?? '—'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <Button variant="ghost" size="icon" onClick={() => setSelected(l)} title="Ver detalhes">
+                      <FileText className="w-4 h-4" />
+                    </Button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
-        {!isLoading && filtered.length === 0 && (
-          <p className="text-center py-8 font-body text-sm text-muted-foreground">Sem logs</p>
-        )}
       </div>
 
       <LoadMoreControls

@@ -397,16 +397,62 @@ export default function AppointmentsAdmin() {
               <h2 className="font-heading text-xl">Serviços</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4"> 
-              <div className="md:col-span-2"> 
-                <Label className="font-body text-xs">Nome</Label> 
-                <Input 
-                  value={serviceForm.name} 
-                  onChange={(e) => setServiceForm((p) => ({ ...p, name: e.target.value }))} 
-                  className="rounded-none mt-1" 
-                /> 
-              </div> 
-              <div className="md:col-span-2"> 
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 mb-4">
+              <div className="md:col-span-7 space-y-3">
+                <div>
+                  <Label className="font-body text-xs">Nome</Label>
+                  <Input
+                    value={serviceForm.name}
+                    onChange={(e) => setServiceForm((p) => ({ ...p, name: e.target.value }))}
+                    className="rounded-none mt-1"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label className="font-body text-xs">Duração (min)</Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
+                      value={serviceForm.duration_minutes}
+                      onChange={(e) => setServiceForm((p) => ({ ...p, duration_minutes: e.target.value }))}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="font-body text-xs">Preço (€) (opcional)</Label>
+                    <Input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      value={serviceForm.price}
+                      onChange={(e) => setServiceForm((p) => ({ ...p, price: e.target.value }))}
+                      className="rounded-none mt-1"
+                    />
+                  </div>
+                </div>
+
+                <Button
+                  className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto"
+                  disabled={createServiceMutation.isPending || !serviceForm.name.trim()}
+                  onClick={() => {
+                    createServiceMutation.mutate({
+                      name: serviceForm.name.trim(),
+                      image_url: serviceForm.image_url?.trim() || null,
+                      duration_minutes: Number(serviceForm.duration_minutes) || 30,
+                      price: serviceForm.price.trim() ? Number(serviceForm.price) : null,
+                      is_active: true,
+                    });
+                    setServiceForm((p) => ({ ...p, name: '', image_url: '', duration_minutes: '30', price: '' }));
+                  }}
+                >
+                  <Plus className="w-4 h-4 mr-2" /> Adicionar serviço
+                </Button>
+              </div>
+
+              <div className="md:col-span-5">
                 <Label className="font-body text-xs">Imagem do serviço</Label>
                 <Input
                   value={serviceForm.image_url}
@@ -425,49 +471,8 @@ export default function AppointmentsAdmin() {
                     buttonLabel="Upload"
                   />
                 </div>
-              </div> 
-              <div> 
-                <Label className="font-body text-xs">Duração (min)</Label> 
-                <Input 
-                  type="number" 
-                  inputMode="numeric" 
-                  min={1}
-                  step={1}
-                  value={serviceForm.duration_minutes}
-                  onChange={(e) => setServiceForm((p) => ({ ...p, duration_minutes: e.target.value }))}
-                  className="rounded-none mt-1"
-                />
               </div>
-              <div>
-                <Label className="font-body text-xs">Preço (€) (opcional)</Label>
-                <Input
-                  type="number"
-                  inputMode="decimal"
-                  step="0.01"
-                  value={serviceForm.price}
-                  onChange={(e) => setServiceForm((p) => ({ ...p, price: e.target.value }))}
-                  className="rounded-none mt-1"
-                />
-              </div>
-              <div className="md:col-span-2" />
             </div>
-
-            <Button 
-              className="rounded-none font-body text-sm tracking-wider" 
-              disabled={createServiceMutation.isPending || !serviceForm.name.trim()} 
-              onClick={() => { 
-                createServiceMutation.mutate({ 
-                  name: serviceForm.name.trim(), 
-                  image_url: serviceForm.image_url?.trim() || null,
-                  duration_minutes: Number(serviceForm.duration_minutes) || 30, 
-                  price: serviceForm.price.trim() ? Number(serviceForm.price) : null, 
-                  is_active: true, 
-                }); 
-                 setServiceForm((p) => ({ ...p, name: '', image_url: '', duration_minutes: '30', price: '' })); 
-               }} 
-            > 
-              <Plus className="w-4 h-4 mr-2" /> Adicionar serviço 
-            </Button> 
 
             <Separator className="my-5" />
 

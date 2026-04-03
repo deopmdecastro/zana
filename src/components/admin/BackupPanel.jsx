@@ -2,7 +2,9 @@ import React, { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
+import EmptyState from '@/components/ui/empty-state';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
+import { Database } from 'lucide-react';
 
 export default function BackupPanel({ showTitle = true } = {}) {
   const inputRef = useRef(null);
@@ -229,8 +231,8 @@ export default function BackupPanel({ showTitle = true } = {}) {
                 })
               ) : (
                 <tr className="border-t border-border">
-                  <td colSpan={4} className="p-6 text-center font-body text-sm text-muted-foreground">
-                    Sem backups automáticos ainda.
+                  <td colSpan={4} className="p-0">
+                    <EmptyState icon={Database} description="Sem backups automáticos ainda." className="py-6" />
                   </td>
                 </tr>
               )}
