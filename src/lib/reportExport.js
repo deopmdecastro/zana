@@ -530,6 +530,222 @@ function createPdfHtmlReportElement({
   return root;
 }
 
+function createPdfHtmlInvoiceElement({ order, createdAt, logoDataUrl, title = 'Fatura' } = {}) {
+  if (typeof document === 'undefined') throw new Error('document_not_available');
+
+  const brandRgb = getThemeColorRgb('--primary', '340 52% 31%');
+  const brandHex = rgbToHex(brandRgb) || '#722f37';
+  const when = createdAt ? new Date(createdAt) : new Date(order?.created_date ?? order?.created_at ?? Date.now());
+  const whenLabel = Number.isFinite(when.getTime()) ? when.toLocaleString('pt-PT') : '';
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+  const money = (v) => `€ ${moneyPt(v)}`;
+
+  const root = document.createElement('div');
+  root.className = 'zana-pdf-invoice';
+  root.style.position = 'fixed';
+  root.style.left = '-10000px';
+  root.style.top = '0';
+  root.style.width = '794px';
+  root.style.zIndex = '-1';
+
+  const headerLogoHtml = logoDataUrl
+    ? `<img src="${escapeHtml(logoDataUrl)}" alt="ZANA" style="height:34px;width:auto;display:block" />`
+    : `<div class="logo">ZANA <small>acessórios</small></div>`;
+
+  const customer = [
+    order?.customer_name ? String(order.customer_name) : '',
+    order?.customer_email ? String(order.customer_email) : '',
+    order?.customer_phone ? String(order.customer_phone) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const addressParts = [
+    order?.shipping_address ? String(order.shipping_address) : '',
+    order?.shipping_postal_code ? String(order.shipping_postal_code) : '',
+    order?.shipping_city ? String(order.shipping_city) : '',
+    order?.shipping_country ? String(order.shipping_country) : '',
+  ].filter(Boolean);
+  const address = addressParts.join(', ');
+
+  const rowsHtml = items
+    .map((it) => {
+      const qty = Number(it?.quantity ?? 0) || 0;
+      const unit = Number(it?.price ?? 0) || 0;
+      const total = qty * unit;
+      const img = it?.product_image ? String(it.product_image) : '';
+      const imgHtml = img
+        ? `<img src="${escapeHtml(img)}" alt="" style="width:44px;height:44px;display:block;object-fit:cover;border:1px solid #e6e7ea;" />`
+        : `<div style="width:44px;height:44px;border:1px solid #e6e7ea;background:#f6f7f9;"></div>`;
+
+      return `
+        <tr>
+          <td style="width:56px;">${imgHtml}</td>
+          <td>${escapeHtml(it?.product_name ?? '')}</td>
+          <td style="text-align:right;white-space:nowrap;">${escapeHtml(String(qty))}</td>
+          <td style="text-align:right;white-space:nowrap;">${escapeHtml(money(unit))}</td>
+          <td style="text-align:right;white-space:nowrap;font-weight:700;">${escapeHtml(money(total))}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const subtotal = Number(order?.subtotal ?? 0) || 0;
+  const shipping = Number(order?.shipping_cost ?? 0) || 0;
+  const total = Number(order?.total ?? 0) || 0;
+
+  root.innerHTML = `
+    <style>
+      .zana-pdf-invoice {
+        --primary-color: ${brandHex};
+        --bg-light: #f6f7f9;
+        --text-dark: #333;
+        --border: #e6e7ea;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #ffffff;
+        margin: 0;
+        padding: 0;
+        color: var(--text-dark);
+        box-sizing: border-box;
+      }
+      .zana-pdf-invoice * { box-sizing: border-box; }
+      .zana-pdf-invoice .container { padding: 32px 34px; }
+      .zana-pdf-invoice header {
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        border-bottom:2px solid var(--bg-light);
+        padding-bottom:18px;
+        margin-bottom:20px;
+        gap:18px;
+      }
+      .zana-pdf-invoice .logo { font-size: 26px; font-weight: bold; letter-spacing: 2px; color: var(--primary-color); }
+      .zana-pdf-invoice .logo small { font-size: 10px; display: block; font-weight: normal; letter-spacing: 0; margin-top: 2px; }
+      .zana-pdf-invoice .right { text-align:right; }
+      .zana-pdf-invoice .right h1 { margin:0; font-size:20px; color:var(--primary-color); letter-spacing:.5px; }
+      .zana-pdf-invoice .muted { font-size:11px; color:#777; line-height:1.6; }
+      .zana-pdf-invoice .grid {
+        display:grid;
+        grid-template-columns: 1fr 1fr;
+        gap:14px 18px;
+        margin-bottom:18px;
+      }
+      .zana-pdf-invoice .box {
+        border:1px solid var(--border);
+        background: var(--bg-light);
+        padding:12px 14px;
+      }
+      .zana-pdf-invoice .label { font-size:11px; color:#666; letter-spacing:.4px; text-transform:uppercase; margin-bottom:6px; }
+      .zana-pdf-invoice .value { font-size:12px; color:#222; line-height:1.6; }
+      .zana-pdf-invoice table { width:100%; border-collapse:collapse; table-layout:fixed; }
+      .zana-pdf-invoice th {
+        background-color: var(--primary-color);
+        color:white;
+        text-align:left;
+        padding:0 12px;
+        height:32px;
+        font-size:11px;
+        text-transform:uppercase;
+        letter-spacing:.6px;
+        vertical-align:middle;
+        line-height:32px;
+        white-space:nowrap;
+      }
+      .zana-pdf-invoice td {
+        padding:10px 12px;
+        border-bottom:1px solid #eee;
+        font-size:12px;
+        vertical-align:top;
+        word-break:break-word;
+      }
+      .zana-pdf-invoice tbody tr:nth-child(even) { background-color:#fafafa; }
+      .zana-pdf-invoice .totals {
+        margin-top:14px;
+        display:flex;
+        justify-content:flex-end;
+      }
+      .zana-pdf-invoice .totals table { width:320px; }
+      .zana-pdf-invoice .totals td { border-bottom:0; padding:6px 0; }
+      .zana-pdf-invoice .totals .tlabel { color:#666; font-size:12px; }
+      .zana-pdf-invoice .totals .tvalue { text-align:right; font-weight:700; font-size:12px; white-space:nowrap; }
+      .zana-pdf-invoice .totals .grand { color: var(--primary-color); font-size:14px; font-weight:900; }
+      .zana-pdf-invoice .footer {
+        margin-top:18px;
+        padding-top:12px;
+        border-top:1px solid var(--border);
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        font-size:10px;
+        color:#888;
+      }
+      .zana-pdf-invoice .footer .brand { color: var(--primary-color); letter-spacing: 1px; font-weight: 600; }
+    </style>
+
+    <div class="container">
+      <header>
+        <div>${headerLogoHtml}</div>
+        <div class="right">
+          <h1>${escapeHtml(title)}</h1>
+          <div class="muted">Emitido em: ${escapeHtml(whenLabel)}</div>
+          <div class="muted">Ref: ${escapeHtml(order?.id ?? '')}</div>
+        </div>
+      </header>
+
+      <div class="grid">
+        <div class="box">
+          <div class="label">Cliente</div>
+          <div class="value">${escapeHtml(customer || '—')}</div>
+        </div>
+        <div class="box">
+          <div class="label">Entrega</div>
+          <div class="value">${escapeHtml(address || (order?.shipping_method_label ?? '—'))}</div>
+        </div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width:56px;">&nbsp;</th>
+            <th>Produto</th>
+            <th style="text-align:right;width:72px;">Qtd</th>
+            <th style="text-align:right;width:110px;">Preço</th>
+            <th style="text-align:right;width:120px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml || ''}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <table>
+          <tr>
+            <td class="tlabel">Subtotal</td>
+            <td class="tvalue">${escapeHtml(money(subtotal))}</td>
+          </tr>
+          <tr>
+            <td class="tlabel">Envio</td>
+            <td class="tvalue">${escapeHtml(money(shipping))}</td>
+          </tr>
+          <tr>
+            <td class="tlabel" style="font-weight:800;">Total</td>
+            <td class="tvalue grand">${escapeHtml(money(total))}</td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="footer">
+        <div class="brand">ZANA</div>
+        <div>Documento gerado automaticamente</div>
+      </div>
+    </div>
+  `;
+
+  return root;
+}
+
 function finalizePdf(doc) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -1007,6 +1223,79 @@ export async function exportFinancePdf({
   document.body.appendChild(element);
   try {
     return await exportElementToPdf(element, outName, { mode });
+  } finally {
+    element.remove();
+  }
+}
+
+export async function exportOrderInvoicePdf({ filename, title = 'Fatura', logoUrl, createdAt, order, mode = 'download' } = {}) {
+  if (!order) throw new Error('missing_order');
+  const logoDataUrl = await safeSvgUrlToPngDataUrl(logoUrl, { width: 120 });
+  const when = createdAt ?? order?.created_date ?? new Date();
+  const id = order?.id ? String(order.id) : 'order';
+  const outName = filename ?? `fatura_${id.slice(0, 12)}.pdf`;
+
+  const customer = order?.customer_name ? String(order.customer_name) : '';
+  const email = order?.customer_email ? String(order.customer_email) : '';
+  const payment = order?.payment_method ? String(order.payment_method) : '';
+  const shipping = order?.shipping_method_label ? String(order.shipping_method_label) : '';
+  const addressParts = [
+    order?.shipping_address ? String(order.shipping_address) : '',
+    order?.shipping_postal_code ? String(order.shipping_postal_code) : '',
+    order?.shipping_city ? String(order.shipping_city) : '',
+    order?.shipping_country ? String(order.shipping_country) : '',
+  ].filter(Boolean);
+  const address = addressParts.join(', ');
+
+  const items = Array.isArray(order?.items) ? order.items : [];
+
+  const element = createPdfHtmlReportElement({
+    reportTitle: String(title ?? 'Fatura'),
+    createdAt: when,
+    logoDataUrl,
+    sectionTitle: 'Dados da encomenda',
+    summaryCards: [
+      { label: 'Referência', value: id },
+      { label: 'Cliente', value: customer || '—' },
+      { label: 'Email', value: email || '—' },
+      { label: 'Entrega', value: address || shipping || '—' },
+      { label: 'Pagamento', value: payment ? paymentMethodLabelsPt[payment] ?? payment : '—' },
+      { label: 'Total (€)', value: moneyPt(order?.total ?? 0) },
+    ],
+    sections: [
+      {
+        title: 'Produtos',
+        headers: [
+          { label: 'Produto', align: 'left' },
+          { label: 'Qtd', align: 'right' },
+          { label: 'Preço (€)', align: 'right' },
+          { label: 'Total (€)', align: 'right' },
+        ],
+        rows: items.map((it) => [
+          it?.product_name ?? '',
+          String(it?.quantity ?? 0),
+          moneyPt(it?.price ?? 0),
+          moneyPt((Number(it?.price ?? 0) || 0) * (Number(it?.quantity ?? 0) || 0)),
+        ]),
+      },
+      {
+        title: 'Totais',
+        headers: [
+          { label: 'Métrica', align: 'left' },
+          { label: 'Valor (€)', align: 'right' },
+        ],
+        rows: [
+          ['Subtotal', moneyPt(order?.subtotal ?? 0)],
+          ['Envio', moneyPt(order?.shipping_cost ?? 0)],
+          ['Total', moneyPt(order?.total ?? 0)],
+        ],
+      },
+    ],
+  });
+
+  document.body.appendChild(element);
+  try {
+    return await exportElementToPdf(element, outName, { mode, title });
   } finally {
     element.remove();
   }

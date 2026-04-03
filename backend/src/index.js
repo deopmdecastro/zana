@@ -90,7 +90,7 @@ function getFromParts(fromName) {
   }
 }
 
-async function sendEmailViaSendGrid({ to, subject, text, html, fromName } = {}) {
+async function sendEmailViaSendGrid({ to, subject, text, html, fromName, attachments } = {}) {
   if (!sendgridApiKey) throw new Error('sendgrid_not_configured')
   const toEmail = normalizeEmail(to)
   const fromEmail = (sendgridFrom || smtpFrom || storeEmail || smtpUser || '').trim()
@@ -118,6 +118,23 @@ async function sendEmailViaSendGrid({ to, subject, text, html, fromName } = {}) 
     Number.isFinite(sendgridTimeoutMs) ? sendgridTimeoutMs : 20000,
   )
   try {
+    const sendgridAttachments = (Array.isArray(attachments) ? attachments : [])
+      .map((att) => {
+        const filename = att?.filename ? String(att.filename) : ''
+        if (!filename) return null
+        const contentType = att?.contentType ? String(att.contentType) : 'application/octet-stream'
+        const content = att?.content
+        let base64 = ''
+        if (typeof content === 'string') {
+          base64 = content.startsWith('data:') ? content.split(',').slice(1).join(',') : content
+        } else if (Buffer.isBuffer(content)) {
+          base64 = content.toString('base64')
+        }
+        if (!base64) return null
+        return { filename, type: contentType, disposition: 'attachment', content: base64 }
+      })
+      .filter(Boolean)
+
     const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
       method: 'POST',
       headers: {
@@ -129,6 +146,7 @@ async function sendEmailViaSendGrid({ to, subject, text, html, fromName } = {}) 
         from: fromPayload,
         subject: subject === null || subject === undefined ? '' : String(subject),
         content,
+        attachments: sendgridAttachments.length ? sendgridAttachments : undefined,
       }),
       signal: controller.signal,
     })
@@ -169,6 +187,34 @@ async function sendEmail({ to, subject, text, html, fromName } = {}) {
     subject: subject ?? '',
     text: text ?? undefined,
     html: html ?? undefined,
+  })
+  return { ok: true, message_id: info?.messageId ?? null, provider: 'smtp' }
+}
+
+async function sendEmailWithAttachments({ to, subject, text, html, fromName, attachments } = {}) {
+  if (sendgridApiKey) return sendEmailViaSendGrid({ to, subject, text, html, fromName, attachments })
+  const transport = getMailTransport()
+  if (!transport) return { ok: false, error: 'smtp_not_configured', provider: 'smtp' }
+  const safeAttachments = Array.isArray(attachments)
+    ? attachments
+        .map((att) => {
+          const filename = att?.filename ? String(att.filename) : ''
+          if (!filename) return null
+          const contentType = att?.contentType ? String(att.contentType) : undefined
+          const content = att?.content
+          if (!content) return null
+          return { filename, content, contentType }
+        })
+        .filter(Boolean)
+    : undefined
+
+  const info = await transport.sendMail({
+    from: buildFromHeader(fromName),
+    to,
+    subject: subject ?? '',
+    text: text ?? undefined,
+    html: html ?? undefined,
+    attachments: safeAttachments?.length ? safeAttachments : undefined,
   })
   return { ok: true, message_id: info?.messageId ?? null, provider: 'smtp' }
 }
@@ -217,6 +263,247 @@ function escapeHtml(input) {
 
 function textToHtml(input) {
   return escapeHtml(input).replace(/\r\n|\n|\r/g, '<br/>')
+}
+
+function moneyPt(value) {
+  const n = Number(value ?? 0) || 0
+  return n.toFixed(2).replace('.', ',')
+}
+
+function safeImgUrl(value) {
+  const raw = value === null || value === undefined ? '' : String(value).trim()
+  if (!raw) return ''
+  if (/^https?:\/\//i.test(raw)) return raw
+  if (/^data:image\//i.test(raw) && raw.length <= 200_000) return raw
+  return ''
+}
+
+function buildInvoiceEmailHtml({ order, message } = {}) {
+  const items = Array.isArray(order?.items) ? order.items : []
+  const createdAt = order?.created_date ? new Date(order.created_date) : new Date()
+  const when = Number.isFinite(createdAt.getTime()) ? createdAt.toLocaleString('pt-PT') : ''
+
+  const rows = items
+    .map((it) => {
+      const img = safeImgUrl(it?.product_image)
+      const qty = Number(it?.quantity ?? 0) || 0
+      const unit = Number(it?.price ?? 0) || 0
+      const total = qty * unit
+      const imgCell = img
+        ? `<img src="${escapeHtml(img)}" width="44" height="44" alt="" style="display:block;border:1px solid #e7e3e5;object-fit:cover;"/>`
+        : `<div style="width:44px;height:44px;border:1px solid #e7e3e5;background:#f6f4f5;"></div>`
+
+      return `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">${imgCell}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">
+            <div style="font-size:13px;line-height:1.4;color:#2c1f24;font-weight:600;">${escapeHtml(it?.product_name ?? '')}</div>
+            <div style="font-size:12px;line-height:1.4;color:#7e676f;">Qtd: ${escapeHtml(String(qty))}</div>
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;text-align:right;font-size:12px;color:#7e676f;white-space:nowrap;">€ ${escapeHtml(moneyPt(unit))}</td>
+          <td style="padding:10px 0 10px 12px;border-bottom:1px solid #eee;vertical-align:top;text-align:right;font-size:12px;color:#2c1f24;font-weight:600;white-space:nowrap;">€ ${escapeHtml(
+            moneyPt(total),
+          )}</td>
+        </tr>
+      `
+    })
+    .join('')
+
+  const subtotal = Number(order?.subtotal ?? 0) || 0
+  const shipping = Number(order?.shipping_cost ?? 0) || 0
+  const total = Number(order?.total ?? 0) || 0
+
+  const noteHtml = message ? `<div style="margin-top:12px;font-size:12px;line-height:1.6;color:#7e676f;">${textToHtml(message)}</div>` : ''
+
+  return `
+    <div style="background:#ffffff;margin:0;padding:0;font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;color:#2c1f24;">
+      <div style="max-width:640px;margin:0 auto;padding:24px 22px;">
+        <div style="border-bottom:2px solid #f0ecee;padding-bottom:14px;margin-bottom:18px;">
+          <div style="font-size:18px;letter-spacing:1px;color:#722f37;font-weight:800;">${escapeHtml(storeName)} <span style="font-weight:400;font-size:11px;letter-spacing:0;color:#7e676f;">acessórios</span></div>
+          <div style="font-size:12px;color:#7e676f;margin-top:6px;">Fatura da compra • ${escapeHtml(when)}</div>
+          <div style="font-size:12px;color:#7e676f;margin-top:2px;">Ref: <span style="color:#2c1f24;font-weight:600;">${escapeHtml(order?.id ?? '')}</span></div>
+        </div>
+
+        <div style="font-size:13px;line-height:1.6;color:#2c1f24;">
+          Olá ${escapeHtml(order?.customer_name ?? '')},
+          <br/>
+          Obrigado pela sua compra. Em anexo segue a fatura em PDF.
+          ${noteHtml}
+        </div>
+
+        <div style="margin-top:18px;border:1px solid #eee;padding:14px 14px 6px 14px;">
+          <div style="font-size:12px;color:#7e676f;margin-bottom:10px;letter-spacing:.4px;text-transform:uppercase;">Resumo dos produtos</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 0;">&nbsp;</th>
+                <th style="text-align:left;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 12px;">Produto</th>
+                <th style="text-align:right;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 0;white-space:nowrap;">Preço</th>
+                <th style="text-align:right;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 12px;white-space:nowrap;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || ''}
+            </tbody>
+          </table>
+
+          <div style="margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="font-size:12px;color:#7e676f;padding:4px 0;">Subtotal</td>
+                <td style="font-size:12px;color:#2c1f24;font-weight:600;text-align:right;padding:4px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(subtotal))}</td>
+              </tr>
+              <tr>
+                <td style="font-size:12px;color:#7e676f;padding:4px 0;">Envio</td>
+                <td style="font-size:12px;color:#2c1f24;font-weight:600;text-align:right;padding:4px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(shipping))}</td>
+              </tr>
+              <tr>
+                <td style="font-size:13px;color:#2c1f24;font-weight:800;padding:8px 0 2px 0;">Total</td>
+                <td style="font-size:13px;color:#722f37;font-weight:900;text-align:right;padding:8px 0 2px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(total))}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;font-size:11px;color:#7e676f;line-height:1.6;">
+          Se precisar de ajuda, responda a este email ou contacte-nos em ${escapeHtml(storeEmail)}.
+        </div>
+      </div>
+    </div>
+  `.trim()
+}
+
+function orderStatusLabelPt(status) {
+  const s = String(status ?? '').trim()
+  const map = {
+    pending: 'Pendente',
+    confirmed: 'Confirmada',
+    processing: 'Em preparação',
+    shipped: 'Enviada',
+    delivered: 'Entregue',
+    cancelled: 'Cancelada',
+  }
+  return map[s] ?? (s || '—')
+}
+
+function paymentMethodLabelPt(method) {
+  const m = String(method ?? '').trim()
+  const map = {
+    mbway: 'MB WAY',
+    transferencia: 'Transferência',
+    multibanco: 'Multibanco',
+    paypal: 'PayPal',
+  }
+  return map[m] ?? (m || '—')
+}
+
+function buildOrderStatusEmailHtml({ order, message } = {}) {
+  const items = Array.isArray(order?.items) ? order.items : []
+  const createdAt = order?.created_date ? new Date(order.created_date) : new Date()
+  const when = Number.isFinite(createdAt.getTime()) ? createdAt.toLocaleString('pt-PT') : ''
+  const statusLabel = orderStatusLabelPt(order?.status)
+
+  const rows = items
+    .map((it) => {
+      const img = safeImgUrl(it?.product_image)
+      const qty = Number(it?.quantity ?? 0) || 0
+      const unit = Number(it?.price ?? 0) || 0
+      const total = qty * unit
+      const imgCell = img
+        ? `<img src="${escapeHtml(img)}" width="44" height="44" alt="" style="display:block;border:1px solid #e7e3e5;object-fit:cover;"/>`
+        : `<div style="width:44px;height:44px;border:1px solid #e7e3e5;background:#f6f4f5;"></div>`
+
+      return `
+        <tr>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;">${imgCell}</td>
+          <td style="padding:10px 12px;border-bottom:1px solid #eee;vertical-align:top;">
+            <div style="font-size:13px;line-height:1.4;color:#2c1f24;font-weight:600;">${escapeHtml(it?.product_name ?? '')}</div>
+            <div style="font-size:12px;line-height:1.4;color:#7e676f;">Qtd: ${escapeHtml(String(qty))}</div>
+          </td>
+          <td style="padding:10px 0;border-bottom:1px solid #eee;vertical-align:top;text-align:right;font-size:12px;color:#7e676f;white-space:nowrap;">€ ${escapeHtml(moneyPt(unit))}</td>
+          <td style="padding:10px 0 10px 12px;border-bottom:1px solid #eee;vertical-align:top;text-align:right;font-size:12px;color:#2c1f24;font-weight:600;white-space:nowrap;">€ ${escapeHtml(
+            moneyPt(total),
+          )}</td>
+        </tr>
+      `
+    })
+    .join('')
+
+  const subtotal = Number(order?.subtotal ?? 0) || 0
+  const shipping = Number(order?.shipping_cost ?? 0) || 0
+  const total = Number(order?.total ?? 0) || 0
+  const payment = paymentMethodLabelPt(order?.payment_method)
+
+  const noteHtml = message ? `<div style="margin-top:12px;font-size:12px;line-height:1.6;color:#7e676f;">${textToHtml(message)}</div>` : ''
+
+  const tracking = order?.tracking_code
+    ? `<div style="margin-top:8px;font-size:12px;line-height:1.6;color:#7e676f;">Tracking: <span style="color:#2c1f24;font-weight:600;">${escapeHtml(
+        order.tracking_code,
+      )}</span>${order?.tracking_url ? ` • <a href="${escapeHtml(order.tracking_url)}" style="color:#782641;text-decoration:underline;">ver</a>` : ''}</div>`
+    : ''
+
+  return `
+    <div style="background:#ffffff;margin:0;padding:0;font-family:Segoe UI, Tahoma, Geneva, Verdana, sans-serif;color:#2c1f24;">
+      <div style="max-width:640px;margin:0 auto;padding:24px 22px;">
+        <div style="border-bottom:2px solid #f0ecee;padding-bottom:14px;margin-bottom:18px;">
+          <div style="font-size:18px;letter-spacing:1px;color:#722f37;font-weight:800;">${escapeHtml(storeName)} <span style="font-weight:400;font-size:11px;letter-spacing:0;color:#7e676f;">acessórios</span></div>
+          <div style="font-size:12px;color:#7e676f;margin-top:6px;">Atualização de encomenda • ${escapeHtml(when)}</div>
+          <div style="font-size:12px;color:#7e676f;margin-top:2px;">Ref: <span style="color:#2c1f24;font-weight:600;">${escapeHtml(order?.id ?? '')}</span></div>
+        </div>
+
+        <div style="font-size:13px;line-height:1.6;color:#2c1f24;">
+          Olá ${escapeHtml(order?.customer_name ?? '')},
+          <br/>
+          O estado da sua encomenda foi atualizado para:
+          <span style="color:#722f37;font-weight:800;">${escapeHtml(statusLabel)}</span>.
+          ${tracking}
+          ${noteHtml}
+        </div>
+
+        <div style="margin-top:18px;border:1px solid #eee;padding:14px 14px 6px 14px;">
+          <div style="font-size:12px;color:#7e676f;margin-bottom:10px;letter-spacing:.4px;text-transform:uppercase;">Resumo dos produtos</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr>
+                <th style="text-align:left;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 0;">&nbsp;</th>
+                <th style="text-align:left;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 12px;">Produto</th>
+                <th style="text-align:right;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 0;white-space:nowrap;">Preço</th>
+                <th style="text-align:right;font-size:11px;color:#7e676f;font-weight:700;padding:0 0 10px 12px;white-space:nowrap;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows || ''}
+            </tbody>
+          </table>
+
+          <div style="margin-top:10px;border-top:1px solid #eee;padding-top:10px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;">
+              <tr>
+                <td style="font-size:12px;color:#7e676f;padding:4px 0;">Subtotal</td>
+                <td style="font-size:12px;color:#2c1f24;font-weight:600;text-align:right;padding:4px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(subtotal))}</td>
+              </tr>
+              <tr>
+                <td style="font-size:12px;color:#7e676f;padding:4px 0;">Envio</td>
+                <td style="font-size:12px;color:#2c1f24;font-weight:600;text-align:right;padding:4px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(shipping))}</td>
+              </tr>
+              <tr>
+                <td style="font-size:12px;color:#7e676f;padding:4px 0;">Pagamento</td>
+                <td style="font-size:12px;color:#2c1f24;font-weight:600;text-align:right;padding:4px 0;white-space:nowrap;">${escapeHtml(payment)}</td>
+              </tr>
+              <tr>
+                <td style="font-size:13px;color:#2c1f24;font-weight:800;padding:8px 0 2px 0;">Total</td>
+                <td style="font-size:13px;color:#722f37;font-weight:900;text-align:right;padding:8px 0 2px 0;white-space:nowrap;">€ ${escapeHtml(moneyPt(total))}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div style="margin-top:18px;font-size:11px;color:#7e676f;line-height:1.6;">
+          Se precisar de ajuda, responda a este email ou contacte-nos em ${escapeHtml(storeEmail)}.
+        </div>
+      </div>
+    </div>
+  `.trim()
 }
 
 function buildBaseEmailVars(extra = {}) {
@@ -992,6 +1279,24 @@ const adminOrderUpdateSchema = z
     tracking_code: z.string().optional().nullable(),
     tracking_url: z.string().optional().nullable(),
     tracking_carrier: z.string().optional().nullable(),
+  })
+  .passthrough()
+
+const orderInvoiceEmailSchema = z
+  .object({
+    to: z.string().email().optional().nullable(),
+    subject: z.string().max(200).optional().nullable(),
+    message: z.string().max(2000).optional().nullable(),
+    pdf_base64: z.string().min(20).max(20_000_000),
+    pdf_filename: z.string().max(200).optional().nullable(),
+  })
+  .passthrough()
+
+const orderStatusEmailSchema = z
+  .object({
+    to: z.string().email().optional().nullable(),
+    subject: z.string().max(200).optional().nullable(),
+    message: z.string().max(2000).optional().nullable(),
   })
   .passthrough()
 
@@ -6931,6 +7236,125 @@ app.post('/api/admin/orders', async (req, res) => {
   })
 
   res.status(201).json(toApiOrder(created))
+})
+
+app.post('/api/admin/orders/:id/invoice-email', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  if (!isEmailConfigured()) return res.status(400).json({ error: 'smtp_not_configured' })
+
+  const parsed = orderInvoiceEmailSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const base64Raw = String(parsed.data.pdf_base64 ?? '').trim()
+  const base64 = base64Raw.startsWith('data:') ? base64Raw.split(',').slice(1).join(',') : base64Raw
+  const cleaned = base64.replace(/\s+/g, '')
+
+  let pdfBuffer = null
+  try {
+    pdfBuffer = Buffer.from(cleaned, 'base64')
+  } catch {
+    return res.status(400).json({ error: 'invalid_pdf_base64' })
+  }
+
+  const signature = pdfBuffer?.slice?.(0, 4)?.toString?.('utf8') ?? ''
+  if (signature !== '%PDF') return res.status(400).json({ error: 'invalid_pdf' })
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } })
+    if (!order) return res.status(404).json({ error: 'not_found' })
+
+    const status = String(order.status ?? '')
+    if (status !== 'delivered' && status !== 'confirmed') {
+      return res.status(409).json({ error: 'invoice_requires_confirmed_or_delivered' })
+    }
+
+    const apiOrder = toApiOrder(order)
+    const to = (parsed.data.to ?? apiOrder.customer_email ?? '').trim()
+    if (!to) return res.status(400).json({ error: 'missing_to' })
+
+    const subject =
+      (parsed.data.subject ?? '').trim() ||
+      `Fatura da sua compra (${storeName}) - ${apiOrder.id}`
+
+    const filename =
+      (parsed.data.pdf_filename ?? '').trim() ||
+      `fatura_${String(apiOrder.id).slice(0, 12)}.pdf`
+
+    const html = buildInvoiceEmailHtml({ order: apiOrder, message: parsed.data.message })
+    const text = stripHtml(html)
+
+    const out = await sendEmailWithAttachments({
+      fromName: storeName,
+      to,
+      subject,
+      text,
+      html,
+      attachments: [{ filename, content: pdfBuffer, contentType: 'application/pdf' }],
+    })
+
+    if (!out?.ok) return res.status(500).json({ error: out?.error ?? 'email_send_failed' })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'create',
+      entityType: 'Order',
+      entityId: apiOrder.id,
+      meta: { kind: 'invoice_email', to, subject, provider: out?.provider ?? null, message_id: out?.message_id ?? null },
+    })
+
+    res.json({ ok: true, provider: out?.provider ?? null, message_id: out?.message_id ?? null })
+  } catch (err) {
+    return sendInternalError(res, err, 'invoice_email_failed')
+  }
+})
+
+app.post('/api/admin/orders/:id/status-email', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  if (!isEmailConfigured()) return res.status(400).json({ error: 'smtp_not_configured' })
+
+  const parsed = orderStatusEmailSchema.safeParse(req.body ?? {})
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  try {
+    const order = await prisma.order.findUnique({ where: { id: req.params.id }, include: { items: true } })
+    if (!order) return res.status(404).json({ error: 'not_found' })
+
+    const status = String(order.status ?? '')
+    if (status === 'delivered' || status === 'confirmed') {
+      return res.status(409).json({ error: 'status_email_not_for_confirmed_or_delivered' })
+    }
+
+    const apiOrder = toApiOrder(order)
+    const to = (parsed.data.to ?? apiOrder.customer_email ?? '').trim()
+    if (!to) return res.status(400).json({ error: 'missing_to' })
+
+    const statusLabel = orderStatusLabelPt(apiOrder.status)
+    const subject =
+      (parsed.data.subject ?? '').trim() ||
+      `Atualização da encomenda (${storeName}) - ${statusLabel} - ${apiOrder.id}`
+
+    const html = buildOrderStatusEmailHtml({ order: apiOrder, message: parsed.data.message })
+    const text = stripHtml(html)
+
+    const out = await sendEmail({ fromName: storeName, to, subject, text, html })
+    if (!out?.ok) return res.status(500).json({ error: out?.error ?? 'email_send_failed' })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'create',
+      entityType: 'Order',
+      entityId: apiOrder.id,
+      meta: { kind: 'status_email', to, subject, provider: out?.provider ?? null, message_id: out?.message_id ?? null, status: apiOrder.status },
+    })
+
+    res.json({ ok: true, provider: out?.provider ?? null, message_id: out?.message_id ?? null })
+  } catch (err) {
+    return sendInternalError(res, err, 'status_email_failed')
+  }
 })
 
 app.patch('/api/admin/orders/:id', async (req, res) => {

@@ -470,6 +470,16 @@ export const base44 = {
 		    },
         orders: {
           create: async (data) => authedJsonRequest('/api/admin/orders', { method: 'POST', body: data }),
+          sendInvoiceEmail: async (id, data) =>
+            authedJsonRequest(`/api/admin/orders/${encodeURIComponent(String(id))}/invoice-email`, {
+              method: 'POST',
+              body: data,
+            }),
+          sendStatusEmail: async (id, data) =>
+            authedJsonRequest(`/api/admin/orders/${encodeURIComponent(String(id))}/status-email`, {
+              method: 'POST',
+              body: data,
+            }),
         },
 		    analytics: {
 		      summary: async (days = 30) => {

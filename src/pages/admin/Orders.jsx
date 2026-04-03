@@ -21,6 +21,8 @@ import ImageWithFallback from '@/components/ui/image-with-fallback';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import zanaLogoPrimary from '@/img/zana_logo_primary.svg';
+import { exportOrderInvoicePdf } from '@/lib/reportExport';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -92,6 +94,19 @@ function productSearchValue(p) {
   return [p?.name, p?.sku, p?.id].filter(Boolean).join(' ');
 }
 
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const res = String(reader.result ?? '');
+      const base64 = res.startsWith('data:') ? res.split(',').slice(1).join(',') : res;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(reader.error || new Error('file_reader_failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export default function AdminOrders() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState(null);
@@ -150,9 +165,51 @@ export default function AdminOrders() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.Order.update(id, data),
-    onSuccess: () => {
+    onSuccess: async (updated, vars) => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
       toast.success('Atualizado.');
+
+      const nextStatus = vars?.data?.status ? String(vars.data.status) : null;
+      if (!nextStatus) return;
+      if (!updated?.customer_email) return;
+
+      if (nextStatus === 'delivered' || nextStatus === 'confirmed') {
+        try {
+          const invoiceBlob = await toastApiPromise(
+            exportOrderInvoicePdf({
+              order: updated,
+              logoUrl: zanaLogoPrimary,
+              title: 'Fatura',
+              mode: 'blob',
+            }),
+            {
+              loading: 'A preparar fatura...',
+              success: 'Fatura preparada.',
+              error: (e) => getErrorMessage(e, 'NÃ£o foi possÃ­vel gerar a fatura.'),
+            },
+          );
+
+          const pdfBase64 = await blobToBase64(invoiceBlob);
+          const filename = `fatura_${String(updated?.id ?? 'venda').slice(0, 12)}.pdf`;
+
+          await toastApiPromise(
+            base44.admin.orders.sendInvoiceEmail(updated.id, { pdf_base64: pdfBase64, pdf_filename: filename }),
+            {
+              loading: 'A enviar fatura por email...',
+              success: 'Fatura enviada por email.',
+              error: (e) => getErrorMessage(e, 'Estado atualizado, mas nÃ£o foi possÃ­vel enviar a fatura.'),
+            },
+          );
+        } catch (err) {
+          toast.error(getErrorMessage(err, 'Estado atualizado, mas nÃ£o foi possÃ­vel enviar a fatura.'));
+        }
+      } else {
+        await toastApiPromise(base44.admin.orders.sendStatusEmail(updated.id, {}), {
+          loading: 'A enviar email de estado...',
+          success: 'Email de estado enviado.',
+          error: (e) => getErrorMessage(e, 'Estado atualizado, mas nÃ£o foi possÃ­vel enviar o email.'),
+        });
+      }
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível atualizar.')),
   });
@@ -287,11 +344,47 @@ export default function AdminOrders() {
       total: computedSale.total,
     };
 
-    await toastApiPromise(createSaleMutation.mutateAsync(payload), {
+    const created = await toastApiPromise(createSaleMutation.mutateAsync(payload), {
       loading: 'A criar venda...',
       success: 'Venda criada.',
       error: (e) => getErrorMessage(e, 'Não foi possível criar a venda.'),
     });
+
+    try {
+      const status = String(created?.status ?? '');
+      if (status === 'delivered' || status === 'confirmed') {
+      const invoiceBlob = await toastApiPromise(
+        exportOrderInvoicePdf({
+          order: created,
+          logoUrl: zanaLogoPrimary,
+          title: 'Fatura',
+          mode: 'blob',
+        }),
+        {
+          loading: 'A preparar fatura...',
+          success: 'Fatura preparada.',
+          error: (e) => getErrorMessage(e, 'NÃ£o foi possÃ­vel gerar a fatura.'),
+        },
+      );
+
+      const pdfBase64 = await blobToBase64(invoiceBlob);
+      const filename = `fatura_${String(created?.id ?? 'venda').slice(0, 12)}.pdf`;
+
+      await toastApiPromise(base44.admin.orders.sendInvoiceEmail(created.id, { pdf_base64: pdfBase64, pdf_filename: filename }), {
+        loading: 'A enviar fatura por email...',
+        success: 'Fatura enviada por email.',
+        error: (e) => getErrorMessage(e, 'Venda criada, mas nÃ£o foi possÃ­vel enviar a fatura.'),
+      });
+      } else {
+        await toastApiPromise(base44.admin.orders.sendStatusEmail(created.id, {}), {
+          loading: 'A enviar email de estado...',
+          success: 'Email de estado enviado.',
+          error: (e) => getErrorMessage(e, 'Venda criada, mas nÃ£o foi possÃ­vel enviar o email.'),
+        });
+      }
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Venda criada, mas nÃ£o foi possÃ­vel enviar a fatura.'));
+    }
   };
 
   return (
