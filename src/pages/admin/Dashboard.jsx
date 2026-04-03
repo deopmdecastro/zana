@@ -64,7 +64,8 @@ function OrdersByStatusTooltip({ active, payload }) {
 }
 
 export default function Dashboard() {
-  const isSmallChart = useMediaQuery('(max-width: 420px)');
+  const isTinyChart = useMediaQuery('(max-width: 420px)');
+  const isNarrowChart = useMediaQuery('(max-width: 640px)');
   const { data: products = [] } = useQuery({
     queryKey: ['admin-products'],
     queryFn: () => base44.entities.Product.list('-created_date', 500),
@@ -132,23 +133,23 @@ export default function Dashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={statusData}
-                margin={{ top: 18, right: 10, bottom: isSmallChart ? 62 : 10, left: 0 }}
-                barCategoryGap={isSmallChart ? 12 : 18}
+                margin={{ top: 18, right: 10, bottom: isTinyChart ? 72 : isNarrowChart ? 46 : 10, left: 0 }}
+                barCategoryGap={isNarrowChart ? 12 : 18}
               >
                 <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
                 <XAxis
                   dataKey="key"
                   tickLine={false}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isSmallChart ? 10 : 12 }}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isNarrowChart ? 10 : 12 }}
                   interval={0}
-                  height={isSmallChart ? 82 : 46}
-                  angle={isSmallChart ? -45 : 0}
-                  textAnchor={isSmallChart ? 'end' : 'middle'}
-                  tickMargin={isSmallChart ? 16 : 8}
+                  height={isTinyChart ? 92 : isNarrowChart ? 64 : 46}
+                  angle={isTinyChart ? -45 : isNarrowChart ? -30 : 0}
+                  textAnchor={isNarrowChart ? 'end' : 'middle'}
+                  tickMargin={isTinyChart ? 18 : isNarrowChart ? 14 : 8}
                   tickFormatter={(statusKey) => {
                     const k = String(statusKey ?? '');
-                    if (isSmallChart) return STATUS_LABEL_SHORT[k] ?? STATUS_META[k]?.label ?? k;
+                    if (isNarrowChart) return STATUS_LABEL_SHORT[k] ?? STATUS_META[k]?.label ?? k;
                     return STATUS_META[k]?.label ?? k;
                   }}
                 />
@@ -156,12 +157,12 @@ export default function Dashboard() {
                   allowDecimals={false}
                   tickLine={false}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isSmallChart ? 10 : 12 }}
-                  width={isSmallChart ? 26 : 28}
+                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isNarrowChart ? 10 : 12 }}
+                  width={isNarrowChart ? 26 : 28}
                   domain={[0, (dataMax) => Math.max(1, Number(dataMax) || 0)]}
                 />
                 <Tooltip cursor={{ fill: 'hsl(var(--secondary) / 0.35)' }} content={<OrdersByStatusTooltip />} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={isSmallChart ? 40 : 56}>
+                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={isNarrowChart ? 40 : 56}>
                   {statusData.some((d) => (Number(d.value) || 0) > 0) ? (
                     <LabelList dataKey="value" position="top" className="font-body text-xs fill-foreground" />
                   ) : null}

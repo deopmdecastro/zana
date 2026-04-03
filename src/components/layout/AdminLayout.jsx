@@ -94,6 +94,20 @@ export default function AdminLayout() {
   const { branding } = useBranding();
   const logoSrc = String(branding?.logo_primary_url ?? '').trim() || zanaLogo;
 
+  React.useEffect(() => {
+    const updateThemeColor = () => {
+      const meta = document.querySelector('meta[name="theme-color"]');
+      const nav = document.getElementById('admin-topbar');
+      if (!meta || !nav) return;
+      const bg = window.getComputedStyle(nav).backgroundColor;
+      if (bg) meta.setAttribute('content', bg);
+    };
+
+    updateThemeColor();
+    window.addEventListener('resize', updateThemeColor);
+    return () => window.removeEventListener('resize', updateThemeColor);
+  }, [branding?.theme_color, branding?.background_color]);
+
   const doLogout = () => {
     logout();
     window.location.assign('/');
@@ -155,7 +169,7 @@ export default function AdminLayout() {
 
   return (
     <div className="h-[var(--app-height,100vh)] overflow-hidden bg-background flex flex-col">
-      <div className="relative bg-card/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
+      <div id="admin-topbar" className="relative bg-card/95 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <div className="md:hidden">
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>

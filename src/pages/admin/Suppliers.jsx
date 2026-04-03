@@ -321,7 +321,7 @@ export default function AdminSuppliers() {
 	        <DialogContent className="max-w-lg">
 	          <DialogHeader>
 	            <DialogTitle className="font-heading text-xl">
-	              {viewing ? 'Fornecedor' : editing ? 'Editar' : 'Novo'} fornecedor
+	              {viewing ? 'Detalhes do fornecedor' : editing ? 'Editar fornecedor' : 'Novo fornecedor'}
 	            </DialogTitle>
 	          </DialogHeader>
 	          <div className="space-y-3">

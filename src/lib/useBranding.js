@@ -144,8 +144,8 @@ function createDynamicManifest(branding) {
     short_name: String(branding.site_name ?? 'Zana').trim() || 'Zana',
     start_url: '/',
     display: 'standalone',
-    background_color: String(branding.theme_color ?? '#f8f5f2'),
-    theme_color: String(branding.theme_color ?? '#782641'),
+    background_color: String(branding.background_color ?? branding.theme_color ?? '#fbfaf8'),
+    theme_color: String(branding.background_color ?? branding.theme_color ?? '#fbfaf8'),
     icons: [
       {
         src: iconUrl,

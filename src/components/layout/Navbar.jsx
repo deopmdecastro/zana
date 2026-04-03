@@ -35,7 +35,7 @@ export default function Navbar() {
     updateThemeColor();
     window.addEventListener('resize', updateThemeColor);
     return () => window.removeEventListener('resize', updateThemeColor);
-  }, []);
+  }, [branding?.theme_color, branding?.background_color]);
 
   const links = [
     { to: '/', label: 'Início' },
@@ -252,4 +252,3 @@ export default function Navbar() {
     </nav>
   );
 }
-

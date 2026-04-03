@@ -972,12 +972,16 @@ export default function AdminPurchases() {
                   {purchaseType === 'logistics' ? (
                     <div className="mt-1">
                       <div className="text-xs text-muted-foreground bg-secondary/30 border border-border rounded-none px-3 py-2">
-                        Item de consumíveis (não comercializado)
+                        Item de consumíveis (não comercializado). Não atualiza stock; entra no financeiro como despesa.
                       </div>
                     </div>
+                  ) : purchaseType === 'mixed' ? (
+                    <p className="font-body text-[11px] text-muted-foreground mt-1">
+                      Compra mista: itens de stock atualizam o stock quando a compra é marcada como “Recebida”; itens de logística entram como despesa.
+                    </p>
                   ) : (
                     <p className="font-body text-[11px] text-muted-foreground mt-1">
-                      Logística não atualiza stock; entra no financeiro como despesa.
+                      Compra de stock (produtos comercializados): ao marcar como “Recebida”, o stock é atualizado.
                     </p>
                   )}
 	              </div>
@@ -1003,7 +1007,7 @@ export default function AdminPurchases() {
                         <SelectValue placeholder="Selecionar" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">-</SelectItem>
+                        <SelectItem value="none">Sem fornecedor</SelectItem>
                         {suppliers.map((s) => (
                           <SelectItem key={s.id} value={s.id}>
                             {s.name}
