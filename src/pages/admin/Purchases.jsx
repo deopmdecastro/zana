@@ -17,6 +17,7 @@ import { getPrimaryImage } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -82,6 +83,18 @@ function getPurchaseProductsSummary(purchase) {
   const top = entries.slice(0, 2).map(([name, qty]) => `${name} ×${qty || 0}`);
   const remaining = entries.length - top.length;
   return remaining > 0 ? `${top.join(', ')} +${remaining}` : top.join(', ');
+}
+
+function getPurchasePreviewImage(purchase) {
+  const items = Array.isArray(purchase?.items) ? purchase.items : [];
+  if (items.length === 0) return '';
+
+  const kind = derivePurchaseType(purchase);
+  const pick = (list) => String(list.find((it) => String(it?.product_image ?? '').trim())?.product_image ?? '').trim();
+
+  if (kind === 'logistics') return pick(items);
+  const stockFirst = items.slice().sort((a, b) => Number(Boolean(b?.product_id)) - Number(Boolean(a?.product_id)));
+  return pick(stockFirst) || pick(items);
 }
 
 const emptyPurchase = {
@@ -894,24 +907,36 @@ export default function AdminPurchases() {
               <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
                 <td className="p-3 font-body text-xs text-muted-foreground">{new Date(p.purchased_at).toLocaleDateString('pt-PT')}</td>
                 <td className="p-3 font-body text-sm">
-                  <div className="font-medium">{p.supplier?.name ?? '-'}</div>
-                  {p.reference ? <div className="text-xs text-muted-foreground">{p.reference}</div> : null}
-                  {(() => {
-                    const summary = getPurchaseProductsSummary(p);
-                    return summary ? (
-                      <div className="text-xs text-muted-foreground mt-1 truncate" title={summary}>
-                        {summary}
-                      </div>
-                    ) : null;
-                  })()}
-                  {(() => {
-                    const kind = getPurchaseKindLabel(p);
-                    return kind ? (
-                      <div className="mt-2">
-                      <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
-                      </div>
-                    ) : null;
-                  })()}
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 shrink-0 border border-border bg-secondary/20">
+                      <ImageWithFallback
+                        src={getPurchasePreviewImage(p)}
+                        alt=""
+                        className="w-full h-full object-cover"
+                        iconClassName="w-6 h-6 text-muted-foreground/30"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium">{p.supplier?.name ?? '-'}</div>
+                      {p.reference ? <div className="text-xs text-muted-foreground">{p.reference}</div> : null}
+                      {(() => {
+                        const summary = getPurchaseProductsSummary(p);
+                        return summary ? (
+                          <div className="text-xs text-muted-foreground mt-1 truncate" title={summary}>
+                            {summary}
+                          </div>
+                        ) : null;
+                      })()}
+                      {(() => {
+                        const kind = getPurchaseKindLabel(p);
+                        return kind ? (
+                          <div className="mt-2">
+                            <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
+                          </div>
+                        ) : null;
+                      })()}
+                    </div>
+                  </div>
                 </td>
                 <td className="p-3">
                   <Badge className={`${statusColors[p.status] ?? 'bg-secondary text-foreground'} text-[10px]`}>

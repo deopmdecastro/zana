@@ -5,6 +5,13 @@ Este repo tem:
 - Frontend em Vite/React (raiz do projeto)
 - Backend local em Node/Express + Postgres (pasta `backend/`)
 
+### Funcionalidades (admin)
+
+- **Compras** separadas por tipo: `Produtos (stock)`, `Logística/consumíveis` e `Mista` (persistido em base de dados).
+- **Limpeza da base de dados** em `/admin/configuracoes`:
+  - opção de manter clientes e/ou produtos,
+  - cria automaticamente um **backup no histórico** antes de apagar, com opção de exportar/restaurar no painel de backup.
+
 ### Pré-requisitos
 
 - Node.js
@@ -39,7 +46,7 @@ Este repo inclui um backend local em `backend/` e Postgres via `docker-compose.y
 7. (Opcional) Seed: `npm.cmd --prefix backend run prisma:seed`
 8. Suba o backend: `npm.cmd --prefix backend run dev`
 
-Endpoints: `GET /health`, CRUD em `GET/POST/PATCH/DELETE /api/products`
+Endpoints: `GET /health`, e vários endpoints sob `/api` (ex.: backup em `/api/admin/backup/*`).
 
 ### Credenciais de Admin (painel /admin)
 
