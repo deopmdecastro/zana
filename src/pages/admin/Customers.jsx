@@ -24,6 +24,7 @@ export default function AdminCustomers() {
   const [limit, setLimit] = useState(50);
   const [form, setForm] = useState(null);
   const [pointsForm, setPointsForm] = useState({ delta: '', balance: '', reason: '' });
+  const [isBackfilling, setIsBackfilling] = useState(false);
 
   const orderStatusLabelPt = (status) => {
     const value = String(status ?? '').trim();
@@ -123,10 +124,36 @@ export default function AdminCustomers() {
     updateMutation.mutate({ id: selected.id, data: form });
   };
 
+  const backfillFromOrders = async () => {
+    try {
+      setIsBackfilling(true);
+      const res = await base44.admin.users.backfillFromOrders(5000);
+      const s = res?.summary ?? null;
+      await queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success(s ? `Clientes: ${s.created} criados, ${s.updated} atualizados.` : 'Clientes gerados.');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Não foi possível gerar clientes.'));
+    } finally {
+      setIsBackfilling(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-6">
-        <h1 className="font-heading text-3xl">Clientes</h1>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h1 className="font-heading text-3xl">Clientes</h1>
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-none font-body text-sm"
+            onClick={backfillFromOrders}
+            disabled={isBackfilling}
+            title="Gera clientes a partir das encomendas/vendas antigas"
+          >
+            {isBackfilling ? 'A gerar...' : 'Gerar de vendas'}
+          </Button>
+        </div>
         <div className="relative w-72 max-w-full mt-3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input

@@ -48,7 +48,7 @@ export default function ImageWithFallback({
           src={zIcon}
           alt=""
           aria-hidden="true"
-          className={cn('pointer-events-none select-none object-contain', iconClassName)}
+          className={cn('pointer-events-none select-none object-contain opacity-30', iconClassName)}
           loading="eager"
         />
       </div>

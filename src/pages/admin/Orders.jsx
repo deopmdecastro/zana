@@ -10,7 +10,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { Check, ChevronDown, Eye, Plus, ShoppingCart } from 'lucide-react';
+import { Check, ChevronDown, Eye, Plus, Printer, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
 import zanaLogoPrimary from '@/img/zana_logo_primary.svg';
-import { exportOrderInvoicePdf } from '@/lib/reportExport';
+import { downloadBlob, exportOrderInvoicePdf } from '@/lib/reportExport';
 
 const statusLabels = {
   pending: 'Pendente',
@@ -172,6 +172,7 @@ export default function AdminOrders() {
       const nextStatus = vars?.data?.status ? String(vars.data.status) : null;
       if (!nextStatus) return;
       if (!updated?.customer_email) return;
+      if (String(updated.customer_email).trim().toLowerCase() === 'balcao@zana.local') return;
 
       if (nextStatus === 'delivered' || nextStatus === 'confirmed') {
         try {
@@ -309,18 +310,18 @@ export default function AdminOrders() {
   };
 
   const submitSale = async () => {
-    if (!saleForm.customer_name.trim() || !saleForm.customer_email.trim()) {
-      toast.error('Preencha nome e email.');
-      return;
-    }
     if (computedSale.items.length === 0) {
       toast.error('Adicione pelo menos um produto.');
       return;
     }
 
+    const customerName = saleForm.customer_name.trim() || 'Cliente Balcão';
+    const customerEmail = saleForm.customer_email.trim() || 'balcao@zana.local';
+    const isPlaceholderCustomer = customerEmail.toLowerCase() === 'balcao@zana.local';
+
     const payload = {
-      customer_name: saleForm.customer_name.trim(),
-      customer_email: saleForm.customer_email.trim(),
+      customer_name: customerName,
+      customer_email: customerEmail,
       customer_phone: saleForm.customer_phone.trim() || null,
       shipping_address: saleForm.shipping_address.trim() || null,
       shipping_city: saleForm.shipping_city.trim() || null,
@@ -352,6 +353,7 @@ export default function AdminOrders() {
 
     try {
       const status = String(created?.status ?? '');
+      if (isPlaceholderCustomer) return;
       if (status === 'delivered' || status === 'confirmed') {
       const invoiceBlob = await toastApiPromise(
         exportOrderInvoicePdf({
@@ -385,6 +387,48 @@ export default function AdminOrders() {
     } catch (err) {
       toast.error(getErrorMessage(err, 'Venda criada, mas nÃ£o foi possÃ­vel enviar a fatura.'));
     }
+  };
+
+  const printInvoice = async (order) => {
+    const status = String(order?.status ?? '');
+    if (status !== 'delivered' && status !== 'confirmed') {
+      toast.error('A fatura só está disponível para encomendas Confirmadas ou Entregues.');
+      return;
+    }
+
+    const invoiceBlob = await toastApiPromise(
+      exportOrderInvoicePdf({
+        order,
+        logoUrl: zanaLogoPrimary,
+        title: 'Fatura',
+        mode: 'blob',
+      }),
+      {
+        loading: 'A preparar fatura...',
+        success: 'Fatura preparada.',
+        error: (e) => getErrorMessage(e, 'Não foi possível gerar a fatura.'),
+      },
+    );
+
+    const filename = `fatura_${String(order?.id ?? 'venda').slice(0, 12)}.pdf`;
+    const url = URL.createObjectURL(invoiceBlob);
+    const w = window.open(url, '_blank', 'noopener,noreferrer');
+    if (!w) {
+      URL.revokeObjectURL(url);
+      downloadBlob(filename, invoiceBlob);
+      return;
+    }
+
+    setTimeout(() => {
+      try {
+        w.focus();
+        w.print();
+      } catch {
+        // ignore
+      }
+    }, 700);
+
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
   };
 
   return (
@@ -484,9 +528,14 @@ export default function AdminOrders() {
                   </Select>
                 </td>
                 <td className="p-3 text-right">
-                  <Button variant="ghost" size="icon" onClick={() => setSelected(order)} title="Ver detalhes">
-                    <Eye className="w-4 h-4" />
-                  </Button>
+                  <div className="inline-flex items-center justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => printInvoice(order)} title="Imprimir fatura">
+                      <Printer className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setSelected(order)} title="Ver detalhes">
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

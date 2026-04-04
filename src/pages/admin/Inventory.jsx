@@ -11,6 +11,8 @@ import { getErrorMessage } from '@/lib/toast';
 import { PackageSearch } from 'lucide-react';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import ImageWithFallback from '@/components/ui/image-with-fallback';
+import { getPrimaryImage } from '@/lib/images';
 
 export default function AdminInventory() {
   const queryClient = useQueryClient();
@@ -84,7 +86,19 @@ export default function AdminInventory() {
             <tbody>
               {products.map((p) => (
                 <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                  <td className="p-3 font-body text-sm font-medium">{p.name}</td>
+                  <td className="p-3 font-body text-sm font-medium">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 shrink-0 border border-border bg-secondary/20 rounded-md overflow-hidden">
+                        <ImageWithFallback
+                          src={getPrimaryImage(p.images)}
+                          alt={p.name ?? ''}
+                          className="w-full h-full object-cover"
+                          iconClassName="w-5 h-5 text-muted-foreground/30"
+                        />
+                      </div>
+                      <div className="min-w-0 truncate">{p.name}</div>
+                    </div>
+                  </td>
                   <td className="p-3 font-body text-sm">
                     <Badge className={`${(p.stock ?? 0) <= 2 ? 'bg-destructive/10 text-destructive' : 'bg-secondary text-foreground'} text-[10px]`}>
                       {p.stock ?? 0}

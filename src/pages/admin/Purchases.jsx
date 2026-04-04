@@ -898,6 +898,8 @@ export default function AdminPurchases() {
             <tr className="border-b border-border bg-secondary/30">
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Fornecedor</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Tipo de encomenda</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground">Descrição</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Status</th>
               <th className="text-left p-3 font-body text-xs text-muted-foreground">Total</th>
               <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
@@ -908,8 +910,21 @@ export default function AdminPurchases() {
               <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
                 <td className="p-3 font-body text-xs text-muted-foreground">{new Date(p.purchased_at).toLocaleDateString('pt-PT')}</td>
                 <td className="p-3 font-body text-sm">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 shrink-0 border border-border bg-secondary/20">
+                  <div className="font-medium">{p.supplier?.name ?? '-'}</div>
+                </td>
+                <td className="p-3">
+                  {(() => {
+                    const kind = getPurchaseKindLabel(p);
+                    return kind ? (
+                      <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
+                    ) : (
+                      <span className="font-body text-xs text-muted-foreground">-</span>
+                    );
+                  })()}
+                </td>
+                <td className="p-3 font-body text-sm">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-12 h-12 shrink-0 border border-border bg-secondary/20 rounded-md overflow-hidden">
                       <ImageWithFallback
                         src={getPurchasePreviewImage(p)}
                         alt=""
@@ -918,23 +933,18 @@ export default function AdminPurchases() {
                       />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-medium">{p.supplier?.name ?? '-'}</div>
                       {p.reference ? <div className="text-xs text-muted-foreground">{p.reference}</div> : null}
                       {(() => {
                         const summary = getPurchaseProductsSummary(p);
-                        return summary ? (
-                          <div className="text-xs text-muted-foreground mt-1 truncate" title={summary}>
-                            {summary}
+                        const notes = String(p.notes ?? '').trim();
+                        const description = summary || notes;
+                        return description ? (
+                          <div className={`text-xs text-muted-foreground${p.reference ? ' mt-1' : ''} truncate`} title={description}>
+                            {description}
                           </div>
-                        ) : null;
-                      })()}
-                      {(() => {
-                        const kind = getPurchaseKindLabel(p);
-                        return kind ? (
-                          <div className="mt-2">
-                            <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
-                          </div>
-                        ) : null;
+                        ) : (
+                          <div className="text-xs text-muted-foreground">-</div>
+                        );
                       })()}
                     </div>
                   </div>

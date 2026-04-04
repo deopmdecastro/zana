@@ -1272,6 +1272,54 @@ const orderItemPayloadSchema = z.object({
   })
   .passthrough()
 
+async function upsertCustomerFromOrderPayload(data) {
+  const email = String(data?.customer_email ?? '').trim().toLowerCase()
+  if (!email) return { ok: false, action: 'skipped', reason: 'missing_email' }
+  if (email === 'balcao@zana.local') return { ok: true, action: 'skipped', reason: 'placeholder' }
+
+  const existingUser = await prisma.user.findUnique({ where: { email } })
+  if (existingUser) {
+    const patch = {}
+    const name = String(data?.customer_name ?? '').trim()
+    if (!existingUser.fullName && name) patch.fullName = name
+    const phone = data?.customer_phone ? String(data.customer_phone).trim() : ''
+    if (!existingUser.phone && phone) patch.phone = phone
+    const addr = data?.shipping_address ? String(data.shipping_address).trim() : ''
+    if (!existingUser.addressLine1 && addr) patch.addressLine1 = addr
+    const city = data?.shipping_city ? String(data.shipping_city).trim() : ''
+    if (!existingUser.city && city) patch.city = city
+    const postal = data?.shipping_postal_code ? String(data.shipping_postal_code).trim() : ''
+    if (!existingUser.postalCode && postal) patch.postalCode = postal
+    const country = data?.shipping_country ? String(data.shipping_country).trim() : ''
+    if (country && (!existingUser.country || existingUser.country === 'Portugal')) patch.country = country
+
+    if (Object.keys(patch).length === 0) return { ok: true, action: 'skipped', reason: 'no_changes' }
+
+    await prisma.user.update({ where: { id: existingUser.id }, data: patch })
+    return { ok: true, action: 'updated', email }
+  }
+
+  const tempPassword = crypto.randomUUID()
+  const { saltHex, hashHex } = hashPassword(tempPassword)
+
+  await prisma.user.create({
+    data: {
+      email,
+      isAdmin: false,
+      fullName: String(data?.customer_name ?? '').trim() || null,
+      phone: data?.customer_phone ? String(data.customer_phone).trim() : null,
+      addressLine1: data?.shipping_address ? String(data.shipping_address).trim() : null,
+      city: data?.shipping_city ? String(data.shipping_city).trim() : null,
+      postalCode: data?.shipping_postal_code ? String(data.shipping_postal_code).trim() : null,
+      country: data?.shipping_country ? String(data.shipping_country).trim() : undefined,
+      passwordSalt: saltHex,
+      passwordHash: hashHex,
+    },
+  })
+
+  return { ok: true, action: 'created', email }
+}
+
 const adminOrderUpdateSchema = z
   .object({
     status: z.enum(['pending', 'confirmed', 'processing', 'shipped', 'delivered', 'cancelled']).optional(),
@@ -2218,6 +2266,29 @@ function parseDateInput(value) {
   const date = new Date(value) 
   return Number.isFinite(date.getTime()) ? date : null 
 } 
+
+function parseDateRangeStart(value) {
+  if (!value) return null
+  const raw = String(value ?? '').trim()
+  // YYYY-MM-DD should be treated as local day start (not UTC midnight)
+  const ymd = parseDateYMD(raw)
+  if (ymd) return ymd
+  return parseDateInput(raw)
+}
+
+function parseDateRangeEnd(value) {
+  if (!value) return null
+  const raw = String(value ?? '').trim()
+  const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (m) {
+    const year = Number(m[1])
+    const month = Number(m[2])
+    const day = Number(m[3])
+    const d = new Date(year, month - 1, day, 23, 59, 59, 999)
+    return Number.isFinite(d.getTime()) ? d : null
+  }
+  return parseDateInput(raw)
+}
 
 function parseTimeHHMM(value) {
   const raw = String(value ?? '').trim()
@@ -6389,6 +6460,80 @@ app.get('/api/admin/users/:id/wishlist', async (req, res) => {
   res.json({ items: items.map(toApiWishlistItem) })
 })
 
+app.post('/api/admin/users/backfill-from-orders', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const take = parseLimit(req.query.limit, 5000)
+
+  const orders = await prisma.order.findMany({
+    orderBy: { createdAt: 'desc' },
+    take,
+    select: {
+      customerName: true,
+      customerEmail: true,
+      customerPhone: true,
+      shippingAddress: true,
+      shippingCity: true,
+      shippingPostalCode: true,
+      shippingCountry: true,
+    },
+  })
+
+  const byEmail = new Map()
+  for (const o of orders) {
+    const email = String(o.customerEmail ?? '').trim().toLowerCase()
+    if (!email) continue
+    if (email === 'balcao@zana.local') continue
+    if (!byEmail.has(email)) {
+      byEmail.set(email, {
+        customer_name: o.customerName ?? '',
+        customer_email: email,
+        customer_phone: o.customerPhone ?? null,
+        shipping_address: o.shippingAddress ?? null,
+        shipping_city: o.shippingCity ?? null,
+        shipping_postal_code: o.shippingPostalCode ?? null,
+        shipping_country: o.shippingCountry ?? null,
+      })
+    }
+  }
+
+  const summary = {
+    scanned_orders: orders.length,
+    unique_customers: byEmail.size,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+  }
+
+  for (const payload of byEmail.values()) {
+    try {
+      const out = await upsertCustomerFromOrderPayload(payload)
+      if (!out.ok) {
+        summary.skipped += 1
+        continue
+      }
+      if (out.action === 'created') summary.created += 1
+      else if (out.action === 'updated') summary.updated += 1
+      else summary.skipped += 1
+    } catch (err) {
+      summary.errors += 1
+      console.error('customer backfill failed', err)
+    }
+  }
+
+  await writeAuditLog({
+    actorId: admin.id,
+    action: 'backfill',
+    entityType: 'User',
+    entityId: null,
+    meta: { source: 'orders', ...summary },
+  })
+
+  res.json({ ok: true, summary })
+})
+
 app.get('/api/admin/backup/export', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
@@ -6971,8 +7116,8 @@ app.get('/api/admin/appointments', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
 
-  const from = parseDateInput(req.query.from)
-  const to = parseDateInput(req.query.to)
+  const from = parseDateRangeStart(req.query.from)
+  const to = parseDateRangeEnd(req.query.to)
   const status = req.query.status ? String(req.query.status) : null
   const staffId = req.query.staff_id ? String(req.query.staff_id) : null
 
@@ -7252,7 +7397,11 @@ app.post('/api/admin/orders', async (req, res) => {
   const admin = await requireAdmin(req, res)
   if (!admin) return
 
-  const parsed = orderPayloadSchema.safeParse(req.body)
+  const candidate = req.body && typeof req.body === 'object' ? { ...req.body } : {}
+  if (!String(candidate.customer_name ?? '').trim()) candidate.customer_name = 'Cliente Balcão'
+  if (!String(candidate.customer_email ?? '').trim()) candidate.customer_email = 'balcao@zana.local'
+
+  const parsed = orderPayloadSchema.safeParse(candidate)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
   const data = parsed.data
@@ -7320,6 +7469,16 @@ app.post('/api/admin/orders', async (req, res) => {
     entityId: created.id,
     meta: { source: 'admin', status },
   })
+
+  // Create/update a customer record so it appears in the "Clientes" admin view.
+  // Best-effort: order creation should not fail if this auxiliary step fails.
+  void (async () => {
+    try {
+      await upsertCustomerFromOrderPayload(data)
+    } catch (err) {
+      console.error('admin order customer upsert failed', err)
+    }
+  })()
 
   res.status(201).json(toApiOrder(created))
 })

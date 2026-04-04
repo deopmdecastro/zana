@@ -486,6 +486,13 @@ export const base44 = {
               body: data,
             }),
         },
+        users: {
+          backfillFromOrders: async (limit = 5000) => {
+            const params = new URLSearchParams()
+            if (limit) params.set('limit', String(limit))
+            return authedJsonRequest(`/api/admin/users/backfill-from-orders?${params.toString()}`, { method: 'POST' })
+          },
+        },
 		    analytics: {
 		      summary: async (days = 30) => {
 		        const params = new URLSearchParams();
