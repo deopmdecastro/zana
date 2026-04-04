@@ -56,6 +56,11 @@ export default function AppointmentsAdmin() {
     start_time: '09:00',
     end_time: '18:00',
     slot_step_minutes: 15,
+    home_card_image_url: '',
+    home_card_empty_title: 'Sem marcações',
+    home_card_empty_description: 'Ainda não tem marcações confirmadas ou pendentes.',
+    home_card_logged_out_title: 'Entre para ver as suas marcações',
+    home_card_logged_out_description: 'Faça login para ver a data e hora da sua próxima marcação.',
   });
 
   React.useEffect(() => {
@@ -68,6 +73,14 @@ export default function AppointmentsAdmin() {
       start_time: typeof c.start_time === 'string' ? c.start_time : p.start_time,
       end_time: typeof c.end_time === 'string' ? c.end_time : p.end_time,
       slot_step_minutes: Number(c.slot_step_minutes ?? p.slot_step_minutes) || p.slot_step_minutes,
+      home_card_image_url: typeof c.home_card_image_url === 'string' ? c.home_card_image_url : p.home_card_image_url,
+      home_card_empty_title: typeof c.home_card_empty_title === 'string' ? c.home_card_empty_title : p.home_card_empty_title,
+      home_card_empty_description:
+        typeof c.home_card_empty_description === 'string' ? c.home_card_empty_description : p.home_card_empty_description,
+      home_card_logged_out_title:
+        typeof c.home_card_logged_out_title === 'string' ? c.home_card_logged_out_title : p.home_card_logged_out_title,
+      home_card_logged_out_description:
+        typeof c.home_card_logged_out_description === 'string' ? c.home_card_logged_out_description : p.home_card_logged_out_description,
     }));
   }, [settingsRes?.content]);
 
@@ -120,7 +133,10 @@ export default function AppointmentsAdmin() {
   const settingsMutation = useMutation({
     mutationFn: (payload) => base44.admin.content.appointments.update(payload),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['admin-appointments-settings'] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['admin-appointments-settings'] }),
+        queryClient.invalidateQueries({ queryKey: ['appointments-settings'] }),
+      ]);
       toast.success('Definições guardadas');
     },
     onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível guardar.')),
@@ -426,6 +442,87 @@ export default function AppointmentsAdmin() {
                 >
                   {settingsMutation.isPending ? 'A guardar...' : 'Guardar'}
                 </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card p-6 rounded-lg border border-border">
+            <div className="font-heading text-lg mb-1">Bloco “Marcações” (Home)</div>
+            <div className="font-body text-sm text-muted-foreground mb-4">Texto e imagem do cartão mostrado quando não há marcações.</div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              <div className="lg:col-span-5 space-y-3">
+                <ImageUpload
+                  label="Imagem do cartão (opcional)"
+                  value={settingsForm.home_card_image_url}
+                  onChange={(v) => setSettingsForm((p) => ({ ...p, home_card_image_url: v }))}
+                  recommended="1200x900"
+                  maxSide={1200}
+                  quality={0.82}
+                  format="jpeg"
+                />
+              </div>
+
+              <div className="lg:col-span-7 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label className="font-body text-xs">Título (cliente logado, sem marcações)</Label>
+                    <Input
+                      value={settingsForm.home_card_empty_title}
+                      onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_empty_title: e.target.value }))}
+                      className="rounded-none mt-1"
+                      placeholder="Sem marcações"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="font-body text-xs">Texto (cliente logado, sem marcações)</Label>
+                    <Textarea
+                      value={settingsForm.home_card_empty_description}
+                      onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_empty_description: e.target.value }))}
+                      className="rounded-none mt-1 min-h-[80px]"
+                      placeholder="Ainda não tem marcações confirmadas ou pendentes."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="md:col-span-2">
+                    <Label className="font-body text-xs">Título (visitante / não logado)</Label>
+                    <Input
+                      value={settingsForm.home_card_logged_out_title}
+                      onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_logged_out_title: e.target.value }))}
+                      className="rounded-none mt-1"
+                      placeholder="Entre para ver as suas marcações"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="font-body text-xs">Texto (visitante / não logado)</Label>
+                    <Textarea
+                      value={settingsForm.home_card_logged_out_description}
+                      onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_logged_out_description: e.target.value }))}
+                      className="rounded-none mt-1 min-h-[80px]"
+                      placeholder="Faça login para ver a data e hora da sua próxima marcação."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-end">
+                  <Button
+                    className="rounded-none font-body text-sm tracking-wider"
+                    disabled={settingsMutation.isPending}
+                    onClick={() => {
+                      settingsMutation.mutate({
+                        home_card_image_url: String(settingsForm.home_card_image_url ?? ''),
+                        home_card_empty_title: String(settingsForm.home_card_empty_title ?? ''),
+                        home_card_empty_description: String(settingsForm.home_card_empty_description ?? ''),
+                        home_card_logged_out_title: String(settingsForm.home_card_logged_out_title ?? ''),
+                        home_card_logged_out_description: String(settingsForm.home_card_logged_out_description ?? ''),
+                      });
+                    }}
+                  >
+                    {settingsMutation.isPending ? 'A guardar...' : 'Guardar conteúdo'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

@@ -44,6 +44,11 @@ export default function Home() {
 
   const apptEnabled = Boolean(apptSettings?.content?.enabled);
   const services = apptServices?.services ?? [];
+  const homeCardImageUrl = String(apptSettings?.content?.home_card_image_url ?? '').trim();
+  const homeCardEmptyTitle = String(apptSettings?.content?.home_card_empty_title ?? '').trim();
+  const homeCardEmptyDescription = String(apptSettings?.content?.home_card_empty_description ?? '').trim();
+  const homeCardLoggedOutTitle = String(apptSettings?.content?.home_card_logged_out_title ?? '').trim();
+  const homeCardLoggedOutDescription = String(apptSettings?.content?.home_card_logged_out_description ?? '').trim();
 
   const [quickOpen, setQuickOpen] = useState(false);
   const [quickServiceId, setQuickServiceId] = useState('');
@@ -119,7 +124,7 @@ export default function Home() {
                 <div className="bg-card rounded-lg border border-border overflow-hidden shadow-sm flex flex-col">
                   <div className="aspect-[4/3] bg-secondary/30">
                     <ImageWithFallback
-                      src={nextAppointment?.service?.image_url}
+                      src={nextAppointment?.service?.image_url || homeCardImageUrl}
                       alt={
                         nextAppointment?.service?.name
                           ? `Capa do serviço ${nextAppointment.service.name}`
@@ -143,14 +148,18 @@ export default function Home() {
 
                     <div className="mt-6 space-y-3">
                       <div className="font-heading text-xl leading-snug">
-                        {user ? (nextAppointment ? 'A sua próxima marcação' : 'Sem marcações') : 'Entre para ver as suas marcações'}
+                        {user
+                          ? nextAppointment
+                            ? 'A sua próxima marcação'
+                            : homeCardEmptyTitle || 'Sem marcações'
+                          : homeCardLoggedOutTitle || 'Entre para ver as suas marcações'}
                       </div>
                       <p className="font-body text-sm text-muted-foreground leading-relaxed">
                         {nextAppointment
                           ? `${nextAppointment.service?.name ?? 'Serviço'} • ${nextAppointment.staff?.name ?? 'Atendente'}`
                           : user
-                            ? 'Ainda não tem marcações confirmadas ou pendentes.'
-                            : 'Faça login para ver a data e hora da sua próxima marcação.'}
+                            ? homeCardEmptyDescription || 'Ainda não tem marcações confirmadas ou pendentes.'
+                            : homeCardLoggedOutDescription || 'Faça login para ver a data e hora da sua próxima marcação.'}
                       </p>
                     </div>
 

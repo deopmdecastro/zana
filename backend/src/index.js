@@ -854,6 +854,13 @@ const defaultAppointmentsContent = {
   end_time: '18:00',
   slot_step_minutes: 15,
   timezone: 'Europe/Lisbon',
+
+  // Home page "Marcações" card (when there's no upcoming appointment / logged out).
+  home_card_image_url: '',
+  home_card_empty_title: 'Sem marcações',
+  home_card_empty_description: 'Ainda não tem marcações confirmadas ou pendentes.',
+  home_card_logged_out_title: 'Entre para ver as suas marcações',
+  home_card_logged_out_description: 'Faça login para ver a data e hora da sua próxima marcação.',
 }
 
 let appointmentsCache = { content: defaultAppointmentsContent, updatedAt: 0, recordUpdatedAt: null }
@@ -898,6 +905,24 @@ async function getAppointmentsContent() {
     content.end_time = coerceTimeHHMM(value.end_time, content.end_time)
     content.slot_step_minutes = Math.max(5, Math.min(Math.floor(coerceNumber(value.slot_step_minutes, content.slot_step_minutes)), 120))
     content.timezone = typeof value.timezone === 'string' && value.timezone.trim() ? value.timezone.trim() : content.timezone
+
+    content.home_card_image_url = typeof value.home_card_image_url === 'string' ? value.home_card_image_url.trim() : content.home_card_image_url
+    content.home_card_empty_title =
+      typeof value.home_card_empty_title === 'string' && value.home_card_empty_title.trim()
+        ? value.home_card_empty_title.trim()
+        : content.home_card_empty_title
+    content.home_card_empty_description =
+      typeof value.home_card_empty_description === 'string' && value.home_card_empty_description.trim()
+        ? value.home_card_empty_description.trim()
+        : content.home_card_empty_description
+    content.home_card_logged_out_title =
+      typeof value.home_card_logged_out_title === 'string' && value.home_card_logged_out_title.trim()
+        ? value.home_card_logged_out_title.trim()
+        : content.home_card_logged_out_title
+    content.home_card_logged_out_description =
+      typeof value.home_card_logged_out_description === 'string' && value.home_card_logged_out_description.trim()
+        ? value.home_card_logged_out_description.trim()
+        : content.home_card_logged_out_description
   }
 
   appointmentsCache = { content, updatedAt: now, recordUpdatedAt: record?.updatedAt ?? null }
@@ -1390,6 +1415,12 @@ const appointmentsContentSchema = z
     start_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     end_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
     slot_step_minutes: z.number().int().min(5).max(120).optional(),
+    // Can be an URL or a data URL (upload stub in dev).
+    home_card_image_url: z.string().max(10_000_000).optional(),
+    home_card_empty_title: z.string().max(200).optional(),
+    home_card_empty_description: z.string().max(600).optional(),
+    home_card_logged_out_title: z.string().max(200).optional(),
+    home_card_logged_out_description: z.string().max(600).optional(),
   })
   .passthrough()
 
@@ -8340,6 +8371,11 @@ app.patch('/api/admin/content/appointments', async (req, res) => {
   if (parsed.data.start_time !== undefined) next.start_time = parsed.data.start_time
   if (parsed.data.end_time !== undefined) next.end_time = parsed.data.end_time
   if (parsed.data.slot_step_minutes !== undefined) next.slot_step_minutes = parsed.data.slot_step_minutes
+  if (parsed.data.home_card_image_url !== undefined) next.home_card_image_url = String(parsed.data.home_card_image_url ?? '').trim()
+  if (parsed.data.home_card_empty_title !== undefined) next.home_card_empty_title = String(parsed.data.home_card_empty_title ?? '').trim()
+  if (parsed.data.home_card_empty_description !== undefined) next.home_card_empty_description = String(parsed.data.home_card_empty_description ?? '').trim()
+  if (parsed.data.home_card_logged_out_title !== undefined) next.home_card_logged_out_title = String(parsed.data.home_card_logged_out_title ?? '').trim()
+  if (parsed.data.home_card_logged_out_description !== undefined) next.home_card_logged_out_description = String(parsed.data.home_card_logged_out_description ?? '').trim()
 
   const startMinutes = parseTimeHHMM(next.start_time)
   const endMinutes = parseTimeHHMM(next.end_time)
