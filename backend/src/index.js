@@ -6732,7 +6732,7 @@ app.get('/api/staff/logs', async (req, res) => {
     },
     orderBy: { createdAt: 'desc' },
     take: parseLimit(req.query.limit, 200),
-    include: { actor: true },
+    include: { actor: { select: { id: true, email: true, fullName: true, isAdmin: true, isSeller: true } } },
   })
 
   res.json(
@@ -6743,7 +6743,15 @@ app.get('/api/staff/logs', async (req, res) => {
       entity_id: l.entityId ?? null,
       meta: l.meta ?? null,
       created_date: l.createdAt,
-      actor: l.actor ? { id: l.actor.id, email: l.actor.email } : null,
+      actor: l.actor
+        ? {
+            id: l.actor.id,
+            email: l.actor.email,
+            full_name: l.actor.fullName ?? null,
+            is_admin: Boolean(l.actor.isAdmin),
+            is_seller: Boolean(l.actor.isSeller),
+          }
+        : null,
     })),
   )
 })
@@ -6830,6 +6838,75 @@ app.get('/api/staff/orders', async (req, res) => {
   res.json(orders.map(toApiOrder))
 })
 
+app.get('/api/staff/coupons', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const coupons = await prisma.coupon.findMany({
+    orderBy: parseOrderParam(req.query.order),
+    take: parseLimit(req.query.limit, 200),
+  })
+
+  res.json(coupons.map(toApiCoupon))
+})
+
+app.get('/api/staff/cash-closures', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const closures = await prisma.cashClosure.findMany({
+    orderBy: parseOrderParam(req.query.order),
+    take: parseLimit(req.query.limit, 200),
+  })
+
+  res.json(closures.map(toApiCashClosure))
+})
+
+app.get('/api/staff/cash-closures/summary', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const startedAt = parseIsoDateOnly(req.query.started_at)
+  const endedAt = parseIsoDateOnly(req.query.ended_at)
+
+  if (!startedAt || !endedAt) return res.status(400).json({ error: 'invalid_query' })
+  if (endedAt < startedAt) return res.status(400).json({ error: 'invalid_range' })
+
+  const totalSales = await computeCashClosureTotalSales({ startedAt: startedAt, endedAt: endedAt })
+  res.json({ started_at: req.query.started_at, ended_at: req.query.ended_at, total_sales: totalSales })
+})
+
+app.post('/api/staff/cash-closures', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const parsed = cashClosurePayloadSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const startedAt = parsed.data.started_at ? parseIsoDateOnly(parsed.data.started_at) : new Date()
+  const endedAt = parsed.data.ended_at ? parseIsoDateOnly(parsed.data.ended_at) : null
+  if (!startedAt) return res.status(400).json({ error: 'invalid_body', issues: [{ path: ['started_at'], message: 'invalid_date' }] })
+  if (endedAt && endedAt < startedAt) return res.status(400).json({ error: 'invalid_body', issues: [{ path: ['ended_at'], message: 'invalid_range' }] })
+
+  const openingBalance = Number(parsed.data.opening_balance ?? 0) || 0
+  const totalSales = endedAt ? await computeCashClosureTotalSales({ startedAt: startedAt, endedAt: endedAt }) : 0
+  const closingBalance = openingBalance + totalSales
+
+  const created = await prisma.cashClosure.create({
+    data: {
+      startedAt: startedAt,
+      endedAt: endedAt,
+      openingBalance: String(openingBalance),
+      closingBalance: String(closingBalance),
+      totalSales: endedAt ? String(totalSales) : null,
+      notes: parsed.data.notes ?? null,
+    },
+  })
+
+  await writeAuditLog({ actorId: staff.id, action: 'create', entityType: 'CashClosure', entityId: created.id, meta: req.body })
+  res.status(201).json(toApiCashClosure(created))
+})
+
 app.get('/api/staff/reports/summary', async (req, res) => {
   const staff = await requireStaff(req, res)
   if (!staff) return
@@ -6910,17 +6987,16 @@ app.get('/api/staff/appointments', async (req, res) => {
   const { content: appointmentsContent } = await getAppointmentsContent()
   if (!appointmentsContent?.enabled) return res.json({ enabled: false, appointments: [] })
 
-  const from = String(req.query.from ?? '').trim()
-  const to = String(req.query.to ?? '').trim()
+  const from = parseDateRangeStart(req.query.from)
+  const to = parseDateRangeEnd(req.query.to)
   const status = String(req.query.status ?? '').trim()
+  const rangeBy = req.query.range_by ? String(req.query.range_by) : 'start_at'
   const take = parseLimit(req.query.limit, 5000)
 
   const where = {}
-  if (from || to) {
-    where.startAt = {}
-    if (from) where.startAt.gte = new Date(`${from}T00:00:00.000Z`)
-    if (to) where.startAt.lte = new Date(`${to}T23:59:59.999Z`)
-  }
+  const dateField = rangeBy === 'created_at' ? 'createdAt' : 'startAt'
+  if (from) where[dateField] = { ...(where[dateField] ?? {}), gte: from }
+  if (to) where[dateField] = { ...(where[dateField] ?? {}), lte: to }
   if (status && status !== 'all') where.status = status
 
   const appointments = await prisma.appointment.findMany({
@@ -6931,6 +7007,62 @@ app.get('/api/staff/appointments', async (req, res) => {
   })
 
   res.json({ enabled: true, appointments: appointments.map(toApiAppointment) })
+})
+
+app.patch('/api/staff/appointments/:id', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const { content: appointmentsContent } = await getAppointmentsContent()
+  if (!appointmentsContent?.enabled) return res.status(403).json({ error: 'appointments_disabled' })
+
+  const parsed = z
+    .object({
+      status: z.enum(['confirmed', 'completed']),
+    })
+    .safeParse(req.body ?? {})
+
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const apptId = String(req.params.id ?? '').trim()
+  if (!apptId) return res.status(400).json({ error: 'invalid_body' })
+
+  const existing = await prisma.appointment.findUnique({
+    where: { id: apptId },
+    include: { user: true, service: true, staff: true },
+  })
+  if (!existing) return res.status(404).json({ error: 'not_found' })
+
+  const current = String(existing.status ?? '')
+  const next = parsed.data.status
+
+  if (current === 'cancelled' || current === 'completed') {
+    return res.status(409).json({ error: 'invalid_transition' })
+  }
+
+  if (next === 'confirmed' && current !== 'pending') {
+    return res.status(409).json({ error: 'invalid_transition' })
+  }
+
+  if (next === 'completed' && current !== 'confirmed') {
+    return res.status(409).json({ error: 'invalid_transition' })
+  }
+
+  const updated = await prisma.appointment.update({
+    where: { id: existing.id },
+    data: { status: next },
+    include: { user: true, service: true, staff: true },
+  })
+
+  await writeAuditLog({
+    actorId: staff.id,
+    action: 'update',
+    entityType: 'Appointment',
+    entityId: updated.id,
+    meta: { via: 'staff', status: next, previous_status: current },
+  })
+
+  res.json({ appointment: toApiAppointment(updated) })
 })
 
 const adminUserCreateSchema = z

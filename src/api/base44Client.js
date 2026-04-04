@@ -775,6 +775,29 @@ export const base44 = {
         return authedJsonRequest(`/api/staff/orders?${params.toString()}`);
       },
     },
+    coupons: {
+      list: async (order = '-created_date', limit = 200) => {
+        const params = new URLSearchParams();
+        if (order) params.set('order', order);
+        if (limit) params.set('limit', String(limit));
+        return authedJsonRequest(`/api/staff/coupons?${params.toString()}`);
+      },
+    },
+    cashClosures: {
+      list: async (order = '-created_date', limit = 200) => {
+        const params = new URLSearchParams();
+        if (order) params.set('order', order);
+        if (limit) params.set('limit', String(limit));
+        return authedJsonRequest(`/api/staff/cash-closures?${params.toString()}`);
+      },
+      summary: async ({ started_at, ended_at } = {}) => {
+        const params = new URLSearchParams();
+        if (started_at) params.set('started_at', String(started_at));
+        if (ended_at) params.set('ended_at', String(ended_at));
+        return authedJsonRequest(`/api/staff/cash-closures/summary?${params.toString()}`);
+      },
+      create: async (data) => authedJsonRequest('/api/staff/cash-closures', { method: 'POST', body: data }),
+    },
     reports: {
       summary: async (days = 30) => {
         const params = new URLSearchParams();
@@ -783,14 +806,17 @@ export const base44 = {
       },
     },
     appointments: {
-      list: async ({ from, to, status = 'all', limit = 5000 } = {}) => {
+      list: async ({ from, to, status = 'all', range_by, limit = 5000 } = {}) => {
         const params = new URLSearchParams();
         if (from) params.set('from', String(from));
         if (to) params.set('to', String(to));
         if (status) params.set('status', String(status));
+        if (range_by) params.set('range_by', String(range_by));
         if (limit) params.set('limit', String(limit));
         return authedJsonRequest(`/api/staff/appointments?${params.toString()}`);
       },
+      update: async (id, patch) =>
+        authedJsonRequest(`/api/staff/appointments/${encodeURIComponent(String(id ?? ''))}`, { method: 'PATCH', body: patch }),
     },
   },
 		  content: {

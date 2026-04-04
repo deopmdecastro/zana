@@ -6,6 +6,7 @@ import { base44 } from '@/api/base44Client';
 import { Button } from '@/components/ui/button';
 import EmptyState from '@/components/ui/empty-state';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import { getAppointmentStatusLabel } from '@/lib/appointmentStatus';
 
 const READ_KEY = 'zana_seller_notifications_read';
 
@@ -28,6 +29,30 @@ function formatWhen(value) {
   }
 }
 
+function roleLabelForLog(log) {
+  if (String(log?.action ?? '') === 'notify' && String(log?.meta?.kind ?? '') === 'order_updated_by_admin') return 'Admin';
+  if (log?.actor?.is_admin) return 'Admin';
+  if (log?.actor?.is_seller) return 'Vendedor';
+  return String(log?.actor?.full_name ?? log?.actor?.email ?? '').trim();
+}
+
+const entityLabelsPt = {
+  Order: 'Encomenda',
+  Appointment: 'Marcação',
+  Inventory: 'Inventário',
+  Coupon: 'Cupom',
+  Product: 'Produto',
+  Purchase: 'Compra',
+  Return: 'Devolução',
+};
+
+const actionLabelsPt = {
+  create: 'criada',
+  update: 'atualizada',
+  delete: 'removida',
+  notify: 'notificação',
+};
+
 function titleForLog(l) {
   const entity = String(l?.entity_type ?? '').trim() || 'Sistema';
   const action = String(l?.action ?? '').trim() || 'evento';
@@ -49,7 +74,11 @@ function titleForLog(l) {
   if (entity === 'Order' && action === 'create') return 'Encomenda criada';
   if (entity === 'Order' && action === 'update') return 'Encomenda atualizada';
   if (entity === 'Inventory' && action === 'update') return 'Inventário atualizado';
-  return `${entity}: ${action}`;
+  if (entity === 'Appointment' && action === 'update') return 'Marcação atualizada';
+
+  const entityPt = entityLabelsPt[entity] ?? entity;
+  const actionPt = actionLabelsPt[action] ?? action;
+  return `${entityPt} ${actionPt}`;
 }
 
 function detailForLog(l) {
@@ -76,7 +105,22 @@ function detailForLog(l) {
     }
     return bits.join(' · ');
   }
-  return '';
+
+  const role = roleLabelForLog(l);
+  const prefix = role ? `${role} · ` : '';
+
+  if (String(l?.entity_type ?? '') === 'Appointment' && String(l?.action ?? '') === 'update') {
+    const prev = String(l?.meta?.previous_status ?? '').trim();
+    const next = String(l?.meta?.status ?? '').trim();
+    const prevLabel = prev ? getAppointmentStatusLabel(prev) : '';
+    const nextLabel = next ? getAppointmentStatusLabel(next) : '';
+    if (prevLabel || nextLabel) {
+      return `${prefix}${prevLabel && nextLabel ? `${prevLabel} → ${nextLabel}` : nextLabel || prevLabel}`;
+    }
+    return role || '';
+  }
+
+  return role || '';
 }
 
 export default function SellerNotifications() {

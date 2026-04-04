@@ -151,6 +151,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
     let pending = 0;
     let confirmed = 0;
     let cancelled = 0;
+    let completedProfit = 0;
 
     for (const a of appointments) {
       total += 1;
@@ -162,6 +163,8 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
 
       const serviceName = String(a?.service?.name ?? '').trim() || 'Sem serviço';
       const staffName = String(a?.staff?.name ?? '').trim() || 'Sem atendente';
+      const servicePrice = Number(a?.service?.price ?? 0) || 0;
+      if (status === 'completed') completedProfit += servicePrice;
 
       const sRow = byService.get(serviceName) ?? { name: serviceName, total: 0, completed: 0 };
       sRow.total += 1;
@@ -190,6 +193,7 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
       pending,
       confirmed,
       cancelled,
+      completed_profit: Number(completedProfit.toFixed(2)),
       topServices,
       topStaff,
     };
@@ -527,6 +531,9 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                     </Badge>
                     <Badge className="bg-secondary text-foreground text-[10px] tabular-nums">
                       Canceladas: {appointmentAnalytics?.cancelled ?? 0}
+                    </Badge>
+                    <Badge className="bg-secondary text-foreground text-[10px] tabular-nums">
+                      Lucro (concluídas): {numberOrZero(appointmentAnalytics?.completed_profit).toFixed(2)} €
                     </Badge>
                   </div>
 

@@ -1644,3 +1644,212 @@ export async function exportElementToPdf(element, filename, { title, mode = 'dow
 
   downloadBlob(outName, blob);
 }
+
+export async function exportSellerReportsExcel({
+  filename,
+  title = 'Relatórios (Vendedor)',
+  logoUrl,
+  createdAt,
+  orderSummary,
+  appointmentAnalytics,
+} = {}) {
+  const logoDataUrl = await safeSvgUrlToPngDataUrl(logoUrl, { width: 180 });
+  const safeTitle = title || 'Relatórios (Vendedor)';
+  const file = ensureXlsFilename(filename, `relatorios_vendedor_${new Date().toISOString().slice(0, 10)}`);
+
+  const days = Number(orderSummary?.days ?? 30) || 30;
+  const scope = orderSummary?.scope === 'mine' ? 'Minhas ações' : orderSummary?.scope === 'all' ? 'Todas' : '';
+
+  const statusCounts = orderSummary?.status_counts && typeof orderSummary.status_counts === 'object' ? orderSummary.status_counts : {};
+  const statuses = [
+    ['pending', 'Pendente'],
+    ['confirmed', 'Confirmada'],
+    ['processing', 'Em preparação'],
+    ['shipped', 'Enviada'],
+    ['delivered', 'Entregue'],
+    ['cancelled', 'Cancelada'],
+  ];
+
+  const byDay = Array.isArray(orderSummary?.by_day) ? orderSummary.by_day : [];
+  const appt = appointmentAnalytics?.enabled ? appointmentAnalytics : null;
+
+  const html = buildExcelHtml({
+    sheetName: 'Relatórios',
+    title: safeTitle,
+    createdAt,
+    logoDataUrl,
+    sections: [
+      {
+        title: 'Resumo',
+        columns: 2,
+        rows: [
+          ['Período (dias)', days],
+          ...(scope ? [['Âmbito', scope]] : []),
+          ['Encomendas', Number(orderSummary?.total_orders ?? 0) || 0],
+          ['Receita (total) (€)', moneyPt(orderSummary?.revenue_total ?? 0)],
+          ['Receita (entregue) (€)', moneyPt(orderSummary?.revenue_delivered ?? 0)],
+          ['Ticket médio (€)', moneyPt((Number(orderSummary?.revenue_total ?? 0) || 0) / Math.max(1, Number(orderSummary?.total_orders ?? 0) || 0))],
+          ...(appt
+            ? [
+                [`Marcações (últimos ${days} dias)`, appt.total ?? 0],
+                ['Marcações pendentes', appt.pending ?? 0],
+                ['Marcações confirmadas', appt.confirmed ?? 0],
+                ['Marcações concluídas', appt.completed ?? 0],
+                ['Receita marcações (concluídas) (€)', moneyPt(appt.completed_revenue ?? appt.completed_profit ?? 0)],
+              ]
+            : []),
+        ],
+      },
+      {
+        title: 'Encomendas por estado',
+        columns: 2,
+        headers: ['Estado', 'Total'],
+        rows: statuses.map(([key, label]) => [label, statusCounts?.[key] ?? 0]),
+      },
+      {
+        title: 'Receita por dia',
+        columns: 3,
+        headers: ['Data', 'Encomendas', 'Receita (€)'],
+        rows: byDay.slice(0, 500).map((r) => [String(r?.date ?? ''), Number(r?.orders ?? 0) || 0, moneyPt(r?.revenue ?? 0)]),
+      },
+      ...(appt
+        ? [
+            {
+              title: 'Serviços com mais marcações',
+              columns: 3,
+              headers: ['Serviço', 'Total', 'Concluídas'],
+              rows: (appt.topServices ?? []).slice(0, 200).map((s) => [s.name ?? '', s.total ?? 0, s.completed ?? 0]),
+            },
+            {
+              title: 'Atendentes com mais marcações',
+              columns: 3,
+              headers: ['Atendente', 'Total', 'Concluídas'],
+              rows: (appt.topStaff ?? []).slice(0, 200).map((s) => [s.name ?? '', s.total ?? 0, s.completed ?? 0]),
+            },
+          ]
+        : []),
+    ],
+  });
+
+  downloadBlob(file, new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }));
+}
+
+export async function exportSellerReportsPdf({
+  filename,
+  title = 'Relatórios (Vendedor)',
+  logoUrl,
+  createdAt,
+  orderSummary,
+  appointmentAnalytics,
+  mode = 'download',
+} = {}) {
+  const logoDataUrl = await safeSvgUrlToPngDataUrl(logoUrl, { width: 120 });
+  const outName = filename ?? 'relatorios_vendedor.pdf';
+
+  const days = Number(orderSummary?.days ?? 30) || 30;
+  const totalOrders = Number(orderSummary?.total_orders ?? 0) || 0;
+  const revenueTotal = Number(orderSummary?.revenue_total ?? 0) || 0;
+  const revenueDelivered = Number(orderSummary?.revenue_delivered ?? 0) || 0;
+  const ticketAvg = revenueTotal / Math.max(1, totalOrders);
+
+  const statusCounts = orderSummary?.status_counts && typeof orderSummary.status_counts === 'object' ? orderSummary.status_counts : {};
+  const statuses = [
+    ['pending', 'Pendente'],
+    ['confirmed', 'Confirmada'],
+    ['processing', 'Em preparação'],
+    ['shipped', 'Enviada'],
+    ['delivered', 'Entregue'],
+    ['cancelled', 'Cancelada'],
+  ];
+
+  const appt = appointmentAnalytics?.enabled ? appointmentAnalytics : null;
+  const apptRevenueCompleted = appt ? Number(appt.completed_revenue ?? appt.completed_profit ?? 0) || 0 : 0;
+
+  const summaryCards = [
+    { label: 'Período (dias)', value: days },
+    { label: 'Encomendas', value: totalOrders },
+    { label: 'Receita (total)', value: `€ ${moneyPt(revenueTotal)}` },
+    { label: 'Receita (entregue)', value: `€ ${moneyPt(revenueDelivered)}` },
+    { label: 'Ticket médio', value: `€ ${moneyPt(ticketAvg)}` },
+    ...(appt
+      ? [
+          { label: 'Marcações (total)', value: appt.total ?? 0 },
+          { label: 'Concluídas', value: appt.completed ?? 0 },
+          { label: 'Receita marcações (concluídas)', value: `€ ${moneyPt(apptRevenueCompleted)}` },
+        ]
+      : []),
+  ];
+
+  const byDay = Array.isArray(orderSummary?.by_day) ? orderSummary.by_day : [];
+
+  const element = createPdfHtmlReportElement({
+    reportTitle: String(title ?? 'Relatórios (Vendedor)'),
+    createdAt,
+    logoDataUrl,
+    sectionTitle: 'Resumo',
+    summaryCards,
+    sections: [
+      {
+        title: 'Encomendas por estado',
+        headers: [
+          { label: 'Estado', align: 'left' },
+          { label: 'Total', align: 'right' },
+        ],
+        rows: statuses.map(([key, label]) => [label, String(statusCounts?.[key] ?? 0)]),
+      },
+      {
+        title: 'Receita por dia',
+        headers: [
+          { label: 'Data', align: 'left' },
+          { label: 'Encomendas', align: 'right' },
+          { label: 'Receita (€)', align: 'right' },
+        ],
+        rows: byDay.slice(0, 60).map((r) => [String(r?.date ?? ''), String(Number(r?.orders ?? 0) || 0), moneyPt(r?.revenue ?? 0)]),
+      },
+      ...(appt
+        ? [
+            {
+              title: `Marcações (últimos ${days} dias)`,
+              headers: [
+                { label: 'Métrica', align: 'left' },
+                { label: 'Total', align: 'right' },
+              ],
+              rows: [
+                ['Total', String(appt.total ?? 0)],
+                ['Pendentes', String(appt.pending ?? 0)],
+                ['Confirmadas', String(appt.confirmed ?? 0)],
+                ['Concluídas', String(appt.completed ?? 0)],
+                ['Canceladas', String(appt.cancelled ?? 0)],
+                ['Receita (concluídas) (€)', moneyPt(apptRevenueCompleted)],
+              ],
+            },
+            {
+              title: 'Serviços com mais marcações',
+              headers: [
+                { label: 'Serviço', align: 'left' },
+                { label: 'Total', align: 'right' },
+                { label: 'Concluídas', align: 'right' },
+              ],
+              rows: (appt.topServices ?? []).slice(0, 30).map((s) => [s.name ?? '', String(s.total ?? 0), String(s.completed ?? 0)]),
+            },
+            {
+              title: 'Atendentes com mais marcações',
+              headers: [
+                { label: 'Atendente', align: 'left' },
+                { label: 'Total', align: 'right' },
+                { label: 'Concluídas', align: 'right' },
+              ],
+              rows: (appt.topStaff ?? []).slice(0, 30).map((s) => [s.name ?? '', String(s.total ?? 0), String(s.completed ?? 0)]),
+            },
+          ]
+        : []),
+    ],
+  });
+
+  document.body.appendChild(element);
+  try {
+    return await exportElementToPdf(element, outName, { mode });
+  } finally {
+    element.remove();
+  }
+}

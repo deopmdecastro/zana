@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, LogOut, Menu, ShoppingBag, ShoppingCart, Users, Bell, BarChart3, CalendarClock, User, Package } from 'lucide-react';
+import { LayoutDashboard, LogOut, Menu, ShoppingBag, ShoppingCart, Users, Bell, BarChart3, CalendarClock, User, Package, Tag, CreditCard } from 'lucide-react';
 
 import zanaLogo from '@/img/zana_logo_primary.svg';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
@@ -8,12 +8,15 @@ import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/AuthContext';
 import { useBranding } from '@/lib/useBranding';
+import SellerNotificationBell from '@/components/notifications/SellerNotificationBell';
 
 const navItems = [
   { to: '/vendedor', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/vendedor/encomendas', icon: ShoppingCart, label: 'Encomendas' },
   { to: '/vendedor/produtos', icon: Package, label: 'Produtos' },
   { to: '/vendedor/clientes', icon: Users, label: 'Clientes' },
+  { to: '/vendedor/cupons', icon: Tag, label: 'Cupons' },
+  { to: '/vendedor/fecho-de-caixa', icon: CreditCard, label: 'Fecho de Caixa' },
   { to: '/vendedor/relatorios', icon: BarChart3, label: 'Relatórios' },
   { to: '/vendedor/notificacoes', icon: Bell, label: 'Notificações' },
   { to: '/vendedor/marcacoes', icon: CalendarClock, label: 'Marcações' },
@@ -138,6 +141,7 @@ export default function SellerLayout() {
         </div>
 
         <div className="flex items-center gap-2">
+          <SellerNotificationBell />
           <Link to="/" className="hidden md:inline-flex" title="Voltar à loja">
             <Button variant="ghost" size="icon" aria-label="Loja">
               <ShoppingBag className="w-4 h-4" />

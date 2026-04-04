@@ -99,6 +99,8 @@ const Checkout = lazy(() => import('@/pages/Checkout'));
   const SellerAppointments = lazy(() => import('@/pages/seller/SellerAppointments'));
   const SellerProfile = lazy(() => import('@/pages/seller/SellerProfile'));
   const SellerProducts = lazy(() => import('@/pages/seller/SellerProducts'));
+  const SellerCoupons = lazy(() => import('@/pages/seller/SellerCoupons'));
+  const SellerCashClosures = lazy(() => import('@/pages/seller/SellerCashClosures'));
       const ProductOptionsAdmin = lazy(() => import('@/pages/admin/ProductOptionsAdmin'));
 
 const FAQPage = lazy(() => import('@/pages/FAQ'));
@@ -175,6 +177,8 @@ const AuthenticatedApp = () => {
         <Route path="/vendedor/relatorios" element={<SellerReports />} />
         <Route path="/vendedor/notificacoes" element={<SellerNotifications />} />
         <Route path="/vendedor/marcacoes" element={<SellerAppointments />} />
+        <Route path="/vendedor/cupons" element={<SellerCoupons />} />
+        <Route path="/vendedor/fecho-de-caixa" element={<SellerCashClosures />} />
         <Route path="/vendedor/perfil" element={<SellerProfile />} />
       </Route>
 
