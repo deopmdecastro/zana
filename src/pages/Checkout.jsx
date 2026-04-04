@@ -157,7 +157,7 @@ export default function Checkout() {
     }
     if (selectedAddressId && selectedAddressId !== 'manual' && list.some((a) => a?.id === selectedAddressId)) return;
     setSelectedAddressId(defaultAddress?.id ?? 'manual');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [user, addresses, defaultAddress?.id]);
 
   useEffect(() => {
@@ -179,7 +179,7 @@ export default function Checkout() {
     const current = form.payment_method;
     if (paymentOptions.some((o) => o.value === current)) return;
     setForm((p) => ({ ...p, payment_method: paymentOptions[0].value }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [paymentOptions.map((o) => o.value).join('|')]);
 
   useEffect(() => {
@@ -187,7 +187,7 @@ export default function Checkout() {
     const current = form.shipping_method_id;
     if (shippingMethods.some((m) => m.id === current)) return;
     setForm((p) => ({ ...p, shipping_method_id: shippingCfg.defaultId }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [shippingMethods.map((m) => m.id).join('|')]);
 
   const selectedPaymentCfg =
@@ -205,8 +205,6 @@ export default function Checkout() {
     if (freeOver && subtotal >= freeOver) return 0;
     return price;
   }, [items, selectedShipping, subtotal]);
-
-  const total = subtotal + shipping;
 
   const couponDiscount = useMemo(() => {
     if (!coupon) return 0

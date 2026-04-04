@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Download, Euro, TrendingUp, Package, ShoppingCart, Receipt, CalendarClock } from 'lucide-react';
 import {
@@ -132,10 +132,6 @@ export default function AdminFinance() {
   });
 
   const completedAppointments = appointmentsCompletedRes?.appointments ?? [];
-
-
-  const queryClient = useQueryClient();
-
 
 
   const stats = useMemo(() => {

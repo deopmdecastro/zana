@@ -1609,7 +1609,7 @@ export async function exportElementToPdf(element, filename, { title, mode = 'dow
 
   for (let pageIndex = 0; pageIndex < targets.length; pageIndex += 1) {
     const target = targets[pageIndex];
-    // eslint-disable-next-line no-await-in-loop
+     
     const canvas = await html2canvas(target, {
       scale: 2,
       backgroundColor: '#ffffff',

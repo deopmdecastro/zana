@@ -724,7 +724,7 @@ const ddl = [
 export async function ensureSchema() {
   for (const statement of ddl) {
     // Static DDL, no user input.
-    // eslint-disable-next-line no-await-in-loop
+     
     await prisma.$executeRawUnsafe(statement)
   }
 }

@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Code, Plus, Pencil, Search, Package } from 'lucide-react';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import { toast } from 'sonner';
-import { getErrorMessage, toastApiPromise } from '@/lib/toast';
+import { getErrorMessage } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import { getProductStatusLabel, productStatusBadgeClassName } from '@/lib/productBadges';
@@ -405,18 +405,6 @@ export default function AdminProducts() {
     if (!data.name) { toast.error('Nome é obrigatório'); return; }
     if (editing) { updateMutation.mutate({ id: editing.id, data }); }
     else { createMutation.mutate(data); }
-  };
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const res = await toastApiPromise(base44.integrations.Core.UploadFile({ file }), {
-      loading: 'A enviar imagem...',
-      success: 'Imagem adicionada.',
-      error: 'Não foi possível enviar a imagem.',
-    });
-    const fileUrl = res?.file_url;
-    if (fileUrl) setForm(prev => ({ ...prev, images: [...(prev.images || []), fileUrl] }));
   };
 
   const addImageUrl = () => {

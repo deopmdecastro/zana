@@ -11,14 +11,11 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
-import { pt } from 'date-fns/locale';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
 import { appointmentStatusBadgeClassName, getAppointmentStatusLabel } from '@/lib/appointmentStatus';
 import { cn } from '@/lib/utils';
-import ImageWithFallback from '@/components/ui/image-with-fallback';
 import OrderStatusCard from '@/components/orders/OrderStatusCard';
 
 

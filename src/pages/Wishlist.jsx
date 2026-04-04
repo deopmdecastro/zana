@@ -2,17 +2,15 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Heart, ShoppingBag } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
-import { useCart } from '@/lib/CartContext';
 import { toastApiPromise } from '@/lib/toast';
 import DeleteIcon from '@/components/ui/delete-icon';
 import { confirmDestructive } from '@/lib/confirm';
 
 export default function WishlistPage() {
   const queryClient = useQueryClient();
-  const { addItem } = useCart();
 
   const { data: wishlistItems = [], isLoading } = useQuery({
     queryKey: ['wishlist'],
