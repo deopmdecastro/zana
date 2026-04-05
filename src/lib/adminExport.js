@@ -1,4 +1,4 @@
-import { downloadBlob } from '@/lib/reportExport';
+import { buildExcelHtml, downloadBlob } from '@/lib/reportExport';
 
 export function downloadJson(filename, data) {
   const json = JSON.stringify(data ?? null, null, 2);
@@ -26,4 +26,34 @@ export function downloadExcelTable(filename, { sheetName = 'ZANA', title = '', h
 
   const csv = `\uFEFF${lines.join('\r\n')}\r\n`;
   downloadBlob(normalizedFilename, new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+}
+
+export function downloadStyledExcelTable(
+  filename,
+  { sheetName = 'ZANA', title = '', headers = [], rows = [], createdAt, logoDataUrl } = {},
+) {
+  const normalizedFilename = String(filename || 'export.xls').toLowerCase().endsWith('.xls')
+    ? String(filename || 'export.xls')
+    : `${String(filename || 'export')}.xls`;
+
+  const safeSheetName = String(sheetName || 'ZANA').slice(0, 31);
+  const sectionTitle = title || sheetName || 'Export';
+
+  const columns = Math.max(1, Number(headers?.length ?? 0) || Number(rows?.[0]?.length ?? 0) || 1);
+  const html = buildExcelHtml({
+    sheetName: safeSheetName,
+    title: sectionTitle,
+    createdAt,
+    logoDataUrl,
+    sections: [
+      {
+        title: sectionTitle,
+        columns,
+        headers: Array.isArray(headers) && headers.length ? headers : undefined,
+        rows: Array.isArray(rows) ? rows : [],
+      },
+    ],
+  });
+
+  downloadBlob(normalizedFilename, new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' }));
 }

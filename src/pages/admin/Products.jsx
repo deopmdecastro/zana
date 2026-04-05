@@ -32,7 +32,7 @@ import DeleteIcon from '@/components/ui/delete-icon';
 import SearchableSelect from '@/components/ui/searchable-select';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
-import { downloadExcelTable, downloadJson } from '@/lib/adminExport';
+import { downloadExcelTable, downloadJson, downloadStyledExcelTable } from '@/lib/adminExport';
 
 const emptyProduct = {
   name: '', description: '', price: '', acquisition_cost: '', original_price: '', category: 'colares',
@@ -379,11 +379,11 @@ export default function AdminProducts() {
       const list = await base44.entities.Product.list('-created_date', 500);
       const productsAll = Array.isArray(list) ? list : [];
 
-      if (format === 'json') {
-        downloadJson(`produtos_${now}.json`, productsAll);
-        toast.success('JSON exportado');
-        return;
-      }
+       if (format === 'json') {
+         downloadJson(`produtos_${now}.json`, productsAll);
+         toast.success('JSON exportado');
+         return;
+       }
 
       const fmtMoney = (value) => {
         const n = Number(value);
@@ -415,7 +415,19 @@ export default function AdminProducts() {
         p.created_date ?? p.createdAt ?? '',
       ]);
 
-      downloadExcelTable(`produtos_${now}.csv`, { sheetName: 'Produtos', title: 'Produtos', headers, rows });
+      if (format === 'csv') {
+        downloadExcelTable(`produtos_${now}.csv`, { sheetName: 'Produtos', title: 'Produtos', headers, rows });
+        toast.success('CSV exportado');
+        return;
+      }
+
+      downloadStyledExcelTable(`produtos_${now}.xls`, {
+        sheetName: 'Produtos',
+        title: 'Produtos',
+        headers,
+        rows,
+        createdAt: new Date(),
+      });
       toast.success('Excel exportado');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Não foi possível exportar.'));
@@ -439,6 +451,14 @@ export default function AdminProducts() {
             disabled={!!exporting}
           >
             <Download className="w-4 h-4" /> Excel
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+            onClick={() => exportAll('csv')}
+            disabled={!!exporting}
+          >
+            <Download className="w-4 h-4" /> CSV
           </Button>
           <Button
             variant="outline"

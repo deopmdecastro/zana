@@ -878,7 +878,7 @@ function ensureXlsFilename(filename, fallbackBase) {
   return `${fallbackBase}.xls`;
 }
 
-function buildExcelHtml({ sheetName = 'ZANA', title, createdAt, logoDataUrl, sections = [] } = {}) {
+export function buildExcelHtml({ sheetName = 'ZANA', title, createdAt, logoDataUrl, sections = [] } = {}) {
   const primary = getThemeColorHex('--primary', '340 52% 31%');
   const foreground = getThemeColorHex('--foreground', '222.2 84% 4.9%');
   const muted = getThemeColorHex('--muted-foreground', '215.4 16.3% 46.9%');

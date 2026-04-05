@@ -18,7 +18,7 @@ import ImageUpload from '@/components/uploads/ImageUpload';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
-import { downloadExcelTable, downloadJson } from '@/lib/adminExport';
+import { downloadExcelTable, downloadJson, downloadStyledExcelTable } from '@/lib/adminExport';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -917,7 +917,19 @@ export default function AdminPurchases() {
         }
       }
 
-      downloadExcelTable(`compras_${now}.csv`, { sheetName: 'Compras', title: 'Compras', headers, rows });
+      if (format === 'csv') {
+        downloadExcelTable(`compras_${now}.csv`, { sheetName: 'Compras', title: 'Compras', headers, rows });
+        toast.success('CSV exportado');
+        return;
+      }
+
+      downloadStyledExcelTable(`compras_${now}.xls`, {
+        sheetName: 'Compras',
+        title: 'Compras',
+        headers,
+        rows,
+        createdAt: new Date(),
+      });
       toast.success('Excel exportado');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Não foi possível exportar.'));
@@ -943,13 +955,21 @@ export default function AdminPurchases() {
 	          <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
 	            <Plus className="w-4 h-4" /> Nova
 	          </Button>
-	          <Button
+            <Button
               variant="outline"
               className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
               onClick={() => exportAll('excel')}
               disabled={!!exporting}
             >
               <Download className="w-4 h-4" /> Exportar Excel
+            </Button>
+            <Button
+              variant="outline"
+              className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+              onClick={() => exportAll('csv')}
+              disabled={!!exporting}
+            >
+              <Download className="w-4 h-4" /> Exportar CSV
             </Button>
 	          <Button
               variant="outline"
