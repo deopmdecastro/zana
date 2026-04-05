@@ -22,9 +22,11 @@ import {
   parseDate,
   targetPath,
 } from '@/lib/adminLogNotifications';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function AdminNotificationBell() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [readIds, setReadIds] = useState(() => {
     if (typeof window === 'undefined') return [];
     try {
@@ -136,12 +138,18 @@ export default function AdminNotificationBell() {
                         <Button
                           variant="outline"
                           className="h-7 px-2 rounded-none font-body text-[11px]"
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             const id = l.entity_id;
                             if (!id) return;
-                            if (!window.confirm('Encerrar este cupom?')) return;
+                            const ok = await confirm({
+                              title: 'Encerrar cupom?',
+                              description: 'Tem certeza que deseja encerrar este cupom?',
+                              confirmText: 'Encerrar',
+                              cancelText: 'Cancelar',
+                            });
+                            if (!ok) return;
                             couponCloseMutation.mutate({ id });
                             markRead(l.id);
                           }}

@@ -8167,26 +8167,19 @@ app.delete('/api/admin/products/:id', async (req, res) => {
     const existing = await prisma.product.findUnique({ where: { id: req.params.id } })
     if (!existing) return res.status(404).json({ error: 'not_found' })
 
-    const updated = await prisma.product.update({
-      where: { id: req.params.id },
-      data: {
-        status: 'inactive',
-        isFeatured: false,
-        isNew: false,
-        isBestseller: false,
-      },
-    })
+    await prisma.product.delete({ where: { id: req.params.id } })
 
     await writeAuditLog({
       actorId: admin.id,
       action: 'delete',
       entityType: 'Product',
       entityId: req.params.id,
-      meta: { soft_deleted: true, previous_status: existing.status, next_status: updated.status },
+      meta: { hard_deleted: true, previous_status: existing.status, name: existing.name },
     })
     res.status(204).send()
-  } catch {
-    res.status(404).json({ error: 'not_found' })
+  } catch (e) {
+    if (e?.code === 'P2025') return res.status(404).json({ error: 'not_found' })
+    return sendInternalError(res, e, 'product_delete_failed')
   }
 })
 

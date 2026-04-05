@@ -9,8 +9,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Code, Plus, Pencil, Search, Package } from 'lucide-react';
+import { Plus, Pencil, Search, Package, Ban, CircleCheckBig } from 'lucide-react';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
 import { getPrimaryImage, normalizeImages } from '@/lib/images';
@@ -29,21 +39,12 @@ const emptyProduct = {
   videos: [], free_shipping: false, is_new: false, is_bestseller: false, status: 'active'
 };
 
-function safeJson(value) {
-  if (value === null || value === undefined) return null;
-  try {
-    return typeof value === 'string' ? JSON.parse(value) : value;
-  } catch {
-    return null;
-  }
-}
-
 export default function AdminProducts() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
-  const [jsonSaving, setJsonSaving] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [pendingDelete, setPendingDelete] = useState(null);
   const [form, setForm] = useState(emptyProduct);
   const [nameChoice, setNameChoice] = useState('');
   const [search, setSearch] = useState('');
@@ -51,7 +52,6 @@ export default function AdminProducts() {
   const [videoInput, setVideoInput] = useState('');
   const [colorInput, setColorInput] = useState('');
   const [sizeInput, setSizeInput] = useState('');
-  const [jsonText, setJsonText] = useState('');
   const [limit, setLimit] = useState(50);
 
   const { data: products = [], isLoading } = useQuery({
@@ -203,7 +203,7 @@ export default function AdminProducts() {
     return purchaseSuggestionByName.get(key) ?? null;
   }, [editing, form?.name, purchaseSuggestionByName]);
 
-  const isPurchaseInherited = Boolean(purchaseSuggestion) && nameChoice !== '__manual__' && !editing;
+  const isPurchaseInherited = Boolean(purchaseSuggestion) && !editing;
 
   const purchasedProductNameOptions = useMemo(() => {
     const set = new Set();
@@ -227,7 +227,6 @@ export default function AdminProducts() {
 
     return [
       ...(hasCurrentName && !currentInList ? [{ value: currentName, label: `${currentName} (atual)` }] : []),
-      { value: '__manual__', label: 'Outro (escrever manualmente)' },
       ...opts,
     ];
   }, [purchases, form?.name]);
@@ -246,11 +245,50 @@ export default function AdminProducts() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => base44.entities.Product.delete(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-products'] }); queryClient.invalidateQueries({ queryKey: ['products-catalog'] }); queryClient.invalidateQueries({ queryKey: ['product'] }); toast.success('Produto arquivado'); },
-    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível remover o produto.')),
+    onMutate: async (id) => {
+      const productId = String(id ?? '').trim()
+      if (!productId) return { snapshot: [] }
+
+      await queryClient.cancelQueries({ queryKey: ['admin-products'] })
+
+      const snapshot = queryClient.getQueriesData({ queryKey: ['admin-products'] })
+
+      queryClient.setQueriesData({ queryKey: ['admin-products'] }, (old) => {
+        if (!Array.isArray(old)) return old
+        return old.filter((p) => String(p?.id ?? '') !== productId)
+      })
+
+      return { snapshot }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['product'] });
+      toast.success('Produto removido');
+      setConfirmDeleteOpen(false);
+      setPendingDelete(null);
+    },
+    onError: (err, _vars, context) => {
+      const snapshot = context?.snapshot
+      if (Array.isArray(snapshot)) {
+        for (const [key, data] of snapshot) queryClient.setQueryData(key, data)
+      }
+      toast.error(getErrorMessage(err, 'Não foi possível remover o produto.'))
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] })
+    },
   });
 
-  const openCreate = () => { setEditing(null); setForm(emptyProduct); setNameChoice(''); setImageInput(''); setVideoInput(''); setColorInput(''); setSizeInput(''); setJsonText(''); setDialogOpen(true); };
+  const toggleStatus = (p) => {
+    const id = String(p?.id ?? '').trim();
+    if (!id) return;
+    const current = String(p?.status ?? '').trim();
+    const next = current === 'inactive' ? 'active' : 'inactive';
+    updateMutation.mutate({ id, data: { status: next } });
+  };
+
+  const openCreate = () => { setEditing(null); setForm(emptyProduct); setNameChoice(''); setImageInput(''); setVideoInput(''); setColorInput(''); setSizeInput(''); setDialogOpen(true); };
   const openEdit = (p) => {
     setEditing(p);
     setForm({
@@ -271,117 +309,10 @@ export default function AdminProducts() {
     setVideoInput('');
     setColorInput('');
     setSizeInput('');
-    setJsonText('');
     setDialogOpen(true);
   };
-  const openJson = () => { setJsonText(''); setJsonDialogOpen(true); };
 
   const normalizeVideos = (value) => (Array.isArray(value) ? value.map((v) => String(v ?? '').trim()).filter(Boolean) : []);
-
-  const applyJson = () => {
-    if (jsonSaving) return;
-
-    const trimmed = String(jsonText ?? '').trim();
-    if (!trimmed) return;
-
-    const parsed = safeJson(trimmed);
-    let objects = [];
-
-    if (Array.isArray(parsed)) objects = parsed;
-    else if (parsed && typeof parsed === 'object') objects = [parsed];
-    else {
-      const lines = trimmed
-        .split(/\r?\n/)
-        .map((l) => l.trim())
-        .filter((l) => l && !/^-+$/.test(l));
-
-      objects = lines.map((line) => safeJson(line)).filter(Boolean);
-      if (objects.length !== lines.length) {
-        toast.error('JSON inválido');
-        return;
-      }
-    }
-
-    if (objects.length === 0) {
-      toast.error('JSON inválido');
-      return;
-    }
-
-    (async () => {
-      setJsonSaving(true);
-      let created = 0;
-      let failed = 0;
-      let firstError = null;
-
-      for (const obj of objects) {
-        try {
-          const pick = (key, fallback) => (obj?.[key] === undefined ? fallback : obj[key]);
-          const images = pick('images', pick('image_urls', pick('imageUrls', undefined)));
-          const videos = pick('videos', pick('video_urls', pick('videoUrls', undefined)));
-          const colors = pick('colors', undefined);
-          const sizes = pick('sizes', undefined);
-
-          const name = String(pick('name', '') ?? '').trim();
-          if (!name) {
-            if (!firstError) firstError = new Error('Nome é obrigatório.');
-            failed += 1;
-            continue;
-          }
-
-          const rawPrice = pick('price', pick('unit_price', ''));
-          const rawOriginalPrice = pick('original_price', pick('originalPrice', ''));
-          const rawStock = pick('stock', 0);
-          const rawMaterial = pick('material', emptyProduct.material);
-
-          const data = {
-            ...emptyProduct,
-            name,
-            description: String(pick('description', emptyProduct.description) ?? ''),
-            price: parseFloat(rawPrice) || 0,
-            acquisition_cost: pick('acquisition_cost', pick('acquisitionCost', undefined)),
-            original_price: rawOriginalPrice ? parseFloat(rawOriginalPrice) : undefined,
-            category: String(pick('category', emptyProduct.category) ?? emptyProduct.category),
-            material: rawMaterial === null || rawMaterial === undefined ? null : String(rawMaterial),
-            colors: Array.isArray(colors) ? colors : emptyProduct.colors,
-            sizes: Array.isArray(sizes) ? sizes : emptyProduct.sizes,
-            images: Array.isArray(images) ? normalizeImages(images) : emptyProduct.images,
-            videos: Array.isArray(videos) ? normalizeVideos(videos) : emptyProduct.videos,
-            stock: parseInt(rawStock) || 0,
-            free_shipping: Boolean(pick('free_shipping', pick('freeShipping', emptyProduct.free_shipping))),
-            is_featured: Boolean(pick('is_featured', pick('isFeatured', emptyProduct.is_featured))),
-            is_new: Boolean(pick('is_new', pick('isNew', emptyProduct.is_new))),
-            is_bestseller: Boolean(pick('is_bestseller', pick('isBestseller', emptyProduct.is_bestseller))),
-            status: String(pick('status', emptyProduct.status) ?? emptyProduct.status),
-          };
-
-          await base44.entities.Product.create(data);
-          created += 1;
-        } catch (err) {
-          if (!firstError) firstError = err;
-          failed += 1;
-        }
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
-      queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
-      queryClient.invalidateQueries({ queryKey: ['product'] });
-      setJsonSaving(false);
-
-      if (created > 0) {
-        setJsonDialogOpen(false);
-        setJsonText('');
-      }
-
-      if (failed > 0) {
-        const human = firstError ? getErrorMessage(firstError, 'Não foi possível criar o produto.') : 'Não foi possível criar o produto.';
-        toast.error(`${human} (Criados: ${created} · Falhas: ${failed})`);
-      } else if (objects.length === 1) {
-        toast.success('Produto criado');
-      } else {
-        toast.success(`Criados: ${created}`);
-      }
-    })();
-  };
 
   const handleSubmit = () => {
     const cleanList = (arr) =>
@@ -445,9 +376,6 @@ export default function AdminProducts() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto sm:justify-end">
           <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Novo Produto
-          </Button>
-          <Button onClick={openJson} variant="outline" className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
-            <Code className="w-4 h-4" /> JSON
           </Button>
         </div>
       </div>
@@ -529,9 +457,21 @@ export default function AdminProducts() {
 	                  <Button
                       variant="ghost"
                       size="icon"
+                      onClick={() => toggleStatus(p)}
+                      title={String(p.status) === 'inactive' ? 'Ativar' : 'Inativar'}
+                    >
+                      {String(p.status) === 'inactive' ? (
+                        <CircleCheckBig className="w-4 h-4 text-green-600" />
+                      ) : (
+                        <Ban className="w-4 h-4 text-muted-foreground" />
+                      )}
+                    </Button>
+	                  <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => {
-                        if (!window.confirm('Tem certeza que deseja remover?')) return;
-                        deleteMutation.mutate(p.id);
+                        setPendingDelete(p);
+                        setConfirmDeleteOpen(true);
                       }}
                       title="Remover"
                     >
@@ -570,10 +510,6 @@ export default function AdminProducts() {
                 <SearchableSelect
                   value={nameChoice || ''}
                   onChange={(v) => {
-                    if (v === '__manual__') {
-                      setNameChoice('__manual__');
-                      return;
-                    }
                     const nextName = String(v ?? '').trim();
                     setNameChoice(nextName);
                     setForm((prev) => {
@@ -598,14 +534,6 @@ export default function AdminProducts() {
                   placeholder="Selecionar (baseado em compras)..."
                   searchPlaceholder="Pesquisar produto comprado..."
                 />
-                {nameChoice === '__manual__' ? (
-                  <Input
-                    value={form.name}
-                    onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    className="rounded-none"
-                    placeholder="Escreva o nome do produto..."
-                  />
-                ) : null}
                 <p className="font-body text-xs text-muted-foreground">
                   Sugestões geradas a partir dos nomes usados nas compras.
                 </p>
@@ -890,38 +818,38 @@ export default function AdminProducts() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={jsonDialogOpen}
+      <AlertDialog
+        open={confirmDeleteOpen}
         onOpenChange={(open) => {
-          setJsonDialogOpen(open);
-          if (!open) setJsonText('');
+          setConfirmDeleteOpen(open);
+          if (!open) setPendingDelete(null);
         }}
       >
-        <DialogContent aria-describedby={undefined} className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="font-heading text-xl">Importar produto (JSON)</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label className="font-body text-xs">JSON</Label>
-		              <Textarea
-		                value={jsonText}
-		                onChange={(e) => setJsonText(e.target.value)}
-		                className="rounded-none mt-1 min-h-[160px] font-mono text-xs"
-		                placeholder={'1 JSON, array ou 1 por linha.\nEx (1): {"name":"Produto X","price":12.5,"stock":10,"images":["https://..."]}\nEx (varios): {"name":"A","price":1}\n{"name":"B","price":2}\nEx (array): [{"name":"A","price":1},{"name":"B","price":2}]'}
-		              />
-            </div>
-            <div className="flex items-center justify-end gap-2">
-              <Button variant="outline" className="rounded-none font-body text-sm" onClick={() => setJsonDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button className="rounded-none font-body text-sm" onClick={applyJson} disabled={!jsonText.trim() || jsonSaving}>
-                {jsonSaving ? 'A criar...' : 'Aplicar'}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        <AlertDialogContent className="rounded-none">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-heading">Remover produto?</AlertDialogTitle>
+            <AlertDialogDescription className="font-body">
+              Tem certeza que deseja remover{pendingDelete?.name ? ` “${String(pendingDelete.name)}”` : ''}?
+              Esta ação remove o produto definitivamente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-none font-body" disabled={deleteMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-none font-body bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90"
+              disabled={deleteMutation.isPending || !pendingDelete?.id}
+              onClick={() => {
+                if (!pendingDelete?.id) return;
+                deleteMutation.mutate(pendingDelete.id);
+              }}
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

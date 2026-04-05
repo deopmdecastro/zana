@@ -10,11 +10,12 @@ import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
-import { confirmDestructive } from '@/lib/confirm';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function Settings() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { logout } = useAuth();
 
   const { data: user, isLoading } = useQuery({
@@ -149,8 +150,15 @@ export default function Settings() {
             variant="destructive"
             className="rounded-none font-body text-sm gap-2"
             disabled={deleteAccountMutation.isPending}
-            onClick={() => {
-              if (!confirmDestructive('Tem certeza que deseja apagar a sua conta?')) return;
+            onClick={async () => {
+              const ok = await confirm({
+                title: 'Apagar conta?',
+                description: 'Tem certeza que deseja apagar a sua conta?',
+                confirmText: 'Apagar',
+                cancelText: 'Cancelar',
+                destructive: true,
+              });
+              if (!ok) return;
               deleteAccountMutation.mutate();
             }}
           >

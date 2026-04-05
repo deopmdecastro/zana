@@ -16,9 +16,11 @@ import { getErrorMessage } from '@/lib/toast';
 import { entityCode } from '@/utils/entityCode';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function AdminCustomers() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [limit, setLimit] = useState(50);
@@ -246,10 +248,16 @@ export default function AdminCustomers() {
                         type="button"
                         variant="outline"
                         className="rounded-none font-body text-xs gap-2 shrink-0"
-                        onClick={() => {
+                        onClick={async () => {
                           const email = String(selected?.email ?? '').trim();
                           if (!email) return;
-                          if (!window.confirm(`Enviar email de redefinição de senha para ${email}?`)) return;
+                          const ok = await confirm({
+                            title: 'Enviar redefinição de senha?',
+                            description: `Enviar email de redefinição de senha para ${email}?`,
+                            confirmText: 'Enviar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
                           resetMutation.mutate({ email });
                         }}
                         disabled={resetMutation.isPending}

@@ -13,11 +13,13 @@ import { getErrorMessage } from '@/lib/toast';
 import { Plus, Pencil, HelpCircle } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 const emptyItem = { question: '', answer: '', order: 0, is_active: true };
 
 export default function FAQAdmin() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyItem);
@@ -221,8 +223,15 @@ export default function FAQAdmin() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      if (!window.confirm('Tem certeza que deseja remover?')) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Remover pergunta?',
+                        description: 'Tem certeza que deseja remover esta pergunta do FAQ?',
+                        confirmText: 'Remover',
+                        cancelText: 'Cancelar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       deleteMutation.mutate(item.id);
                     }}
                     title="Remover"

@@ -5,12 +5,14 @@ import { Button } from '@/components/ui/button';
 import EmptyState from '@/components/ui/empty-state';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { Database } from 'lucide-react';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function BackupPanel({ showTitle = true } = {}) {
   const inputRef = useRef(null);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
 
   const historyQuery = useQuery({
     queryKey: ['admin-backup-history'],
@@ -210,9 +212,13 @@ export default function BackupPanel({ showTitle = true } = {}) {
                             className="rounded-none h-8 px-3 text-xs"
                             disabled={restoreHistoryMutation.isPending}
                             onClick={async () => {
-                              const ok = window.confirm(
-                                'Restaurar este backup vai substituir os dados atuais do site. Tem a certeza?',
-                              );
+                              const ok = await confirm({
+                                title: 'Restaurar backup?',
+                                description: 'Restaurar este backup vai substituir os dados atuais do site. Tem a certeza?',
+                                confirmText: 'Restaurar',
+                                cancelText: 'Cancelar',
+                                destructive: true,
+                              });
                               if (!ok) return;
                               await toastApiPromise(restoreHistoryMutation.mutateAsync(b.id), {
                                 loading: 'A restaurar backup...',
