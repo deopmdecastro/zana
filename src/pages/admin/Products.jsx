@@ -458,21 +458,21 @@ export default function AdminProducts() {
 
       {/* Products Table */}
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Categoria</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Preço</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Stock</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Produto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Categoria</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Preço</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Stock</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map(p => (
               <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                <td className="p-3">
+                <td className="p-3 whitespace-nowrap">
 	                  <div className="flex items-center gap-3">
 	                    <div className="w-10 h-10 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
                         <ImageWithFallback
@@ -490,16 +490,16 @@ export default function AdminProducts() {
 	                    </div>
 	                  </div>
                 </td>
-                <td className="p-3 font-body text-xs">{productOptions.categoryLabel.get(String(p.category ?? '')) ?? p.category}</td>
-                <td className="p-3 font-body text-sm">{p.price?.toFixed(2)} €</td>
-                <td className="p-3 font-body text-sm">{p.stock || 0}</td>
+                <td className="p-3 font-body text-xs whitespace-nowrap">{productOptions.categoryLabel.get(String(p.category ?? '')) ?? p.category}</td>
+                <td className="p-3 font-body text-sm whitespace-nowrap">{p.price?.toFixed(2)} €</td>
+                <td className="p-3 font-body text-sm whitespace-nowrap">{p.stock || 0}</td>
                 <td className="p-3">
                   {(() => {
                     const adj = purchaseAdjustmentByProductId.get(String(p.id)) ?? null;
                     const hasReturned = Number(adj?.returned ?? 0) > 0;
                     const hasWriteoff = Number(adj?.writeoff ?? 0) > 0;
                     return (
-                      <div className="flex flex-wrap gap-2 items-center">
+                      <div className="flex flex-nowrap gap-2 items-center whitespace-nowrap">
                         <Badge
                           className={cn(
                             'rounded-none font-body text-[10px] font-semibold',
@@ -523,7 +523,8 @@ export default function AdminProducts() {
                     );
                   })()}
                 </td>
-                <td className="p-3 text-right">
+                <td className="p-3 text-right whitespace-nowrap">
+                  <div className="inline-flex items-center gap-1 whitespace-nowrap">
 	                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)}><Pencil className="w-3.5 h-3.5" /></Button>
 	                  <Button
                       variant="ghost"
@@ -548,6 +549,7 @@ export default function AdminProducts() {
                     >
                       <DeleteIcon className="text-destructive" />
                     </Button>
+                  </div>
 	                </td>
               </tr>
             ))}

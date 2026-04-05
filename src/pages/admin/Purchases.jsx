@@ -990,26 +990,26 @@ export default function AdminPurchases() {
       </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Fornecedor</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Tipo de encomenda</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Descrição</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Status</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Total</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Fornecedor</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Tipo de encomenda</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Descrição</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Status</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Total</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>
             {visiblePurchases.map((p) => (
               <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
-                <td className="p-3 font-body text-xs text-muted-foreground">{new Date(p.purchased_at).toLocaleDateString('pt-PT')}</td>
-                <td className="p-3 font-body text-sm">
+                <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">{new Date(p.purchased_at).toLocaleDateString('pt-PT')}</td>
+                <td className="p-3 font-body text-sm whitespace-nowrap">
                   <div className="font-medium">{p.supplier?.name ?? '-'}</div>
                 </td>
-                <td className="p-3">
+                <td className="p-3 whitespace-nowrap">
                   {(() => {
                     const kind = getPurchaseKindLabel(p);
                     return kind ? (
@@ -1019,7 +1019,7 @@ export default function AdminPurchases() {
                     );
                   })()}
                 </td>
-                <td className="p-3 font-body text-sm">
+                <td className="p-3 font-body text-sm whitespace-nowrap">
                   <div className="flex items-start gap-3 min-w-0">
                     <div className="w-12 h-12 shrink-0 border border-border bg-secondary/20 rounded-md overflow-hidden">
                       <ImageWithFallback
@@ -1046,13 +1046,13 @@ export default function AdminPurchases() {
                     </div>
                   </div>
                 </td>
-                <td className="p-3">
+                <td className="p-3 whitespace-nowrap">
                   <Badge className={`${statusColors[p.status] ?? 'bg-secondary text-foreground'} text-[10px]`}>
                     {statusLabels[p.status] ?? p.status}
                   </Badge>
                 </td>
-                <td className="p-3 font-body text-sm font-semibold">{(p.total ?? 0).toFixed(2)} €</td>
-                <td className="p-3 text-right">
+                <td className="p-3 font-body text-sm font-semibold whitespace-nowrap">{(p.total ?? 0).toFixed(2)} €</td>
+                <td className="p-3 text-right whitespace-nowrap">
                   <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Editar">
                     <Pencil className="w-4 h-4" />
                   </Button>
