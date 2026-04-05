@@ -917,7 +917,7 @@ export default function AdminPurchases() {
         }
       }
 
-      downloadExcelTable(`compras_${now}.xls`, { sheetName: 'Compras', title: 'Compras', headers, rows });
+      downloadExcelTable(`compras_${now}.csv`, { sheetName: 'Compras', title: 'Compras', headers, rows });
       toast.success('Excel exportado');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Não foi possível exportar.'));

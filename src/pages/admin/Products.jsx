@@ -415,7 +415,7 @@ export default function AdminProducts() {
         p.created_date ?? p.createdAt ?? '',
       ]);
 
-      downloadExcelTable(`produtos_${now}.xls`, { sheetName: 'Produtos', title: 'Produtos', headers, rows });
+      downloadExcelTable(`produtos_${now}.csv`, { sheetName: 'Produtos', title: 'Produtos', headers, rows });
       toast.success('Excel exportado');
     } catch (err) {
       toast.error(getErrorMessage(err, 'Não foi possível exportar.'));
