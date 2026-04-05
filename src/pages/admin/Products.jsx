@@ -455,14 +455,6 @@ export default function AdminProducts() {
           <Button
             variant="outline"
             className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
-            onClick={() => exportAll('csv')}
-            disabled={!!exporting}
-          >
-            <Download className="w-4 h-4" /> CSV
-          </Button>
-          <Button
-            variant="outline"
-            className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
             onClick={() => exportAll('json')}
             disabled={!!exporting}
           >
