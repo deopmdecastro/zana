@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Pencil, Search, Package, Ban, CircleCheckBig } from 'lucide-react';
+import { Plus, Pencil, Search, Package, Ban, CircleCheckBig, Download } from 'lucide-react';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
 import {
   AlertDialog,
@@ -32,6 +32,7 @@ import DeleteIcon from '@/components/ui/delete-icon';
 import SearchableSelect from '@/components/ui/searchable-select';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import { downloadExcelTable, downloadJson } from '@/lib/adminExport';
 
 const emptyProduct = {
   name: '', description: '', price: '', acquisition_cost: '', original_price: '', category: 'colares',
@@ -45,6 +46,7 @@ export default function AdminProducts() {
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
+  const [exporting, setExporting] = useState('');
   const [form, setForm] = useState(emptyProduct);
   const [nameChoice, setNameChoice] = useState('');
   const [search, setSearch] = useState('');
@@ -369,6 +371,59 @@ export default function AdminProducts() {
     return current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
   };
 
+  const exportAll = async (format) => {
+    if (exporting) return;
+    setExporting(format);
+    try {
+      const now = new Date().toISOString().slice(0, 10);
+      const list = await base44.entities.Product.list('-created_date', 500);
+      const productsAll = Array.isArray(list) ? list : [];
+
+      if (format === 'json') {
+        downloadJson(`produtos_${now}.json`, productsAll);
+        toast.success('JSON exportado');
+        return;
+      }
+
+      const fmtMoney = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toFixed(2) : '';
+      };
+
+      const headers = [
+        'ID',
+        'Nome',
+        'Categoria',
+        'Material',
+        'Preço',
+        'Custo Aquisição',
+        'Preço Original',
+        'Stock',
+        'Estado',
+        'Criado em',
+      ];
+      const rows = productsAll.map((p) => [
+        p.id ?? '',
+        p.name ?? '',
+        p.category ?? '',
+        p.material ?? '',
+        fmtMoney(p.price),
+        fmtMoney(p.acquisition_cost ?? p.acquisitionCost),
+        fmtMoney(p.original_price ?? p.originalPrice),
+        p.stock ?? 0,
+        p.status ?? '',
+        p.created_date ?? p.createdAt ?? '',
+      ]);
+
+      downloadExcelTable(`produtos_${now}.xls`, { sheetName: 'Produtos', title: 'Produtos', headers, rows });
+      toast.success('Excel exportado');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Não foi possível exportar.'));
+    } finally {
+      setExporting('');
+    }
+  };
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
@@ -376,6 +431,22 @@ export default function AdminProducts() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto sm:justify-end">
           <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" /> Novo Produto
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+            onClick={() => exportAll('excel')}
+            disabled={!!exporting}
+          >
+            <Download className="w-4 h-4" /> Excel
+          </Button>
+          <Button
+            variant="outline"
+            className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+            onClick={() => exportAll('json')}
+            disabled={!!exporting}
+          >
+            <Download className="w-4 h-4" /> JSON
           </Button>
         </div>
       </div>

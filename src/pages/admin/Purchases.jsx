@@ -12,12 +12,13 @@ import SearchableSelect from '@/components/ui/searchable-select';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
-import { Plus, Pencil, CheckCircle, Code, RotateCcw, Trash2, ShoppingBasket, Package, Truck, List } from 'lucide-react';
+import { Plus, Pencil, CheckCircle, Code, RotateCcw, Trash2, ShoppingBasket, Package, Truck, List, Download } from 'lucide-react';
 import { getPrimaryImage } from '@/lib/images';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
 import ImageWithFallback from '@/components/ui/image-with-fallback';
+import { downloadExcelTable, downloadJson } from '@/lib/adminExport';
 
 function safeJson(value) {
   if (value === null || value === undefined) return null;
@@ -131,6 +132,7 @@ export default function AdminPurchases() {
   const [writeoffReason, setWriteoffReason] = useState('');
   const [writeoffLines, setWriteoffLines] = useState([]);
   const [limit, setLimit] = useState(50);
+  const [exporting, setExporting] = useState('');
 
   const effectiveView = String(view ?? 'todos').trim().toLowerCase();
   const fixedPurchaseKind =
@@ -845,6 +847,85 @@ export default function AdminPurchases() {
     writeoffMutation.mutate({ id: editing.id, payload: { reason, items } });
   };
 
+  const exportAll = async (format) => {
+    if (exporting) return;
+    setExporting(format);
+    try {
+      const now = new Date().toISOString().slice(0, 10);
+      const list = await base44.entities.Purchase.list('-purchased_at', 500);
+      const purchasesAll = Array.isArray(list) ? list : [];
+
+      if (format === 'json') {
+        downloadJson(`compras_${now}.json`, purchasesAll);
+        toast.success('JSON exportado');
+        return;
+      }
+
+      const fmtMoney = (value) => {
+        const n = Number(value);
+        return Number.isFinite(n) ? n.toFixed(2) : '';
+      };
+
+      const headers = [
+        'Compra ID',
+        'Data',
+        'Estado',
+        'Tipo',
+        'Fornecedor',
+        'Ref.',
+        'Total',
+        'Produto ID',
+        'Produto',
+        'Custo Unit.',
+        'Qtd.',
+      ];
+
+      const rows = [];
+      for (const p of purchasesAll) {
+        const items = Array.isArray(p?.items) ? p.items : [];
+        if (items.length === 0) {
+          rows.push([
+            p.id ?? '',
+            p.purchased_at ?? '',
+            p.status ?? '',
+            p.kind ?? '',
+            p.supplier_name ?? p.supplier?.name ?? '',
+            p.reference ?? '',
+            fmtMoney(p.total),
+            '',
+            '',
+            '',
+            '',
+          ]);
+          continue;
+        }
+
+        for (const it of items) {
+          rows.push([
+            p.id ?? '',
+            p.purchased_at ?? '',
+            p.status ?? '',
+            p.kind ?? '',
+            p.supplier_name ?? p.supplier?.name ?? '',
+            p.reference ?? '',
+            fmtMoney(p.total),
+            it.product_id ?? it.productId ?? '',
+            it.product_name ?? it.productName ?? '',
+            fmtMoney(it.unit_cost ?? it.unitCost),
+            it.quantity ?? '',
+          ]);
+        }
+      }
+
+      downloadExcelTable(`compras_${now}.xls`, { sheetName: 'Compras', title: 'Compras', headers, rows });
+      toast.success('Excel exportado');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Não foi possível exportar.'));
+    } finally {
+      setExporting('');
+    }
+  };
+
   return (
 	    <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
@@ -862,8 +943,24 @@ export default function AdminPurchases() {
 	          <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
 	            <Plus className="w-4 h-4" /> Nova
 	          </Button>
+	          <Button
+              variant="outline"
+              className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+              onClick={() => exportAll('excel')}
+              disabled={!!exporting}
+            >
+              <Download className="w-4 h-4" /> Exportar Excel
+            </Button>
+	          <Button
+              variant="outline"
+              className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
+              onClick={() => exportAll('json')}
+              disabled={!!exporting}
+            >
+              <Download className="w-4 h-4" /> Exportar JSON
+            </Button>
 	          <Button onClick={openJson} variant="outline" className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
-	            <Code className="w-4 h-4" /> JSON
+	            <Code className="w-4 h-4" /> Importar JSON
 	          </Button>
 	        </div>
 	      </div>
