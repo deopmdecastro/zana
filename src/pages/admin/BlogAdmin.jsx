@@ -15,11 +15,13 @@ import ImageUpload from '@/components/uploads/ImageUpload';
 import EmptyState from '@/components/ui/empty-state';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/toast';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 const emptyPost = { title: '', content: '', excerpt: '', image_url: '', category: 'novidades', status: 'draft' };
 
 export default function BlogAdmin() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPost);
@@ -127,8 +129,15 @@ export default function BlogAdmin() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => {
-                  if (!window.confirm('Tem certeza que deseja remover?')) return;
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: 'Remover artigo?',
+                    description: 'Tem certeza que deseja remover este artigo?',
+                    confirmText: 'Remover',
+                    cancelText: 'Cancelar',
+                    destructive: true,
+                  });
+                  if (!ok) return;
                   if (deleteMutation.isPending) return;
                   deleteMutation.mutate(post.id);
                 }}

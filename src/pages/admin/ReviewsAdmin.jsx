@@ -11,9 +11,11 @@ import { MessageSquare } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import { getPrimaryImage } from '@/lib/images';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function AdminReviews() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [approved, setApproved] = useState('false');
   const [selected, setSelected] = useState(null);
   const [limit, setLimit] = useState(50);
@@ -111,8 +113,15 @@ export default function AdminReviews() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      if (!window.confirm('Tem certeza que deseja remover?')) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Remover avaliação?',
+                        description: 'Tem certeza que deseja remover esta avaliação/comentário?',
+                        confirmText: 'Remover',
+                        cancelText: 'Cancelar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       deleteMutation.mutate(r.id);
                     }}
                     title="Remover"

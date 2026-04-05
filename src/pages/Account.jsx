@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useConfirm } from '@/components/ui/confirm-provider';
 import Auth from './Auth';
 import { useAuth } from '@/lib/AuthContext';
 import { useCart } from '@/lib/CartContext';
@@ -27,6 +28,7 @@ function normalizeFormValue(value) {
 export default function Account() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const { logout } = useAuth();
 
   const { data: user, isLoading } = useQuery({
@@ -531,8 +533,15 @@ export default function Account() {
                   <Button
                     variant="destructive"
                     className="rounded-none font-body text-xs"
-                    onClick={() => {
-                      if (!window.confirm('Remover este endereço?')) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Remover endereço?',
+                        description: 'Tem certeza que deseja remover este endereço?',
+                        confirmText: 'Remover',
+                        cancelText: 'Cancelar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       deleteAddressMutation.mutate(a.id);
                     }}
                     disabled={deleteAddressMutation.isPending}

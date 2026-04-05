@@ -11,9 +11,11 @@ import { getErrorMessage } from '@/lib/toast';
 import { MessageSquare } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 export default function BlogCommentsAdmin() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [approved, setApproved] = useState('false');
   const [selected, setSelected] = useState(null);
   const [reply, setReply] = useState('');
@@ -124,8 +126,15 @@ export default function BlogCommentsAdmin() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      if (!window.confirm('Tem certeza que deseja remover?')) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Remover comentário?',
+                        description: 'Tem certeza que deseja remover este comentário?',
+                        confirmText: 'Remover',
+                        cancelText: 'Cancelar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       deleteMutation.mutate(c.id);
                     }}
                     title="Remover"

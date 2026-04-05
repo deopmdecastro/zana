@@ -18,6 +18,7 @@ import {
   parseDate,
   targetPath,
 } from '@/lib/adminLogNotifications';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 function readStoredReadIds() {
   if (typeof window === 'undefined') return [];
@@ -32,6 +33,7 @@ function readStoredReadIds() {
 
 export default function NotificationsAdmin() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [limit, setLimit] = useState(50);
   const [filter, setFilter] = useState('unread'); // unread | all
   const [readIds, setReadIds] = useState(() => readStoredReadIds());
@@ -217,10 +219,16 @@ export default function NotificationsAdmin() {
                       <Button
                         variant="outline"
                         className="h-8 px-3 rounded-none font-body text-xs"
-                        onClick={() => {
+                        onClick={async () => {
                           const couponId = l?.entity_id;
                           if (!couponId) return;
-                          if (!window.confirm('Encerrar este cupom?')) return;
+                          const ok = await confirm({
+                            title: 'Encerrar cupom?',
+                            description: 'Tem certeza que deseja encerrar este cupom?',
+                            confirmText: 'Encerrar',
+                            cancelText: 'Cancelar',
+                          });
+                          if (!ok) return;
                           couponCloseMutation.mutate({ id: couponId });
                           if (id) markRead(id);
                         }}

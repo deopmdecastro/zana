@@ -13,11 +13,13 @@ import { Plus, Pencil, Instagram } from 'lucide-react';
 import ImageUpload from '@/components/uploads/ImageUpload';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 const emptyPost = { url: '', caption: '', cover_url: '', is_active: true };
 
 export default function InstagramAdmin() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(emptyPost);
@@ -121,8 +123,15 @@ export default function InstagramAdmin() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => {
-                      if (!window.confirm('Tem certeza que deseja remover?')) return;
+                    onClick={async () => {
+                      const ok = await confirm({
+                        title: 'Remover link?',
+                        description: 'Tem certeza que deseja remover este link do Instagram?',
+                        confirmText: 'Remover',
+                        cancelText: 'Cancelar',
+                        destructive: true,
+                      });
+                      if (!ok) return;
                       deleteMutation.mutate(p.id);
                     }}
                     title="Remover"

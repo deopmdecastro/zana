@@ -12,6 +12,7 @@ import { Code, Eye, Plus, Pencil, Truck } from 'lucide-react';
 import DeleteIcon from '@/components/ui/delete-icon';
 import LoadMoreControls from '@/components/ui/load-more-controls';
 import EmptyState from '@/components/ui/empty-state';
+import { useConfirm } from '@/components/ui/confirm-provider';
 
 const emptySupplier = { name: '', email: '', phone: '', link: '', address: '', notes: '' };
 
@@ -26,6 +27,7 @@ function safeJson(value) {
 
 export default function AdminSuppliers() {
   const queryClient = useQueryClient();
+  const confirm = useConfirm();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [jsonDialogOpen, setJsonDialogOpen] = useState(false);
   const [jsonSaving, setJsonSaving] = useState(false);
@@ -279,8 +281,15 @@ export default function AdminSuppliers() {
 		                  <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          if (!window.confirm('Tem certeza que deseja remover?')) return;
+                        onClick={async () => {
+                          const ok = await confirm({
+                            title: 'Remover fornecedor?',
+                            description: 'Tem certeza que deseja remover este fornecedor?',
+                            confirmText: 'Remover',
+                            cancelText: 'Cancelar',
+                            destructive: true,
+                          });
+                          if (!ok) return;
                           deleteMutation.mutate(s.id);
                         }}
                         title="Remover"
