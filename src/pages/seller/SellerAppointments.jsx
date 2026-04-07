@@ -107,12 +107,12 @@ export default function SellerAppointments() {
           <table className="w-full min-w-[980px]">
             <thead className="bg-secondary/30">
               <tr>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Data/hora</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Serviço</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Atendente</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-                <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data/hora</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Serviço</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Atendente</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Cliente</th>
+                <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+                <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody>

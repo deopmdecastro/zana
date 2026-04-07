@@ -142,16 +142,16 @@ export default function FAQAdmin() {
           </Select>
         </div>
 
-        <div className="bg-card rounded-lg border border-border overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Pergunta</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Contacto</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-                <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
-              </tr>
-            </thead>
+      <div className="bg-card rounded-lg border border-border overflow-x-auto">
+        <table className="w-full min-w-max">
+          <thead>
+            <tr className="border-b border-border bg-secondary/30">
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Pergunta</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Contacto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
+            </tr>
+          </thead>
             <tbody>
               {(isLoadingQuestions ? [] : questions).map((q) => (
                 <tr key={q.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
@@ -201,13 +201,13 @@ export default function FAQAdmin() {
       </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Ordem</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Pergunta</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ordem</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Pergunta</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ativo</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>

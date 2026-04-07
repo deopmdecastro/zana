@@ -512,24 +512,24 @@ export default function AdminFinance() {
               <EmptyState icon={Package} description="Sem dados" className="py-6" />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-max">
                   <thead>
                     <tr className="border-b border-border bg-secondary/30">
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Categoria</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Unidades</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Investido</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Valor Esperado</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Margem</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Categoria</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Unidades</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Investido</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Valor Esperado</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Margem</th>
                     </tr>
                   </thead>
                   <tbody>
                     {stats.byCategory.map((r) => (
                       <tr key={r.category} className="border-b border-border hover:bg-secondary/20">
-                        <td className="p-3 font-body text-sm capitalize">{r.category}</td>
-                        <td className="p-3 font-body text-sm text-right">{r.units}</td>
-                        <td className="p-3 font-body text-sm text-right">{r.invested.toFixed(2)} €</td>
-                        <td className="p-3 font-body text-sm text-right">{r.expected.toFixed(2)} €</td>
-                        <td className="p-3 font-body text-sm text-right">{(r.expected - r.invested).toFixed(2)} €</td>
+                        <td className="p-3 font-body text-sm capitalize whitespace-nowrap">{r.category}</td>
+                        <td className="p-3 font-body text-sm text-right whitespace-nowrap">{r.units}</td>
+                        <td className="p-3 font-body text-sm text-right whitespace-nowrap">{r.invested.toFixed(2)} €</td>
+                        <td className="p-3 font-body text-sm text-right whitespace-nowrap">{r.expected.toFixed(2)} €</td>
+                        <td className="p-3 font-body text-sm text-right whitespace-nowrap">{(r.expected - r.invested).toFixed(2)} €</td>
                       </tr>
                     ))}
                   </tbody>

@@ -53,11 +53,11 @@ export default function SellerProducts() {
         <table className="w-full min-w-[760px]">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Categoria</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Preço</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Stock</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Produto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Categoria</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Preço</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Stock</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
             </tr>
           </thead>
           <tbody>

@@ -91,13 +91,13 @@ export default function SellerCoupons() {
         <table className="w-full min-w-[920px] text-left text-sm">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Código</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Valor</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Usos</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Subtotal mín.</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Expira</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Descrição</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Código</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Valor</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Usos</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Subtotal mín.</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Expira</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ativo</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Descrição</th>
             </tr>
           </thead>
           <tbody>

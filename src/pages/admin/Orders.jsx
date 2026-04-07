@@ -528,15 +528,15 @@ export default function AdminOrders() {
         <table className="w-full min-w-[980px]">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Total</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Pagamento</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Origem</th>
-              {showSellerColumn ? <th className="text-left p-3 font-body text-xs text-muted-foreground">Vendedor</th> : null}
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Cliente</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Produto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Total</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Pagamento</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Origem</th>
+              {showSellerColumn ? <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Vendedor</th> : null}
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>

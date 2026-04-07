@@ -177,11 +177,11 @@ export default function AdminUsers() {
           <table className="w-full min-w-[860px]">
           <thead className="bg-secondary/30">
             <tr>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Email</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Telefone</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Registo</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Nome</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Email</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Telefone</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Registo</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>

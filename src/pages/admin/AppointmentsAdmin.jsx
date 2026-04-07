@@ -663,13 +663,13 @@ export default function AppointmentsAdmin() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-4 items-start">
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full min-w-max">
                   <thead>
                     <tr className="border-b border-border bg-secondary/30">
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Duração</th>
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Atendentes</th>
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Nome</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Duração</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Atendentes</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ativo</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -990,14 +990,14 @@ export default function AppointmentsAdmin() {
             <Separator className="my-5" />
 
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-max">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Email</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Telefone</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Disponibilidade</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Nome</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Email</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Telefone</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Disponibilidade</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ativo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1043,15 +1043,15 @@ export default function AppointmentsAdmin() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full min-w-max">
                 <thead>
                   <tr className="border-b border-border bg-secondary/30">
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Data/hora</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Serviço</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Atendente</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
-                    <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-                    <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data/hora</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Serviço</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Atendente</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Cliente</th>
+                    <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+                    <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
                   </tr>
                 </thead>
                 <tbody>

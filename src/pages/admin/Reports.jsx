@@ -442,11 +442,11 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
                 <table className="w-full min-w-[720px]">
                   <thead>
                     <tr className="border-b border-border bg-secondary/30">
-                      <th className="text-left p-3 font-body text-xs text-muted-foreground">Vendedor</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Vendas</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Receita</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Entregues</th>
-                      <th className="text-right p-3 font-body text-xs text-muted-foreground">Receita (entregue)</th>
+                      <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Vendedor</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Vendas</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Receita</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Entregues</th>
+                      <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Receita (entregue)</th>
                     </tr>
                   </thead>
                   <tbody>

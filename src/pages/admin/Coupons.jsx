@@ -165,14 +165,14 @@ export default function AdminCoupons() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-max text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Código</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Valor</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Usos</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Expira</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Ativo</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Código</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Valor</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Usos</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Expira</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ativo</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,15 +185,15 @@ export default function AdminCoupons() {
                 ) : (
                   coupons.map((coupon) => (
                     <tr key={coupon.id} className="border-b border-border hover:bg-secondary/20">
-                      <td className="p-3 font-body text-sm">{coupon.code}</td>
-                      <td className="p-3 font-body text-sm">
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{coupon.code}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">
                         {coupon.type === 'percent' ? `${coupon.value}%` : `${moneyPt(coupon.value)} €`}
                       </td>
-                      <td className="p-3 font-body text-sm">
+                      <td className="p-3 font-body text-sm whitespace-nowrap">
                         {coupon.used_count}/{coupon.max_uses ?? '∞'}
                       </td>
-                      <td className="p-3 font-body text-sm">{formatDatePt(coupon.expires_at)}</td>
-                      <td className="p-3 font-body text-sm">{coupon.is_active ? 'Sim' : 'Não'}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{formatDatePt(coupon.expires_at)}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{coupon.is_active ? 'Sim' : 'Não'}</td>
                     </tr>
                   ))
                 )}

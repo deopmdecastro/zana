@@ -143,14 +143,14 @@ export default function BackupPanel({ showTitle = true } = {}) {
           </Button>
         </div>
 
-        <div className="border border-border rounded-lg overflow-hidden">
-          <table className="w-full">
+        <div className="border border-border rounded-lg overflow-x-auto">
+          <table className="w-full min-w-max">
             <thead className="bg-secondary/20">
               <tr>
-                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide">Data</th>
-                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide">Tipo</th>
-                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide">Detalhes</th>
-                <th className="text-right p-3 text-xs font-body text-muted-foreground uppercase tracking-wide">Ações</th>
+                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide whitespace-nowrap">Data</th>
+                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide whitespace-nowrap">Tipo</th>
+                <th className="text-left p-3 text-xs font-body text-muted-foreground uppercase tracking-wide whitespace-nowrap">Detalhes</th>
+                <th className="text-right p-3 text-xs font-body text-muted-foreground uppercase tracking-wide whitespace-nowrap">Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -171,13 +171,13 @@ export default function BackupPanel({ showTitle = true } = {}) {
                     .filter(Boolean)
                     .join(' • ');
 
-                  return (
-                    <tr key={b.id} className="border-t border-border">
-                      <td className="p-3 font-body text-sm">{dateText}</td>
-                      <td className="p-3 font-body text-sm">{b.type === 'purge' ? 'Limpeza' : String(b.type ?? '-')}</td>
-                      <td className="p-3 font-body text-sm text-muted-foreground">{details || '-'}</td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-end gap-2">
+                   return (
+                     <tr key={b.id} className="border-t border-border">
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{dateText}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{b.type === 'purge' ? 'Limpeza' : String(b.type ?? '-')}</td>
+                      <td className="p-3 font-body text-sm text-muted-foreground whitespace-nowrap">{details || '-'}</td>
+                      <td className="p-3 whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-2 whitespace-nowrap">
                           <Button
                             type="button"
                             variant="outline"

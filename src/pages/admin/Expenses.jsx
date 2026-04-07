@@ -198,12 +198,12 @@ export default function ExpensesAdmin() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Categoria</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Fornecedor</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Descrição</th>
-                  <th className="text-right p-3 font-body text-xs text-muted-foreground">Valor</th>
-                  <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Categoria</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Fornecedor</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Descrição</th>
+                  <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Valor</th>
+                  <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
                 </tr>
               </thead>
               <tbody>

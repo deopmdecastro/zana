@@ -72,18 +72,18 @@ export default function AdminInventory() {
       {isLoading ? (
         <EmptyState icon={PackageSearch} description="A carregar..." className="py-10" />
       ) : (
-        <div>
-          <div className="bg-card rounded-lg border border-border overflow-x-auto">
-            <table className="w-full">
-            <thead>
-              <tr className="border-b border-border bg-secondary/30">
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Stock</th>
-                <th className="text-left p-3 font-body text-xs text-muted-foreground">Último movimento</th>
-                <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div>
+            <div className="bg-card rounded-lg border border-border overflow-x-auto">
+              <table className="w-full min-w-max">
+              <thead>
+                <tr className="border-b border-border bg-secondary/30">
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Produto</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Stock</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Último movimento</th>
+                  <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
+                </tr>
+              </thead>
+              <tbody>
               {products.map((p) => (
                 <tr key={p.id} className="border-b border-border last:border-0 hover:bg-secondary/20">
                   <td className="p-3 font-body text-sm font-medium">
@@ -104,12 +104,12 @@ export default function AdminInventory() {
                       {p.stock ?? 0}
                     </Badge>
                   </td>
-                  <td className="p-3 font-body text-xs text-muted-foreground">
+                  <td className="p-3 font-body text-xs text-muted-foreground whitespace-nowrap">
                     {p.last_movement
                       ? `${p.last_movement.type} ${p.last_movement.delta > 0 ? '+' : ''}${p.last_movement.delta} (${new Date(p.last_movement.created_date).toLocaleDateString('pt-PT')})`
                       : '-'}
                   </td>
-                  <td className="p-3 text-right">
+                  <td className="p-3 text-right whitespace-nowrap">
                     <Button variant="outline" onClick={() => openAdjust(p)} className="rounded-none font-body text-xs">
                       Ajustar
                     </Button>

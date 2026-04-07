@@ -75,14 +75,14 @@ export default function AdminReviews() {
       </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Produto</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Rating</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Autor</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Produto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Rating</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Autor</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>

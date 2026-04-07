@@ -158,14 +158,14 @@ export default function AdminSalesTargets() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-max text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Meta</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Objetivo</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Concluído</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Progresso</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Status</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Meta</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Objetivo</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Concluído</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Progresso</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -178,11 +178,11 @@ export default function AdminSalesTargets() {
                 ) : (
                   salesTargets.map((target) => (
                     <tr key={target.id} className="border-b border-border hover:bg-secondary/20">
-                      <td className="p-3 font-body text-sm">{target.name}</td>
-                      <td className="p-3 font-body text-sm">{moneyPt(target.goal_amount)} €</td>
-                      <td className="p-3 font-body text-sm">{moneyPt(target.achieved_amount ?? 0)} €</td>
-                      <td className="p-3 font-body text-sm">{target.progress != null ? `${target.progress.toFixed(2)}%` : '0.00%'}</td>
-                      <td className="p-3 font-body text-sm">{target.is_active ? 'Ativa' : 'Inativa'}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{target.name}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{moneyPt(target.goal_amount)} €</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{moneyPt(target.achieved_amount ?? 0)} €</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{target.progress != null ? `${target.progress.toFixed(2)}%` : '0.00%'}</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{target.is_active ? 'Ativa' : 'Inativa'}</td>
                     </tr>
                   ))
                 )}

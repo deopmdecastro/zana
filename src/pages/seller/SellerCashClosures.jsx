@@ -174,13 +174,13 @@ export default function SellerCashClosures() {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full min-w-max text-left text-sm">
               <thead>
                 <tr className="border-b border-border bg-secondary/30">
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Período</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Saldo inicial</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Saldo final</th>
-                  <th className="text-left p-3 font-body text-xs text-muted-foreground">Vendas</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Período</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Saldo inicial</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Saldo final</th>
+                  <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Vendas</th>
                 </tr>
               </thead>
               <tbody>
@@ -193,12 +193,12 @@ export default function SellerCashClosures() {
                 ) : (
                   cashClosures.map((closure) => (
                     <tr key={closure.id} className="border-b border-border hover:bg-secondary/20">
-                      <td className="p-3 font-body text-sm">
+                      <td className="p-3 font-body text-sm whitespace-nowrap">
                         {formatDatePt(closure.started_at)} – {formatDatePt(closure.ended_at)}
                       </td>
-                      <td className="p-3 font-body text-sm">{moneyPt(closure.opening_balance)} €</td>
-                      <td className="p-3 font-body text-sm">{moneyPt(closure.closing_balance)} €</td>
-                      <td className="p-3 font-body text-sm">
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{moneyPt(closure.opening_balance)} €</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">{moneyPt(closure.closing_balance)} €</td>
+                      <td className="p-3 font-body text-sm whitespace-nowrap">
                         {closure.total_sales != null ? `${moneyPt(closure.total_sales)} €` : '—'}
                       </td>
                     </tr>

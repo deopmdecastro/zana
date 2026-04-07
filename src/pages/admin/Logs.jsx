@@ -330,13 +330,13 @@ export default function AdminLogs() {
         <table className="w-full min-w-[980px]">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Ator</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Ação</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Entidade</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Código</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Detalhes</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ver</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ator</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ação</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Entidade</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Código</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Detalhes</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ver</th>
             </tr>
           </thead>
           <tbody>

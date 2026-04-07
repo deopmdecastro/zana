@@ -230,13 +230,13 @@ export default function AdminSuppliers() {
       </div>
 
       <div className="bg-card rounded-lg border border-border overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full min-w-max">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Nome</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Contacto</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Link</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Nome</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Contacto</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Link</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>

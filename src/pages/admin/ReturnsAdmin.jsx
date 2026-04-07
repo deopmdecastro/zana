@@ -165,11 +165,11 @@ export default function ReturnsAdmin() {
         <table className="w-full min-w-[860px]">
           <thead>
             <tr className="border-b border-border bg-secondary/30">
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Data</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Encomenda</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Cliente</th>
-              <th className="text-left p-3 font-body text-xs text-muted-foreground">Estado</th>
-              <th className="text-right p-3 font-body text-xs text-muted-foreground">Ações</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Data</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Encomenda</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Cliente</th>
+              <th className="text-left p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Estado</th>
+              <th className="text-right p-3 font-body text-xs text-muted-foreground whitespace-nowrap">Ações</th>
             </tr>
           </thead>
           <tbody>
