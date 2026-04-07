@@ -185,9 +185,9 @@ export default function ExpensesAdmin() {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
-        <h1 className="font-heading text-3xl">Despesas</h1>
-        <Button className="rounded-none font-body text-sm gap-2" onClick={openCreate}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Despesas</h1>
+        <Button className="rounded-none font-body text-sm gap-2 w-full sm:w-auto" onClick={openCreate}>
           <Plus className="w-4 h-4" /> Nova despesa
         </Button>
       </div>

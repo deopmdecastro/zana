@@ -60,10 +60,10 @@ export default function AdminReviews() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Comentários & Avaliações</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Comentários & Avaliações</h1>
         <Select value={approved} onValueChange={setApproved}>
-          <SelectTrigger className="w-56 rounded-none">
+          <SelectTrigger className="w-full sm:w-56 rounded-none">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

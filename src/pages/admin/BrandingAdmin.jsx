@@ -68,11 +68,11 @@ export default function BrandingAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h2 className="font-heading text-2xl flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="font-heading text-2xl flex items-center gap-2 w-full">
           <Image className="w-5 h-5" /> Branding
         </h2>
-        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading}>
+        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto" disabled={isLoading}>
           Guardar
         </Button>
       </div>

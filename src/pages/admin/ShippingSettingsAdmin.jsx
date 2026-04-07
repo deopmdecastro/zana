@@ -110,14 +110,14 @@ export default function ShippingSettingsAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h2 className="font-heading text-2xl">Métodos de envio</h2>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={addMethod} className="rounded-none font-body text-sm gap-2" disabled={isLoading}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="font-heading text-2xl w-full">Métodos de envio</h2>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={addMethod} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto" disabled={isLoading}>
             <Plus className="w-4 h-4" />
             Adicionar
           </Button>
-          <Button onClick={save} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading}>
+          <Button onClick={save} className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto" disabled={isLoading}>
             Guardar
           </Button>
         </div>

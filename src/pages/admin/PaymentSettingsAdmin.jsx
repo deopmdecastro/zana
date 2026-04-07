@@ -104,9 +104,9 @@ export default function PaymentSettingsAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h2 className="font-heading text-2xl">Métodos de pagamento</h2>
-        <Button onClick={save} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="font-heading text-2xl w-full">Métodos de pagamento</h2>
+        <Button onClick={save} className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto" disabled={isLoading}>
           Guardar
         </Button>
       </div>
@@ -280,4 +280,3 @@ export default function PaymentSettingsAdmin() {
     </div>
   );
 }
-

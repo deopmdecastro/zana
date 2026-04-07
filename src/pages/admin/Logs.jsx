@@ -213,11 +213,11 @@ export default function AdminLogs() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Logs</h1>
-        <div className="flex gap-2 items-center flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Logs</h1>
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center w-full sm:w-auto">
           {entities.length > 10 ? (
-            <div className="w-44">
+            <div className="w-full sm:w-44">
               <SearchableSelect
                 value={entityFilter}
                 onChange={setEntityFilter}
@@ -229,7 +229,7 @@ export default function AdminLogs() {
             </div>
           ) : (
             <Select value={entityFilter} onValueChange={setEntityFilter}>
-              <SelectTrigger className="w-44 rounded-none">
+              <SelectTrigger className="w-full sm:w-44 rounded-none">
                 <SelectValue placeholder="Entidade" />
               </SelectTrigger>
               <SelectContent>
@@ -243,7 +243,7 @@ export default function AdminLogs() {
             </Select>
           )}
           <Select value={actionFilter} onValueChange={setActionFilter}>
-            <SelectTrigger className="w-36 rounded-none">
+            <SelectTrigger className="w-full sm:w-36 rounded-none">
               <SelectValue placeholder="Ação" />
             </SelectTrigger>
             <SelectContent>
@@ -253,7 +253,7 @@ export default function AdminLogs() {
               <SelectItem value="delete">delete</SelectItem>
             </SelectContent>
           </Select>
-          <div className="relative w-72 max-w-full">
+          <div className="relative w-full sm:w-72 max-w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Pesquisar (ator, entidade, id, detalhes)..."

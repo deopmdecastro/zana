@@ -154,9 +154,9 @@ export default function ReturnsAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Devoluções</h1>
-        <div className="font-body text-xs text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Devoluções</h1>
+        <div className="font-body text-xs text-muted-foreground w-full sm:w-auto">
           {Array.isArray(sorted) ? sorted.length : 0} pedidos
         </div>
       </div>

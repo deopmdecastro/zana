@@ -501,15 +501,15 @@ export default function AdminOrders() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-        <h1 className="font-heading text-3xl">Encomendas</h1>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button onClick={openSale} className="rounded-none font-body text-sm gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Encomendas</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+          <Button onClick={openSale} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
             <Plus className="w-4 h-4" />
             Nova venda
           </Button>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-44 rounded-none">
+            <SelectTrigger className="w-full sm:w-44 rounded-none">
               <SelectValue placeholder="Estado" />
             </SelectTrigger>
             <SelectContent>

@@ -110,11 +110,15 @@ export default function ProductOptionsAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h2 className="font-heading text-2xl flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="font-heading text-2xl flex items-center gap-2 w-full">
           <Boxes className="w-5 h-5" /> Catálogo
         </h2>
-        <Button onClick={save} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading || saveMutation.isPending}>
+        <Button
+          onClick={save}
+          className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto"
+          disabled={isLoading || saveMutation.isPending}
+        >
           Guardar
         </Button>
       </div>

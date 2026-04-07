@@ -213,9 +213,9 @@ export default function LandingAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h2 className="font-heading text-2xl">Landing page</h2>
-        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h2 className="font-heading text-2xl w-full">Landing page</h2>
+        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto" disabled={isLoading}>
           Guardar
         </Button>
       </div>

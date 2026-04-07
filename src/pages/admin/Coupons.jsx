@@ -88,9 +88,9 @@ export default function AdminCoupons() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
-        <h1 className="font-heading text-3xl">{title}</h1>
-        <Button variant="outline" className="rounded-none font-body text-sm gap-2" onClick={exportCsv}>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">{title}</h1>
+        <Button variant="outline" className="rounded-none font-body text-sm gap-2 w-full sm:w-auto" onClick={exportCsv}>
           <Download className="w-4 h-4" /> Exportar CSV
         </Button>
       </div>

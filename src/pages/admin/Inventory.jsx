@@ -62,9 +62,9 @@ export default function AdminInventory() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Inventário</h1>
-        <div className="font-body text-xs text-muted-foreground">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Inventário</h1>
+        <div className="font-body text-xs text-muted-foreground w-full sm:w-auto">
           Baixo stock: <span className="font-semibold text-foreground">{lowStock.length}</span>
         </div>
       </div>

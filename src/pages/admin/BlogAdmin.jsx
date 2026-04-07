@@ -82,9 +82,11 @@ export default function BlogAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-heading text-3xl">Blog</h1>
-        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2"><Plus className="w-4 h-4" /> Novo Artigo</Button>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Blog</h1>
+        <Button onClick={openCreate} className="rounded-none font-body text-sm gap-2 w-full sm:w-auto">
+          <Plus className="w-4 h-4" /> Novo Artigo
+        </Button>
       </div>
 
       <div className="space-y-3">

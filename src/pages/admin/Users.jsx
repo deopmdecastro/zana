@@ -145,22 +145,22 @@ export default function AdminUsers() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <div>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+        <div className="w-full">
           <h1 className="font-heading text-3xl">Usuários</h1>
           <p className="font-body text-xs text-muted-foreground mt-1">Contas de staff (admin e vendedor).</p>
         </div>
-        <div className="flex items-center gap-2 flex-wrap justify-end">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto sm:justify-end">
           <Button
             type="button"
-            className="rounded-none font-body text-sm gap-2"
+            className="rounded-none font-body text-sm gap-2 w-full sm:w-auto"
             onClick={() => setCreateOpen(true)}
             title="Criar novo usuário (staff)"
           >
             <Plus className="w-4 h-4" />
             Novo
           </Button>
-          <div className="relative w-72 max-w-full">
+          <div className="relative w-full sm:w-72 max-w-full">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Pesquisar por nome, email, telefone..."

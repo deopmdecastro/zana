@@ -121,9 +121,9 @@ export default function AboutAdmin() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
-        <h1 className="font-heading text-3xl">Sobre Nós</h1>
-        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider" disabled={isLoading}>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">Sobre Nós</h1>
+        <Button onClick={handleSave} className="rounded-none font-body text-sm tracking-wider w-full sm:w-auto" disabled={isLoading}>
           Guardar
         </Button>
       </div>
@@ -244,4 +244,3 @@ export default function AboutAdmin() {
     </div>
   );
 }
-

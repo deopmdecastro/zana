@@ -395,9 +395,9 @@ export default function AdminReports({ title = 'Relatórios' } = {}) {
 
   return (
     <div>
-      <div className="flex items-start justify-between gap-3 flex-wrap mb-6">
-        <h1 className="font-heading text-3xl">{title}</h1>
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
+        <h1 className="font-heading text-3xl w-full">{title}</h1>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           <Button variant="outline" className="rounded-none font-body text-sm gap-2" onClick={exportExcel}>
             <Download className="w-4 h-4" /> Excel
           </Button>
