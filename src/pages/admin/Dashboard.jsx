@@ -86,6 +86,12 @@ export default function Dashboard() {
     value: orders.filter((o) => o.status === status).length,
     fill: STATUS_META[status]?.color ?? 'hsl(var(--chart-1))',
   }));
+  const hasStatusValues = statusData.some((d) => (Number(d.value) || 0) > 0);
+
+  const xAxisHeight = isTinyChart ? 108 : isNarrowChart ? 64 : 46;
+  const xAxisAngle = isTinyChart ? -60 : isNarrowChart ? -30 : 0;
+  const xAxisTickMargin = isTinyChart ? 20 : isNarrowChart ? 14 : 8;
+  const chartBottomMargin = isTinyChart ? 86 : isNarrowChart ? 46 : 10;
 
   const latestProducts = products.slice(0, 5);
 
@@ -118,61 +124,67 @@ export default function Dashboard() {
         <CardHeader>
           <CardTitle className="font-heading text-xl">Encomendas por Estado</CardTitle>
         </CardHeader>
-        <CardContent>          <div className="h-72 relative">
-            {orders.length === 0 ? (
-              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <EmptyState
-                  icon={BarChart3}
-                  description="Sem dados para mostrar."
-                  className="py-0"
-                  iconClassName="w-8 h-8"
-                />
-              </div>
-            ) : null}
+        <CardContent>
+          {orders.length === 0 ? (
+            <div className="h-72 flex items-center justify-center">
+              <EmptyState icon={BarChart3} description="Sem dados para mostrar." className="py-0" iconClassName="w-8 h-8" />
+            </div>
+          ) : (
+            <div className="h-72 relative">
+              {!hasStatusValues ? (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ paddingBottom: xAxisHeight }}>
+                  <EmptyState
+                    icon={BarChart3}
+                    description="Sem dados para mostrar."
+                    className="py-0"
+                    iconClassName="w-8 h-8"
+                  />
+                </div>
+              ) : null}
 
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={statusData}
-                margin={{ top: 18, right: 10, bottom: isTinyChart ? 72 : isNarrowChart ? 46 : 10, left: 0 }}
-                barCategoryGap={isNarrowChart ? 12 : 18}
-              >
-                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
-                <XAxis
-                  dataKey="key"
-                  tickLine={false}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isNarrowChart ? 10 : 12 }}
-                  interval={0}
-                  height={isTinyChart ? 92 : isNarrowChart ? 64 : 46}
-                  angle={isTinyChart ? -45 : isNarrowChart ? -30 : 0}
-                  textAnchor={isNarrowChart ? 'end' : 'middle'}
-                  tickMargin={isTinyChart ? 18 : isNarrowChart ? 14 : 8}
-                  tickFormatter={(statusKey) => {
-                    const k = String(statusKey ?? '');
-                    if (isNarrowChart) return STATUS_LABEL_SHORT[k] ?? STATUS_META[k]?.label ?? k;
-                    return STATUS_META[k]?.label ?? k;
-                  }}
-                />
-                <YAxis
-                  allowDecimals={false}
-                  tickLine={false}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isNarrowChart ? 10 : 12 }}
-                  width={isNarrowChart ? 26 : 28}
-                  domain={[0, (dataMax) => Math.max(1, Number(dataMax) || 0)]}
-                />
-                <Tooltip cursor={{ fill: 'hsl(var(--secondary) / 0.35)' }} content={<OrdersByStatusTooltip />} />
-                <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={isNarrowChart ? 40 : 56}>
-                  {statusData.some((d) => (Number(d.value) || 0) > 0) ? (
-                    <LabelList dataKey="value" position="top" className="font-body text-xs fill-foreground" />
-                  ) : null}
-                  {statusData.map((entry) => (
-                    <Cell key={entry.key} fill={entry.fill} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div></CardContent>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={statusData}
+                  margin={{ top: 18, right: 10, bottom: chartBottomMargin, left: 0 }}
+                  barCategoryGap={isNarrowChart ? 12 : 18}
+                >
+                  <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" vertical={false} />
+                  <XAxis
+                    dataKey="key"
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isTinyChart ? 9 : isNarrowChart ? 10 : 12 }}
+                    interval={0}
+                    height={xAxisHeight}
+                    angle={xAxisAngle}
+                    textAnchor={isNarrowChart ? 'end' : 'middle'}
+                    tickMargin={xAxisTickMargin}
+                    tickFormatter={(statusKey) => {
+                      const k = String(statusKey ?? '');
+                      if (isNarrowChart) return STATUS_LABEL_SHORT[k] ?? STATUS_META[k]?.label ?? k;
+                      return STATUS_META[k]?.label ?? k;
+                    }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tickLine={false}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: isNarrowChart ? 10 : 12 }}
+                    width={isNarrowChart ? 26 : 28}
+                    domain={[0, (dataMax) => Math.max(1, Number(dataMax) || 0)]}
+                  />
+                  <Tooltip cursor={{ fill: 'hsl(var(--secondary) / 0.35)' }} content={<OrdersByStatusTooltip />} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={isNarrowChart ? 40 : 56}>
+                    {hasStatusValues ? <LabelList dataKey="value" position="top" className="font-body text-xs fill-foreground" /> : null}
+                    {statusData.map((entry) => (
+                      <Cell key={entry.key} fill={entry.fill} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Card className="mt-6">
