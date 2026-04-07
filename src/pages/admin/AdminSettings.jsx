@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useConfirm } from '@/components/ui/confirm-provider';
 import { useAuth } from '@/lib/AuthContext';
 import { getErrorMessage, toastApiPromise } from '@/lib/toast';
 import { useLocation } from 'react-router-dom';
@@ -13,6 +14,7 @@ import { useLocation } from 'react-router-dom';
 export default function AdminSettings() {
   const { user, setAuthUser, logout } = useAuth();
   const location = useLocation();
+  const confirm = useConfirm();
 
   useEffect(() => {
     const hash = String(location.hash ?? '').replace('#', '').trim();
@@ -72,6 +74,16 @@ export default function AdminSettings() {
   const canPurge = String(purgePassword ?? '').length > 0 && String(purgeConfirm ?? '').trim().toUpperCase() === 'APAGAR';
 
   const doPurge = async () => {
+    const ok = await confirm({
+      title: 'Limpar base de dados?',
+      description:
+        'Esta ação remove dados do sistema e pode afetar o funcionamento da loja. Tem a certeza que deseja continuar?',
+      confirmText: 'Limpar',
+      cancelText: 'Cancelar',
+      destructive: true,
+    });
+    if (!ok) return;
+
     const payload = {
       confirm: String(purgeConfirm ?? '').trim(),
       current_password: String(purgePassword ?? ''),
