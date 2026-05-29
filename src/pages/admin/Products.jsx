@@ -522,12 +522,12 @@ export default function AdminProducts() {
                           {getProductStatusLabel(p.status)}
                         </Badge>
                         {hasReturned ? (
-                          <Badge className="rounded-none font-body text-[10px] bg-primary/10 text-primary">
+                          <Badge className="font-body text-[10px] bg-primary/10 text-primary">
                             Devolvido
                           </Badge>
                         ) : null}
                         {hasWriteoff ? (
-                          <Badge className="rounded-none font-body text-[10px] bg-destructive/10 text-destructive">
+                          <Badge className="font-body text-[10px] bg-destructive/10 text-destructive">
                             Removido
                           </Badge>
                         ) : null}

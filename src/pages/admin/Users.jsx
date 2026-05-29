@@ -192,10 +192,10 @@ export default function AdminUsers() {
                   <div className="flex items-center gap-2 min-w-0">
                     <span className="truncate">{user.email || '-'}</span>
                     {user.is_admin ? (
-                      <Badge className="bg-primary text-primary-foreground text-[10px] rounded-none shrink-0">Admin</Badge>
+                      <Badge className="bg-primary text-primary-foreground text-[10px] shrink-0">Admin</Badge>
                     ) : null}
                     {user.is_seller ? (
-                      <Badge className="bg-secondary text-foreground text-[10px] rounded-none shrink-0">Vendedor</Badge>
+                      <Badge className="bg-secondary text-foreground text-[10px] shrink-0">Vendedor</Badge>
                     ) : null}
                   </div>
                 </td>

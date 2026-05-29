@@ -450,8 +450,9 @@ export default function AppointmentsAdmin() {
             <div className="font-heading text-lg mb-1">Bloco “Marcações” (Home)</div>
             <div className="font-body text-sm text-muted-foreground mb-4">Texto e imagem do cartão mostrado quando não há marcações.</div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-              <div className="lg:col-span-5 space-y-3">
+            <div className="space-y-6">
+              {/* Imagem */}
+              <div>
                 <ImageUpload
                   label="Imagem do cartão (opcional)"
                   value={settingsForm.home_card_image_url}
@@ -463,10 +464,12 @@ export default function AppointmentsAdmin() {
                 />
               </div>
 
-              <div className="lg:col-span-7 space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label className="font-body text-xs">Título (cliente logado, sem marcações)</Label>
+              {/* Cliente logado */}
+              <div className="border-t border-border pt-6">
+                <div className="font-heading text-sm mb-4 text-foreground">Cliente logado (sem marcações)</div>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="font-body text-xs">Título</Label>
                     <Input
                       value={settingsForm.home_card_empty_title}
                       onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_empty_title: e.target.value }))}
@@ -474,8 +477,8 @@ export default function AppointmentsAdmin() {
                       placeholder="Sem marcações"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <Label className="font-body text-xs">Texto (cliente logado, sem marcações)</Label>
+                  <div>
+                    <Label className="font-body text-xs">Texto</Label>
                     <Textarea
                       value={settingsForm.home_card_empty_description}
                       onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_empty_description: e.target.value }))}
@@ -484,10 +487,14 @@ export default function AppointmentsAdmin() {
                     />
                   </div>
                 </div>
+              </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label className="font-body text-xs">Título (visitante / não logado)</Label>
+              {/* Visitante */}
+              <div className="border-t border-border pt-6">
+                <div className="font-heading text-sm mb-4 text-foreground">Visitante (não logado)</div>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="font-body text-xs">Título</Label>
                     <Input
                       value={settingsForm.home_card_logged_out_title}
                       onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_logged_out_title: e.target.value }))}
@@ -495,8 +502,8 @@ export default function AppointmentsAdmin() {
                       placeholder="Entre para ver as suas marcações"
                     />
                   </div>
-                  <div className="md:col-span-2">
-                    <Label className="font-body text-xs">Texto (visitante / não logado)</Label>
+                  <div>
+                    <Label className="font-body text-xs">Texto</Label>
                     <Textarea
                       value={settingsForm.home_card_logged_out_description}
                       onChange={(e) => setSettingsForm((p) => ({ ...p, home_card_logged_out_description: e.target.value }))}
@@ -505,24 +512,25 @@ export default function AppointmentsAdmin() {
                     />
                   </div>
                 </div>
+              </div>
 
-                <div className="flex items-end justify-end">
-                  <Button
-                    className="rounded-none font-body text-sm tracking-wider"
-                    disabled={settingsMutation.isPending}
-                    onClick={() => {
-                      settingsMutation.mutate({
-                        home_card_image_url: String(settingsForm.home_card_image_url ?? ''),
-                        home_card_empty_title: String(settingsForm.home_card_empty_title ?? ''),
-                        home_card_empty_description: String(settingsForm.home_card_empty_description ?? ''),
-                        home_card_logged_out_title: String(settingsForm.home_card_logged_out_title ?? ''),
-                        home_card_logged_out_description: String(settingsForm.home_card_logged_out_description ?? ''),
-                      });
-                    }}
-                  >
-                    {settingsMutation.isPending ? 'A guardar...' : 'Guardar conteúdo'}
-                  </Button>
-                </div>
+              {/* Botão */}
+              <div className="border-t border-border pt-6 flex justify-end">
+                <Button
+                  className="rounded-none font-body text-sm tracking-wider"
+                  disabled={settingsMutation.isPending}
+                  onClick={() => {
+                    settingsMutation.mutate({
+                      home_card_image_url: String(settingsForm.home_card_image_url ?? ''),
+                      home_card_empty_title: String(settingsForm.home_card_empty_title ?? ''),
+                      home_card_empty_description: String(settingsForm.home_card_empty_description ?? ''),
+                      home_card_logged_out_title: String(settingsForm.home_card_logged_out_title ?? ''),
+                      home_card_logged_out_description: String(settingsForm.home_card_logged_out_description ?? ''),
+                    });
+                  }}
+                >
+                  {settingsMutation.isPending ? 'A guardar...' : 'Guardar conteúdo'}
+                </Button>
               </div>
             </div>
           </div>

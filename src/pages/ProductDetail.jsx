@@ -298,7 +298,7 @@ export default function ProductDetail() {
                     <p className="font-body text-sm text-muted-foreground mb-2">Cores disponíveis</p>
                     <div className="flex flex-wrap gap-2">
                       {product.colors.map((c) => (
-                        <Badge key={c} className="rounded-none font-body text-[10px] bg-secondary text-foreground">
+                        <Badge key={c} className="font-body text-[10px] bg-secondary text-foreground">
                           {c}
                         </Badge>
                       ))}
@@ -311,7 +311,7 @@ export default function ProductDetail() {
                     <p className="font-body text-sm text-muted-foreground mb-2">Tamanhos</p>
                     <div className="flex flex-wrap gap-2">
                       {product.sizes.map((s) => (
-                        <Badge key={s} className="rounded-none font-body text-[10px] bg-secondary text-foreground">
+                        <Badge key={s} className="font-body text-[10px] bg-secondary text-foreground">
                           {s}
                         </Badge>
                       ))}

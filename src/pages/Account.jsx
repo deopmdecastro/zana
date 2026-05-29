@@ -510,7 +510,7 @@ export default function Account() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <div className="font-body text-sm font-semibold truncate">{a.label || 'Endereço'}</div>
                     {a.is_default ? (
-                      <Badge className="rounded-none font-body text-[10px] bg-primary/10 text-primary">Padrão</Badge>
+                      <Badge className="font-body text-[10px] bg-primary/10 text-primary">Padrão</Badge>
                     ) : null}
                   </div>
                   <div className="font-body text-xs text-muted-foreground mt-1">{formatAddress(a)}</div>

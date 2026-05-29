@@ -99,6 +99,14 @@ function getPurchasePreviewImage(purchase) {
   return pick(stockFirst) || pick(items);
 }
 
+function getKindBadgeClass(purchase) {
+  const kind = getPurchaseKindLabel(purchase);
+  if (kind === 'Stock') return 'bg-blue-100 text-blue-800';
+  if (kind === 'Consumíveis') return 'bg-amber-100 text-amber-800';
+  if (kind === 'Mista') return 'bg-purple-100 text-purple-800';
+  return 'bg-secondary text-foreground';
+}
+
 const emptyPurchase = {
   supplier_id: null,
   reference: '',
@@ -1025,7 +1033,7 @@ export default function AdminPurchases() {
                   {(() => {
                     const kind = getPurchaseKindLabel(p);
                     return kind ? (
-                      <Badge className="bg-secondary text-foreground text-[10px]">{kind}</Badge>
+                      <Badge className={`${getKindBadgeClass(p)} text-[10px]`}>{kind}</Badge>
                     ) : (
                       <span className="font-body text-xs text-muted-foreground">-</span>
                     );
@@ -1089,7 +1097,7 @@ export default function AdminPurchases() {
       />
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent aria-describedby={undefined} className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent aria-describedby={undefined} className="max-w-5xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-heading text-xl">{editing ? 'Editar' : 'Nova'} compra</DialogTitle>
 	          </DialogHeader>
