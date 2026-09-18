@@ -10461,6 +10461,22 @@ async function applyPurchaseToInventory({ purchaseId, actorId } = {}) {
   return { ok: true }
 }
 
+// Atomically decrements a product's stock inside a transaction, but only if enough
+// stock is currently available. Unlike "read stock, check, then write", this pushes
+// the `stock >= quantity` check into the SQL WHERE clause of the UPDATE itself, so
+// concurrent requests (e.g. two customers checking out the last unit at once) can't
+// both pass validation and oversell — Postgres serializes the row-level update.
+// Throws INSUFFICIENT_STOCK (caught by callers) if the guard fails.
+async function decrementStockAtomic(tx, productId, quantity) {
+  const result = await tx.product.updateMany({
+    where: { id: productId, stock: { gte: quantity } },
+    data: { stock: { decrement: quantity } },
+  })
+  if (result.count === 0) {
+    throw Object.assign(new Error('insufficient_stock'), { code: 'INSUFFICIENT_STOCK', productId })
+  }
+}
+
 async function applyOrderToInventory({ orderId, actorId, status } = {}) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -10494,18 +10510,10 @@ async function applyOrderToInventory({ orderId, actorId, status } = {}) {
     await prisma.$transaction(async (tx) => {
       for (const it of items) {
         if (!it.productId) continue
-        const p = await tx.product.findUnique({ where: { id: it.productId } })
+        const p = byId.get(it.productId)
         if (!p) continue
 
-        const nextStock = p.stock - it.quantity
-        if (nextStock < 0) {
-          throw Object.assign(new Error('insufficient_stock'), { code: 'INSUFFICIENT_STOCK' })
-        }
-
-        await tx.product.update({
-          where: { id: p.id },
-          data: { stock: nextStock },
-        })
+        await decrementStockAtomic(tx, it.productId, it.quantity)
 
         try {
           await tx.inventoryMovement.create({
@@ -10844,33 +10852,37 @@ app.post('/api/admin/purchases/:id/return', async (req, res) => {
     reason: reason || null,
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const r of requested) {
-      const productId = r.item.productId
-      if (!productId) continue
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const r of requested) {
+        const productId = r.item.productId
+        if (!productId) continue
 
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: { decrement: r.quantity } },
-      })
+        await decrementStockAtomic(tx, productId, r.quantity)
 
-      try {
-        await tx.inventoryMovement.create({
-          data: {
-            productId,
-            type: 'manual',
-            quantityChange: -r.quantity,
-            unitCost: r.item.unitCost,
-            purchaseId: purchase.id,
-            actorId: admin.id,
-            meta: { ...metaBase, purchase_item_id: r.item.id },
-          },
-        })
-      } catch (err) {
-        console.error('inventory movement create failed (purchase_return)', err)
+        try {
+          await tx.inventoryMovement.create({
+            data: {
+              productId,
+              type: 'manual',
+              quantityChange: -r.quantity,
+              unitCost: r.item.unitCost,
+              purchaseId: purchase.id,
+              actorId: admin.id,
+              meta: { ...metaBase, purchase_item_id: r.item.id },
+            },
+          })
+        } catch (err) {
+          console.error('inventory movement create failed (purchase_return)', err)
+        }
       }
+    })
+  } catch (err) {
+    if (err?.code === 'INSUFFICIENT_STOCK') {
+      return res.status(409).json({ error: 'insufficient_stock', product_id: err.productId })
     }
-  })
+    throw err
+  }
 
   await writeAuditLog({
     actorId: admin.id,
@@ -10975,33 +10987,37 @@ app.post('/api/admin/purchases/:id/writeoff', async (req, res) => {
     reason_kind: reasonKind || null,
   }
 
-  await prisma.$transaction(async (tx) => {
-    for (const r of requested) {
-      const productId = r.item.productId
-      if (!productId) continue
+  try {
+    await prisma.$transaction(async (tx) => {
+      for (const r of requested) {
+        const productId = r.item.productId
+        if (!productId) continue
 
-      await tx.product.update({
-        where: { id: productId },
-        data: { stock: { decrement: r.quantity } },
-      })
+        await decrementStockAtomic(tx, productId, r.quantity)
 
-      try {
-        await tx.inventoryMovement.create({
-          data: {
-            productId,
-            type: 'manual',
-            quantityChange: -r.quantity,
-            unitCost: r.item.unitCost,
-            purchaseId: purchase.id,
-            actorId: admin.id,
-            meta: { ...metaBase, purchase_item_id: r.item.id },
-          },
-        })
-      } catch (err) {
-        console.error('inventory movement create failed (purchase_writeoff)', err)
+        try {
+          await tx.inventoryMovement.create({
+            data: {
+              productId,
+              type: 'manual',
+              quantityChange: -r.quantity,
+              unitCost: r.item.unitCost,
+              purchaseId: purchase.id,
+              actorId: admin.id,
+              meta: { ...metaBase, purchase_item_id: r.item.id },
+            },
+          })
+        } catch (err) {
+          console.error('inventory movement create failed (purchase_writeoff)', err)
+        }
       }
+    })
+  } catch (err) {
+    if (err?.code === 'INSUFFICIENT_STOCK') {
+      return res.status(409).json({ error: 'insufficient_stock', product_id: err.productId })
     }
-  })
+    throw err
+  }
 
   await writeAuditLog({
     actorId: admin.id,
