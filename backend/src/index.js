@@ -1555,6 +1555,19 @@ const productPayloadSchema = z
 	  })
   .passthrough()
 
+const productVariantInputSchema = z.object({
+  // "" / omitted means "this product doesn't vary by this dimension" — matches
+  // the DB default. Trimmed and capped to keep them usable as badge labels.
+  size: z.string().trim().max(40).optional().nullable(),
+  color: z.string().trim().max(40).optional().nullable(),
+  stock: z.union([z.number(), z.string()]),
+  sku: z.string().trim().max(64).optional().nullable(),
+})
+
+const productVariantsPayloadSchema = z.object({
+  variants: z.array(productVariantInputSchema).max(200),
+})
+
 const orderItemPayloadSchema = z.object({
   product_id: z.string().optional().nullable(),
   product_name: z.string().min(1),
@@ -1562,6 +1575,7 @@ const orderItemPayloadSchema = z.object({
   price: z.union([z.number(), z.string()]),
   quantity: z.number().int().positive(),
   color: z.string().optional().nullable(),
+  size: z.string().optional().nullable(),
 })
 
   const orderPayloadSchema = z
@@ -2428,6 +2442,17 @@ function decimalToNumber(value) {
   return Number.isFinite(n) ? n : null
 }
 
+function toApiProductVariant(v) {
+  return {
+    id: v.id,
+    product_id: v.productId,
+    size: v.size || null,
+    color: v.color || null,
+    stock: v.stock ?? 0,
+    sku: v.sku ?? null,
+  }
+}
+
 function toApiProduct(p) {
   return {
     id: p.id,
@@ -2442,6 +2467,10 @@ function toApiProduct(p) {
     images: Array.isArray(p.images) ? p.images : [],
     videos: Array.isArray(p.videos) ? p.videos : [],
     stock: p.stock ?? 0,
+    // Only present when the caller fetched them (`include: { variants: true }`).
+    // Absent/undefined means "this endpoint doesn't report per-variant stock",
+    // NOT "this product has no variants" — callers should check for the key.
+    ...(Array.isArray(p.variants) ? { variants: p.variants.map(toApiProductVariant) } : {}),
     free_shipping: Boolean(p.freeShipping),
     is_featured: Boolean(p.isFeatured),
     is_new: Boolean(p.isNew),
@@ -2494,6 +2523,7 @@ function toApiOrder(o) {
       price: decimalToNumber(it.price) ?? 0,
       quantity: it.quantity,
       color: it.color ?? null,
+      size: it.size ?? null,
     })),
     coupon_code: o.couponCode ?? null,
     discount_amount: o.discountAmount === null || o.discountAmount === undefined ? null : decimalToNumber(o.discountAmount),
@@ -4764,12 +4794,19 @@ app.get('/api/products', async (req, res) => {
     where,
     orderBy: parseOrderParam(req.query.order),
     take: parseLimit(req.query.limit, 100),
+    // Only fetch variants when a single product was requested by id (the
+    // product-detail page uses this shape) — avoids the extra join on the
+    // broader catalog-listing queries where per-variant stock isn't shown.
+    ...(where.id ? { include: { variants: { orderBy: [{ size: 'asc' }, { color: 'asc' }] } } } : {}),
   })
   res.json(products.map(toApiProduct))
 })
 
 app.get('/api/products/:id', async (req, res) => {
-  const product = await prisma.product.findUnique({ where: { id: req.params.id } })
+  const product = await prisma.product.findUnique({
+    where: { id: req.params.id },
+    include: { variants: { orderBy: [{ size: 'asc' }, { color: 'asc' }] } },
+  })
   if (!product) return res.status(404).json({ error: 'not_found' })
   res.json(toApiProduct(product))
 })
@@ -5868,6 +5905,7 @@ app.post('/api/orders', async (req, res) => {
             price: String(it.price),
             quantity: it.quantity,
             color: it.color ?? null,
+            size: it.size ?? null,
           })),
         },
       },
@@ -8082,6 +8120,7 @@ app.get('/api/admin/products', async (req, res) => {
   const products = await prisma.product.findMany({
     orderBy: parseOrderParam(req.query.order),
     take: parseLimit(req.query.limit, 500),
+    include: { variants: true },
   })
   res.json(products.map(toApiAdminProduct))
 })
@@ -8216,6 +8255,85 @@ app.delete('/api/admin/products/:id', async (req, res) => {
   } catch (e) {
     if (e?.code === 'P2025') return res.status(404).json({ error: 'not_found' })
     return sendInternalError(res, e, 'product_delete_failed')
+  }
+})
+
+app.get('/api/admin/products/:id/variants', async (req, res) => {
+  const staff = await requireStaff(req, res)
+  if (!staff) return
+
+  const product = await prisma.product.findUnique({ where: { id: req.params.id } })
+  if (!product) return res.status(404).json({ error: 'not_found' })
+
+  const variants = await prisma.productVariant.findMany({
+    where: { productId: req.params.id },
+    orderBy: [{ size: 'asc' }, { color: 'asc' }],
+  })
+  res.json(variants.map(toApiProductVariant))
+})
+
+// Replaces the full variant list for a product in one call (simplest contract for
+// an admin table where rows get added/edited/removed together), and keeps
+// Product.stock as the auto-maintained sum of the new variants. Submitting an
+// empty list removes all variants and leaves Product.stock untouched — the
+// product goes back to plain (non-variant) stock tracking, edited via the
+// normal PATCH /api/admin/products/:id `stock` field.
+app.put('/api/admin/products/:id/variants', async (req, res) => {
+  const admin = await requireAdmin(req, res)
+  if (!admin) return
+
+  const product = await prisma.product.findUnique({ where: { id: req.params.id } })
+  if (!product) return res.status(404).json({ error: 'not_found' })
+
+  const parsed = productVariantsPayloadSchema.safeParse(req.body)
+  if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
+
+  const normalized = parsed.data.variants.map((v) => ({
+    size: (v.size ?? '').trim(),
+    color: (v.color ?? '').trim(),
+    stock: Math.max(0, Number.parseInt(String(v.stock), 10) || 0),
+    sku: v.sku ? v.sku.trim() : null,
+  }))
+
+  const seen = new Set()
+  for (const v of normalized) {
+    const key = `${v.size}\u0000${v.color}`
+    if (seen.has(key)) {
+      return res.status(400).json({ error: 'duplicate_variant', size: v.size || null, color: v.color || null })
+    }
+    seen.add(key)
+  }
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.productVariant.deleteMany({ where: { productId: req.params.id } })
+
+      if (normalized.length > 0) {
+        await tx.productVariant.createMany({
+          data: normalized.map((v) => ({ ...v, productId: req.params.id })),
+        })
+        const totalStock = normalized.reduce((sum, v) => sum + v.stock, 0)
+        await tx.product.update({ where: { id: req.params.id }, data: { stock: totalStock } })
+      }
+
+      return tx.product.findUnique({
+        where: { id: req.params.id },
+        include: { variants: { orderBy: [{ size: 'asc' }, { color: 'asc' }] } },
+      })
+    })
+
+    await writeAuditLog({
+      actorId: admin.id,
+      action: 'update',
+      entityType: 'ProductVariant',
+      entityId: req.params.id,
+      meta: { product_id: req.params.id, variant_count: normalized.length },
+    })
+
+    res.json(toApiAdminProduct(result))
+  } catch (e) {
+    if (e?.code === 'P2002') return res.status(409).json({ error: 'duplicate_sku' })
+    return sendInternalError(res, e, 'variants_update_failed')
   }
 })
 
@@ -10477,6 +10595,17 @@ async function decrementStockAtomic(tx, productId, quantity) {
   }
 }
 
+// Same atomic guard as decrementStockAtomic, but for a single ProductVariant row.
+async function decrementVariantStockAtomic(tx, variantId, quantity) {
+  const result = await tx.productVariant.updateMany({
+    where: { id: variantId, stock: { gte: quantity } },
+    data: { stock: { decrement: quantity } },
+  })
+  if (result.count === 0) {
+    throw Object.assign(new Error('insufficient_stock'), { code: 'INSUFFICIENT_STOCK', variantId })
+  }
+}
+
 async function applyOrderToInventory({ orderId, actorId, status } = {}) {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
@@ -10494,14 +10623,27 @@ async function applyOrderToInventory({ orderId, actorId, status } = {}) {
   const productIds = Array.from(new Set(items.map((it) => it.productId).filter(Boolean)))
   if (productIds.length === 0) return { ok: true }
 
-  const products = await prisma.product.findMany({ where: { id: { in: productIds } } })
+  const products = await prisma.product.findMany({ where: { id: { in: productIds } }, include: { variants: true } })
   const byId = new Map(products.map((p) => [p.id, p]))
+
+  // Resolve each order item to the specific variant it was sold as, when the
+  // product tracks variant-level stock. Falls back to product-level stock
+  // (existing behaviour) if the product has no variants, or if no variant
+  // matches the item's size/color (e.g. variant was deleted after the sale).
+  const variantForItem = (p, it) => {
+    if (!p || !Array.isArray(p.variants) || p.variants.length === 0) return null
+    const size = (it.size ?? '').trim()
+    const color = (it.color ?? '').trim()
+    return p.variants.find((v) => (v.size || '') === size && (v.color || '') === color) ?? null
+  }
 
   for (const it of items) {
     if (!it.productId) continue
     const p = byId.get(it.productId)
     if (!p) continue
-    if (p.stock - it.quantity < 0) {
+    const variant = variantForItem(p, it)
+    const availableStock = variant ? variant.stock : p.stock
+    if (availableStock - it.quantity < 0) {
       return { ok: false, error: 'insufficient_stock' }
     }
   }
@@ -10513,7 +10655,16 @@ async function applyOrderToInventory({ orderId, actorId, status } = {}) {
         const p = byId.get(it.productId)
         if (!p) continue
 
-        await decrementStockAtomic(tx, it.productId, it.quantity)
+        const variant = variantForItem(p, it)
+        if (variant) {
+          // Decrement the specific size/color row, then keep Product.stock (the
+          // aggregate) in sync. Both run in the same transaction, so if either
+          // fails (e.g. lost the race for the last unit), the whole thing rolls back.
+          await decrementVariantStockAtomic(tx, variant.id, it.quantity)
+          await decrementStockAtomic(tx, it.productId, it.quantity)
+        } else {
+          await decrementStockAtomic(tx, it.productId, it.quantity)
+        }
 
         try {
           await tx.inventoryMovement.create({

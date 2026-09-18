@@ -407,6 +407,7 @@ export default function AdminOrders() {
         price: it.price,
         quantity: it.quantity,
         color: it.color,
+        size: it.size,
       })),
       subtotal: computedSale.subtotal,
       shipping_cost: computedSale.shippingCost,

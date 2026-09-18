@@ -327,6 +327,7 @@ export default function Checkout() {
             price: i.price,
             quantity: i.quantity,
             color: i.color,
+            size: i.size,
           })),
           subtotal,
           shipping_cost: shipping,
@@ -686,7 +687,7 @@ export default function Checkout() {
             <h2 className="font-heading text-xl mb-4">Resumo do Pedido</h2>
             <div className="space-y-3 mb-4">
               {items.map((item) => (
-                <div key={`${item.product_id}-${item.color}`} className="flex gap-3">
+                <div key={`${item.product_id}-${item.color}-${item.size}`} className="flex gap-3">
                   <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
                     <ImageWithFallback
                       src={item.product_image}
@@ -697,6 +698,11 @@ export default function Checkout() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-body text-xs font-medium truncate">{item.product_name}</p>
+                    {(item.size || item.color) && (
+                      <p className="font-body text-[11px] text-muted-foreground">
+                        {[item.size, item.color].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                     <p className="font-body text-[11px] text-muted-foreground">x{item.quantity}</p>
                   </div>
                   <p className="font-body text-xs font-medium">{(item.price * item.quantity).toFixed(2)} €</p>
@@ -810,7 +816,7 @@ export default function Checkout() {
               <div className="font-body text-sm font-semibold mb-3">Itens</div>
               <div className="space-y-3">
                 {items.map((item) => (
-                  <div key={`${item.product_id}-${item.color}`} className="flex items-center justify-between gap-3 text-sm">
+                  <div key={`${item.product_id}-${item.color}-${item.size}`} className="flex items-center justify-between gap-3 text-sm">
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-12 h-12 rounded bg-secondary/30 overflow-hidden flex-shrink-0">
                         <ImageWithFallback

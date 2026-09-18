@@ -148,9 +148,12 @@ export default function OrderStatusCard({ order, onRepeat }) {
                     <div className="mt-1 font-body text-xs truncate" title={it.product_name ?? ''}>
                       {it.product_name ?? 'Produto'}
                     </div>
-                    {it.color ? (
-                      <div className="font-body text-[10px] text-muted-foreground truncate" title={it.color ?? ''}>
-                        {it.color}
+                    {(it.size || it.color) ? (
+                      <div
+                        className="font-body text-[10px] text-muted-foreground truncate"
+                        title={[it.size, it.color].filter(Boolean).join(' · ')}
+                      >
+                        {[it.size, it.color].filter(Boolean).join(' · ')}
                       </div>
                     ) : null}
                   </div>

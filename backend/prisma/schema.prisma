@@ -149,6 +149,7 @@ model Product {
   updatedAt     DateTime      @updatedAt
 
   reviews       Review[]
+  variants      ProductVariant[]
   orderItems    OrderItem[]
   purchaseItems PurchaseItem[]
   inventoryMovements InventoryMovement[]
@@ -156,6 +157,30 @@ model Product {
 
   @@index([category])
   @@index([status])
+}
+
+// Per size/color stock. Additive: products with no rows here keep using
+// Product.stock exactly as before (checked in code before touching variants).
+// When a product DOES have variants, Product.stock is kept as the auto-maintained
+// sum of all its variants' stock, so existing code that reads Product.stock
+// (admin lists, low-stock views, "in stock" checks) keeps working unchanged.
+model ProductVariant {
+  id        String   @id @default(cuid())
+  productId String
+  // "" (empty string, not null) means "this product doesn't vary by size/color".
+  // Using "" instead of NULL lets the unique constraint below actually enforce
+  // uniqueness — Postgres treats every NULL as distinct, so NULL would not.
+  size      String   @default("")
+  color     String   @default("")
+  stock     Int      @default(0)
+  sku       String?  @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, size, color])
+  @@index([productId])
 }
 
 enum OrderStatus {
@@ -281,6 +306,7 @@ model OrderItem {
   price        Decimal  @db.Decimal(12, 2)
   quantity     Int
   color        String?
+  size         String?
 
   order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product      Product? @relation(fields: [productId], references: [id], onDelete: SetNull)

@@ -36,7 +36,7 @@ export default function Cart() {
         {/* Items */}
         <div className="lg:col-span-2 space-y-4">
           {items.map((item) => (
-            <div key={`${item.product_id}-${item.color}`} className="flex gap-4 bg-card p-4 rounded-lg border border-border">
+            <div key={`${item.product_id}-${item.color}-${item.size}`} className="flex gap-4 bg-card p-4 rounded-lg border border-border">
               <div className="w-20 h-20 md:w-24 md:h-24 rounded overflow-hidden bg-secondary/30 flex-shrink-0">
                 <ImageWithFallback
                   src={item.product_image}
@@ -48,20 +48,24 @@ export default function Cart() {
 
               <div className="flex-1 min-w-0">
                 <h3 className="font-heading text-base font-medium truncate">{item.product_name}</h3>
-                {item.color && <p className="font-body text-xs text-muted-foreground mt-0.5">{item.color}</p>}
+                {(item.color || item.size) && (
+                  <p className="font-body text-xs text-muted-foreground mt-0.5">
+                    {[item.size, item.color].filter(Boolean).join(' · ')}
+                  </p>
+                )}
                 <p className="font-body text-sm font-semibold mt-1">{item.price.toFixed(2)} €</p>
 
                 <div className="flex items-center justify-between mt-3">
                   <div className="flex items-center border border-border">
-                    <button onClick={() => updateQuantity(item.product_id, item.color, item.quantity - 1)} className="px-2 py-1 hover:bg-secondary">
+                    <button onClick={() => updateQuantity(item.product_id, item.color, item.quantity - 1, item.size)} className="px-2 py-1 hover:bg-secondary">
                       <Minus className="w-3 h-3" />
                     </button>
                     <span className="px-3 py-1 font-body text-xs">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.product_id, item.color, item.quantity + 1)} className="px-2 py-1 hover:bg-secondary">
+                    <button onClick={() => updateQuantity(item.product_id, item.color, item.quantity + 1, item.size)} className="px-2 py-1 hover:bg-secondary">
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
-                  <button onClick={() => removeItem(item.product_id, item.color)} className="text-muted-foreground hover:text-destructive" title="Remover">
+                  <button onClick={() => removeItem(item.product_id, item.color, item.size)} className="text-muted-foreground hover:text-destructive" title="Remover">
                     <DeleteIcon className="text-current" />
                   </button>
                 </div>

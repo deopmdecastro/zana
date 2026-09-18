@@ -54,6 +54,7 @@ export default function AdminProducts() {
   const [videoInput, setVideoInput] = useState('');
   const [colorInput, setColorInput] = useState('');
   const [sizeInput, setSizeInput] = useState('');
+  const [variantStock, setVariantStock] = useState({}); // key: `${size}\u0000${color}` -> stock string
   const [limit, setLimit] = useState(50);
 
   const { data: products = [], isLoading } = useQuery({
@@ -290,7 +291,7 @@ export default function AdminProducts() {
     updateMutation.mutate({ id, data: { status: next } });
   };
 
-  const openCreate = () => { setEditing(null); setForm(emptyProduct); setNameChoice(''); setImageInput(''); setVideoInput(''); setColorInput(''); setSizeInput(''); setDialogOpen(true); };
+  const openCreate = () => { setEditing(null); setForm(emptyProduct); setNameChoice(''); setImageInput(''); setVideoInput(''); setColorInput(''); setSizeInput(''); setVariantStock({}); setDialogOpen(true); };
   const openEdit = (p) => {
     setEditing(p);
     setForm({
@@ -311,8 +312,42 @@ export default function AdminProducts() {
     setVideoInput('');
     setColorInput('');
     setSizeInput('');
+    const initialVariants = {};
+    (Array.isArray(p.variants) ? p.variants : []).forEach((v) => {
+      const key = `${v.size ?? ''}\u0000${v.color ?? ''}`;
+      initialVariants[key] = String(v.stock ?? 0);
+    });
+    setVariantStock(initialVariants);
     setDialogOpen(true);
   };
+
+  const variantsMutation = useMutation({
+    mutationFn: ({ id, variants }) => base44.entities.Product.updateVariants(id, variants),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-catalog'] });
+      queryClient.invalidateQueries({ queryKey: ['product'] });
+      toast.success('Stock por variante atualizado');
+    },
+    onError: (err) => toast.error(getErrorMessage(err, 'Não foi possível guardar o stock por variante.')),
+  });
+
+  const saveVariantStock = () => {
+    if (!editing?.id) return;
+    const colors = (form.colors ?? []).length ? form.colors : [''];
+    const sizes = (form.sizes ?? []).length ? form.sizes : [''];
+    const variants = [];
+    for (const size of sizes) {
+      for (const color of colors) {
+        if (!size && !color) continue; // no dimensions selected at all -> nothing to save
+        const key = `${size}\u0000${color}`;
+        const stock = parseInt(variantStock[key], 10) || 0;
+        variants.push({ size: size || null, color: color || null, stock });
+      }
+    }
+    variantsMutation.mutate({ id: editing.id, variants });
+  };
+
 
   const normalizeVideos = (value) => (Array.isArray(value) ? value.map((v) => String(v ?? '').trim()).filter(Boolean) : []);
 
@@ -793,6 +828,49 @@ export default function AdminProducts() {
                 </p>
               ) : null}
             </div>
+            {editing && ((form.colors ?? []).length > 0 || (form.sizes ?? []).length > 0) ? (
+              <div className="border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="font-body text-xs">Stock por variante (tamanho / cor)</Label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="rounded-none font-body text-xs"
+                    onClick={saveVariantStock}
+                    disabled={variantsMutation.isPending}
+                  >
+                    Guardar stock por variante
+                  </Button>
+                </div>
+                <p className="font-body text-[11px] text-muted-foreground mb-3">
+                  Define quanto stock existe para cada combinação. O campo "Stock" acima passa a ser
+                  a soma automática destas quantidades assim que gravares. Deixa tudo a 0 e não gravares
+                  esta secção para continuar a usar um stock único (comportamento atual).
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                  {((form.sizes ?? []).length ? form.sizes : ['']).flatMap((size) =>
+                    ((form.colors ?? []).length ? form.colors : ['']).map((color) => {
+                      if (!size && !color) return null;
+                      const key = `${size}\u0000${color}`;
+                      const label = [size, color].filter(Boolean).join(' · ');
+                      return (
+                        <div key={key} className="flex items-center gap-2">
+                          <span className="font-body text-xs flex-1 truncate">{label}</span>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={variantStock[key] ?? ''}
+                            onChange={(e) => setVariantStock((prev) => ({ ...prev, [key]: e.target.value }))}
+                            className="rounded-none w-24"
+                          />
+                        </div>
+                      );
+                    }),
+                  )}
+                </div>
+              </div>
+            ) : null}
 	            <div>
 	              <Label className="font-body text-xs">Imagens</Label>
               {isPurchaseInherited ? (

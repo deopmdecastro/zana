@@ -275,6 +275,8 @@ export const base44 = {
       create: async (data) => authedJsonRequest('/api/admin/products', { method: 'POST', body: data }),
       update: async (id, data) => authedJsonRequest(`/api/admin/products/${id}`, { method: 'PATCH', body: data }),
       delete: async (id) => authedJsonRequest(`/api/admin/products/${id}`, { method: 'DELETE' }),
+      updateVariants: async (id, variants) =>
+        authedJsonRequest(`/api/admin/products/${id}/variants`, { method: 'PUT', body: { variants } }),
     },
     Order: {
       list: async (order = '-created_date', limit = 100) => {

@@ -31,6 +31,7 @@ export default function ProductDetail() {
   const productId = window.location.pathname.split('/produto/')[1];
   const [selectedImage, setSelectedImage] = useState(0);
   const [selectedColor, setSelectedColor] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' });
   const [reviewImages, setReviewImages] = useState([]);
@@ -60,6 +61,23 @@ export default function ProductDetail() {
 
   const images = useMemo(() => normalizeImages(product?.images), [product?.images]);
   const related = useMemo(() => relatedProducts.filter((p) => p.id !== product?.id).slice(0, 4), [relatedProducts, product?.id]);
+
+  // Per size/color stock, when the product has any variants defined. Falls back to
+  // the plain product-level stock everywhere a matching variant isn't found.
+  const hasVariants = Array.isArray(product?.variants) && product.variants.length > 0;
+  const variantStockFor = (size, color) => {
+    if (!hasVariants) return null;
+    const match = product.variants.find(
+      (v) => (v.size || '') === (size || '') && (v.color || '') === (color || ''),
+    );
+    return match ? match.stock : 0; // no matching row = that combination isn't sold
+  };
+  const selectedVariantStock = hasVariants ? variantStockFor(selectedSize, selectedColor) : null;
+  const availableStock = hasVariants ? (selectedVariantStock ?? 0) : (product?.stock ?? 0);
+  const needsSizeSelection = hasVariants && (product?.sizes ?? []).length > 0;
+  const needsColorSelection = hasVariants && (product?.colors ?? []).length > 0;
+  const selectionIncomplete = (needsSizeSelection && !selectedSize) || (needsColorSelection && !selectedColor);
+  const isOutOfStock = hasVariants ? (!selectionIncomplete && availableStock <= 0) : availableStock <= 0;
 
   useEffect(() => {
     setSelectedImage(0);
@@ -100,7 +118,19 @@ export default function ProductDetail() {
   }
 
   const handleAddToCart = () => {
-    addItem(product, quantity, selectedColor);
+    if (needsSizeSelection && !selectedSize) {
+      toast.error('Escolhe um tamanho');
+      return;
+    }
+    if (needsColorSelection && !selectedColor) {
+      toast.error('Escolhe uma cor');
+      return;
+    }
+    if (hasVariants && quantity > availableStock) {
+      toast.error(availableStock > 0 ? `Só há ${availableStock} unidades disponíveis nesta combinação` : 'Esgotado nesta combinação');
+      return;
+    }
+    addItem(product, quantity, selectedColor, selectedSize);
     toast.success('Adicionado ao carrinho');
   };
 
@@ -325,19 +355,58 @@ export default function ProductDetail() {
               <div className="mb-6">
                 <p className="font-body text-sm text-muted-foreground mb-2">Escolher cor</p>
                 <div className="flex gap-2 flex-wrap">
-                  {product.colors.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => setSelectedColor(color)}
-                      className={`px-3 py-1.5 text-xs font-body border transition-colors ${
-                        selectedColor === color ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
-                      }`}
-                    >
-                      {color}
-                    </button>
-                  ))}
+                  {product.colors.map((color) => {
+                    const outOfStockForColor = hasVariants && !needsSizeSelection && variantStockFor('', color) <= 0;
+                    return (
+                      <button
+                        key={color}
+                        onClick={() => setSelectedColor(color)}
+                        disabled={outOfStockForColor}
+                        className={`px-3 py-1.5 text-xs font-body border transition-colors ${
+                          selectedColor === color ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                        } ${outOfStockForColor ? 'opacity-40 cursor-not-allowed line-through' : ''}`}
+                      >
+                        {color}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+            )}
+
+            {product.sizes?.length > 0 && (
+              <div className="mb-6">
+                <p className="font-body text-sm text-muted-foreground mb-2">Escolher tamanho</p>
+                <div className="flex gap-2 flex-wrap">
+                  {product.sizes.map((size) => {
+                    const outOfStockForSize =
+                      hasVariants && (needsColorSelection ? Boolean(selectedColor) : true) &&
+                      variantStockFor(size, needsColorSelection ? selectedColor : '') <= 0;
+                    return (
+                      <button
+                        key={size}
+                        onClick={() => setSelectedSize(size)}
+                        disabled={outOfStockForSize}
+                        className={`px-3 py-1.5 text-xs font-body border transition-colors ${
+                          selectedSize === size ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+                        } ${outOfStockForSize ? 'opacity-40 cursor-not-allowed line-through' : ''}`}
+                      >
+                        {size}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {hasVariants && !selectionIncomplete && (
+              <p className={`font-body text-xs mb-4 ${isOutOfStock ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {isOutOfStock
+                  ? 'Esgotado nesta combinação'
+                  : availableStock <= 5
+                    ? `Últimas ${availableStock} unidades`
+                    : 'Em stock'}
+              </p>
             )}
 
             <div className="mb-6">
@@ -350,14 +419,21 @@ export default function ProductDetail() {
                   <Minus className="w-4 h-4" />
                 </button>
                 <span className="px-4 py-2 font-body text-sm min-w-[40px] text-center">{quantity}</span>
-                <button onClick={() => setQuantity(quantity + 1)} className="px-3 py-2 hover:bg-secondary transition-colors">
+                <button
+                  onClick={() => setQuantity(hasVariants ? Math.min(Math.max(1, availableStock), quantity + 1) : quantity + 1)}
+                  className="px-3 py-2 hover:bg-secondary transition-colors"
+                >
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
 
             <div className="flex gap-3">
-              <Button onClick={handleAddToCart} className="flex-1 rounded-none py-6 font-body text-sm tracking-wider gap-2">
+              <Button
+                onClick={handleAddToCart}
+                disabled={hasVariants && !selectionIncomplete && isOutOfStock}
+                className="flex-1 rounded-none py-6 font-body text-sm tracking-wider gap-2"
+              >
                 <ShoppingBag className="w-4 h-4" />
                 Adicionar ao Carrinho
               </Button>

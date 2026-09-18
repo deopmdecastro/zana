@@ -13,7 +13,7 @@ const safeParse = (raw) => {
   }
 };
 
-const normalizeItem = (product, quantity = 1, color = '') => ({
+const normalizeItem = (product, quantity = 1, color = '', size = '') => ({
   product_id: product.id,
   product_name: product.name,
   product_image: getPrimaryImage(product.images) || '',
@@ -21,6 +21,7 @@ const normalizeItem = (product, quantity = 1, color = '') => ({
   price: Number(product.price) || 0,
   quantity: Number(quantity) || 1,
   color: color || '',
+  size: size || '',
 });
 
 export const CartProvider = ({ children }) => {
@@ -33,6 +34,7 @@ export const CartProvider = ({ children }) => {
       product_image: typeof it?.product_image === 'string' ? it.product_image.trim() : '',
       product_name: typeof it?.product_name === 'string' ? it.product_name.trim() : it?.product_name,
       free_shipping: Boolean(it?.free_shipping),
+      size: typeof it?.size === 'string' ? it.size : '',
     }));
   });
 
@@ -41,11 +43,14 @@ export const CartProvider = ({ children }) => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items]);
 
-  const addItem = (product, quantity = 1, color = '') => {
-    const normalized = normalizeItem(product, quantity, color);
+  const addItem = (product, quantity = 1, color = '', size = '') => {
+    const normalized = normalizeItem(product, quantity, color, size);
     setItems((prev) => {
       const existingIndex = prev.findIndex(
-        (i) => i.product_id === normalized.product_id && (i.color || '') === (normalized.color || '')
+        (i) =>
+          i.product_id === normalized.product_id &&
+          (i.color || '') === (normalized.color || '') &&
+          (i.size || '') === (normalized.size || ''),
       );
       if (existingIndex === -1) return [...prev, normalized];
       const next = [...prev];
@@ -57,14 +62,16 @@ export const CartProvider = ({ children }) => {
     });
   };
 
-  const updateQuantity = (productId, color = '', nextQuantity) => {
+  const updateQuantity = (productId, color = '', nextQuantity, size = '') => {
     const qty = Number(nextQuantity) || 0;
     setItems((prev) => {
       if (qty <= 0) {
-        return prev.filter((i) => !(i.product_id === productId && (i.color || '') === (color || '')));
+        return prev.filter(
+          (i) => !(i.product_id === productId && (i.color || '') === (color || '') && (i.size || '') === (size || '')),
+        );
       }
       return prev.map((i) => {
-        if (i.product_id === productId && (i.color || '') === (color || '')) {
+        if (i.product_id === productId && (i.color || '') === (color || '') && (i.size || '') === (size || '')) {
           return { ...i, quantity: qty };
         }
         return i;
@@ -72,8 +79,12 @@ export const CartProvider = ({ children }) => {
     });
   };
 
-  const removeItem = (productId, color = '') => {
-    setItems((prev) => prev.filter((i) => !(i.product_id === productId && (i.color || '') === (color || ''))));
+  const removeItem = (productId, color = '', size = '') => {
+    setItems((prev) =>
+      prev.filter(
+        (i) => !(i.product_id === productId && (i.color || '') === (color || '') && (i.size || '') === (size || '')),
+      ),
+    );
   };
 
   const clearCart = () => setItems([]);

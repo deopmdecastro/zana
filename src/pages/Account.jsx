@@ -87,7 +87,7 @@ export default function Account() {
         price: Number(currentProduct?.price ?? item.price) || 0,
       };
 
-      addItem(product, item.quantity || 1, item.color || '');
+      addItem(product, item.quantity || 1, item.color || '', item.size || '');
     });
 
     toast.success('Itens da encomenda adicionados ao carrinho. Complete o checkout para finalizar.');
