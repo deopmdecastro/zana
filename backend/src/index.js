@@ -3,6 +3,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 import { z } from 'zod'
 import crypto from 'node:crypto'
 import nodemailer from 'nodemailer'
@@ -18,6 +20,13 @@ const port = Number.parseInt(process.env.PORT ?? '3001', 10)
 const corsOrigin = process.env.CORS_ORIGIN ?? process.env.APP_BASE_URL ?? 'http://localhost:5173'
 const authSecret = process.env.AUTH_SECRET ?? 'dev-secret-change-me'
 const authTokenTtlSeconds = Number.parseInt(process.env.AUTH_TOKEN_TTL_SECONDS ?? '2592000', 10) // 30 days
+const isProductionEnv = (process.env.NODE_ENV ?? 'development') === 'production'
+if (isProductionEnv && (!process.env.AUTH_SECRET || authSecret === 'dev-secret-change-me')) {
+  // Signing/verifying auth tokens with the default dev secret in production would let
+  // anyone forge a valid session token. Fail loudly instead of booting insecurely.
+  console.error('FATAL: AUTH_SECRET is not set (or is the default dev value) while NODE_ENV=production.')
+  process.exit(1)
+}
 const passwordResetTtlSeconds = Number.parseInt(process.env.PASSWORD_RESET_TOKEN_TTL_SECONDS ?? '3600', 10) // 1 hour
 const canReturnResetToken = (process.env.NODE_ENV ?? 'development') !== 'production'
 const appBaseUrl = process.env.APP_BASE_URL ?? corsOrigin
@@ -1351,8 +1360,35 @@ app.use(
     },
   }),
 )
+// Sets standard security headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.).
+// CSP is left to the frontend/CDN layer since this is a pure JSON API.
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  }),
+)
+
 // Product images can be stored as data URLs in dev; allow a larger JSON payload.
 app.use(express.json({ limit: '10mb' }))
+
+// Throttle auth endpoints to slow down credential-stuffing / brute-force attempts.
+// Keyed by IP; counts only failed attempts don't get special treatment (deliberately
+// simple) but this bounds the request rate regardless of outcome.
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_requests' },
+})
+const passwordResetLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'too_many_requests' },
+})
 
 // Express 4 doesn't automatically handle promise rejections in async handlers.
 // Wrap handlers so errors go through our error middleware (instead of crashing the process).
@@ -4195,7 +4231,7 @@ async function ensureMockContent() {
   }
 }
 
-app.post('/api/auth/register', async (req, res) => {
+app.post('/api/auth/register', authLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
@@ -4268,7 +4304,7 @@ app.post('/api/auth/register', async (req, res) => {
   }
 })
 
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
@@ -4639,7 +4675,7 @@ app.get('/api/orders/my', async (req, res) => {
   })
 })
 
-app.post('/api/auth/password-reset/request', async (req, res) => {
+app.post('/api/auth/password-reset/request', passwordResetLimiter, async (req, res) => {
   const parsed = passwordResetRequestSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 
@@ -4673,7 +4709,7 @@ app.post('/api/auth/password-reset/request', async (req, res) => {
   res.json({ ok: true, resetToken: canReturnResetToken ? token : undefined })
 })
 
-app.post('/api/auth/password-reset/confirm', async (req, res) => {
+app.post('/api/auth/password-reset/confirm', authLimiter, async (req, res) => {
   const parsed = passwordResetConfirmSchema.safeParse(req.body)
   if (!parsed.success) return res.status(400).json({ error: 'invalid_body', issues: parsed.error.issues })
 

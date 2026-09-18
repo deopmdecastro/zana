@@ -1,6 +1,10 @@
 #env
 .env
 .env.*
+# ...but keep example/template files trackable (referenced by README setup steps)
+!.env.example
+!backend/.env.example
+!*.env.example
 
 # Logs
 /logs
