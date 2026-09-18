@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 import { base44 } from '@/api/base44Client';
 import { getErrorMessage } from '@/lib/toast';
@@ -17,7 +18,26 @@ import InstagramSection from '@/components/home/InstagramSection';
 
 import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
-import { Calendar, CalendarClock, Clock } from 'lucide-react';
+import { Calendar, CalendarClock, Clock, Mail, Sparkles } from 'lucide-react';
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 30 },
+  visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: 'easeOut' } },
+};
+
+function RevealSection({ children, className }) {
+  return (
+    <motion.section
+      variants={sectionVariants}
+      initial="hidden"
+      whileInView="visible"
+      viewport={{ once: true, margin: '-80px' }}
+      className={className}
+    >
+      {children}
+    </motion.section>
+  );
+}
 
 export default function Home() {
   const [newsletterEmail, setNewsletterEmail] = useState('');
@@ -100,13 +120,23 @@ export default function Home() {
   return (
     <div>
       <HeroBanner content={landing} />
-      <CategoryGrid content={landing} />
+
+      <RevealSection>
+        <CategoryGrid content={landing} />
+      </RevealSection>
+
       <AdBanner banner={landing?.ads?.before_highlights} />
-      <FeaturedProducts title="Destaques" filterKey="is_featured" />
-      <FeaturedProducts title="Novidades" filterKey="is_new" />
+
+      <RevealSection>
+        <FeaturedProducts title="Destaques" filterKey="is_featured" />
+      </RevealSection>
+
+      <RevealSection>
+        <FeaturedProducts title="Novidades" filterKey="is_new" />
+      </RevealSection>
 
       {apptEnabled && (
-        <section className="py-16">
+        <RevealSection className="py-16">
           <div className="max-w-6xl mx-auto px-4">
             <QuickAppointmentDialog open={quickOpen} onOpenChange={setQuickOpen} service={quickService} />
             <div className="flex flex-col items-center text-center mb-12">
@@ -226,21 +256,44 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </section>
+        </RevealSection>
       )}
 
-      <BrandBanner content={landing} />
+      <RevealSection>
+        <BrandBanner content={landing} />
+      </RevealSection>
+
       <AdBanner banner={landing?.ads?.before_testimonials} />
-      <Testimonials />
-      <InstagramSection />
+
+      <RevealSection>
+        <Testimonials />
+      </RevealSection>
+
+      <RevealSection>
+        <InstagramSection />
+      </RevealSection>
 
       {landing?.newsletter?.enabled !== false ? (
-        <section className="py-16 md:py-20 bg-primary">
-          <div className="max-w-2xl mx-auto px-4 text-center">
+        <section className="py-16 md:py-24 bg-primary relative overflow-hidden">
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute top-0 left-1/4 w-72 h-72 rounded-full bg-accent blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 rounded-full bg-primary-foreground blur-3xl" />
+          </div>
+          <div className="relative max-w-2xl mx-auto px-4 text-center">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.8 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="w-14 h-14 rounded-full bg-primary-foreground/10 border border-primary-foreground/20 flex items-center justify-center mx-auto mb-6"
+            >
+              <Mail className="w-6 h-6 text-primary-foreground" />
+            </motion.div>
+
             <h2 className="font-heading text-3xl md:text-4xl text-primary-foreground mb-3">
               {landing?.newsletter?.title ?? 'Receba as Novidades'}
             </h2>
-            <p className="font-body text-sm text-primary-foreground/70 mb-8">
+            <p className="font-body text-sm text-primary-foreground/70 mb-8 max-w-lg mx-auto">
               {landing?.newsletter?.text ??
                 'Subscreva a nossa newsletter e fique a par das últimas coleções, promoções exclusivas e dicas de estilo.'}
             </p>
@@ -249,11 +302,18 @@ export default function Home() {
                 type="email"
                 value={newsletterEmail}
                 onChange={(e) => setNewsletterEmail(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    const email = String(newsletterEmail ?? '').trim();
+                    if (!email) return toast.error('Escreva o seu email.');
+                    subscribeMutation.mutate(email);
+                  }
+                }}
                 placeholder={landing?.newsletter?.placeholder ?? 'O seu email'}
-                className="flex-1 px-4 py-3 bg-primary-foreground/10 border border-primary-foreground/20 rounded-none text-primary-foreground placeholder:text-primary-foreground/50 text-sm font-body focus:outline-none focus:border-primary-foreground/50"
+                className="flex-1 px-4 py-3 bg-primary-foreground/10 border border-primary-foreground/20 rounded-none text-primary-foreground placeholder:text-primary-foreground/50 text-sm font-body focus:outline-none focus:border-primary-foreground/50 focus:bg-primary-foreground/15 transition-colors"
               />
               <button
-                className="px-6 py-3 bg-primary-foreground text-primary text-sm font-body tracking-wider hover:bg-primary-foreground/90 transition-colors disabled:opacity-60"
+                className="px-6 py-3 bg-primary-foreground text-primary text-sm font-body tracking-wider hover:bg-primary-foreground/90 transition-colors disabled:opacity-60 rounded-none flex items-center justify-center gap-2"
                 disabled={subscribeMutation.isPending}
                 onClick={() => {
                   const email = String(newsletterEmail ?? '').trim();
@@ -261,7 +321,14 @@ export default function Home() {
                   subscribeMutation.mutate(email);
                 }}
               >
-                {landing?.newsletter?.button_label ?? 'Subscrever'}
+                {subscribeMutation.isPending ? (
+                  <>
+                    <Sparkles className="w-4 h-4 animate-pulse" />
+                    A subscrever...
+                  </>
+                ) : (
+                  landing?.newsletter?.button_label ?? 'Subscrever'
+                )}
               </button>
             </div>
           </div>

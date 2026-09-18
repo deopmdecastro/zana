@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Heart } from 'lucide-react';
+import { Heart, ShoppingBag } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { useCart } from '@/lib/CartContext';
@@ -14,6 +14,8 @@ import { getPrimaryImage } from '@/lib/images';
 
 export default function ProductCard({ product }) {
   const { addItem } = useCart();
+  const [added, setAdded] = useState(false);
+  const [wished, setWished] = useState(false);
   const primaryImage = getPrimaryImage(product?.images);
 
   const handleAddToCart = (e) => {
@@ -21,11 +23,14 @@ export default function ProductCard({ product }) {
     e.stopPropagation();
     addItem(product);
     toast.success('Adicionado ao carrinho');
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1000);
   };
 
   const handleWishlist = async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    setWished(true);
     await toastApiPromise(
       base44.entities.Wishlist.create({
         product_id: product.id,
@@ -52,17 +57,21 @@ export default function ProductCard({ product }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-50px' }}
       transition={{ duration: 0.4 }}
     >
       <Link to={`/produto/${product.id}`} className="group block">
-        <div className="relative overflow-hidden rounded-lg bg-secondary/50 aspect-square mb-3">
+        <div className="relative overflow-hidden rounded-lg bg-secondary/50 aspect-square mb-3 ring-1 ring-border/50 group-hover:ring-primary/30 transition-all duration-300">
           <ImageWithFallback
             src={primaryImage}
             alt={product.name}
-            className="group-hover:scale-105 transition-transform duration-500"
+            className="group-hover:scale-110 transition-transform duration-700 ease-out"
             iconClassName="w-12 h-12 opacity-30 text-muted-foreground"
           />
+
+          {/* Gradient overlay on hover */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
           {/* Badges */}
           <div className="absolute top-3 left-3 flex flex-col gap-1">
@@ -99,22 +108,35 @@ export default function ProductCard({ product }) {
           </div>
 
           {/* Hover Actions */}
-          <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-300">
             <button
               onClick={handleWishlist}
-              className="w-8 h-8 bg-card/90 rounded-full flex items-center justify-center hover:bg-card transition-colors shadow-sm"
+              className="w-8 h-8 bg-card/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-card transition-colors shadow-sm"
+              aria-label="Adicionar aos favoritos"
             >
-              <Heart className="w-3.5 h-3.5 text-foreground" />
+              <Heart className={cn('w-3.5 h-3.5 transition-colors', wished ? 'fill-primary text-primary' : 'text-foreground')} />
             </button>
           </div>
 
           {/* Quick Add */}
-          <div className="absolute bottom-0 left-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out">
             <button
               onClick={handleAddToCart}
-              className="w-full bg-primary/90 text-primary-foreground text-xs py-2.5 rounded-md hover:bg-primary transition-colors font-body tracking-wide"
+              className={cn(
+                'w-full text-xs py-2.5 rounded-md font-body tracking-wide flex items-center justify-center gap-2 transition-all',
+                added
+                  ? 'bg-green-600 text-white'
+                  : 'bg-primary/95 backdrop-blur-sm text-primary-foreground hover:bg-primary',
+              )}
             >
-              Adicionar ao Carrinho
+              {added ? (
+                'Adicionado!'
+              ) : (
+                <>
+                  <ShoppingBag className="w-3.5 h-3.5" />
+                  Adicionar ao Carrinho
+                </>
+              )}
             </button>
           </div>
         </div>
