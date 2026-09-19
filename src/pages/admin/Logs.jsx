@@ -379,7 +379,7 @@ export default function AdminLogs() {
                     </span>
                   </td>
                   <td className="p-3 text-right">
-                    <Button variant="ghost" size="icon" onClick={() => setSelected(l)} title="Ver detalhes">
+                    <Button variant="ghost" size="icon" onClick={() => setSelected(l)} aria-label="Ver detalhes do log" title="Ver detalhes">
                       <FileText className="w-4 h-4" />
                     </Button>
                   </td>

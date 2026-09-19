@@ -217,7 +217,7 @@ export default function FAQAdmin() {
                 <td className="p-3 font-body text-sm font-medium">{item.question}</td>
                 <td className="p-3 font-body text-xs">{item.is_active ? 'Sim' : 'Não'}</td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(item)} title="Editar">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(item)} aria-label="Editar FAQ" title="Editar">
                     <Pencil className="w-4 h-4" />
                   </Button>
                   <Button

@@ -117,7 +117,7 @@ export default function InstagramAdmin() {
                 </td>
                 <td className="p-3 font-body text-xs">{p.is_active ? 'Sim' : 'Não'}</td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Editar">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)} aria-label="Editar post" title="Editar">
                     <Pencil className="w-4 h-4" />
                   </Button>
                   <Button

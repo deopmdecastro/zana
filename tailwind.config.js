@@ -8,6 +8,15 @@ module.exports = {
         heading: ['var(--font-heading)'],
         body: ['var(--font-body)'],
       },
+      spacing: {
+        'xs': '2px',
+        'sm': '4px',
+        'md': '8px',
+        'lg': '16px',
+        'xl': '24px',
+        'xxl': '32px',
+        'xxxl': '48px',
+      },
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',

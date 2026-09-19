@@ -190,7 +190,7 @@ export default function AdminCustomers() {
                   {new Date(user.created_date).toLocaleDateString('pt-PT')}
                 </td>
                 <td className="p-3 text-right">
-                  <Button variant="ghost" size="icon" onClick={() => openUser(user)} title="Ver / editar">
+                  <Button variant="ghost" size="icon" onClick={() => openUser(user)} aria-label="Ver ou editar cliente" title="Ver / editar">
                     <Eye className="w-4 h-4" />
                   </Button>
                 </td>

@@ -224,7 +224,7 @@ export default function Catalog() {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
               <div key={i} className="animate-pulse">
                 <div className="bg-secondary/50 aspect-square rounded-lg mb-3" />
@@ -244,7 +244,7 @@ export default function Catalog() {
         ) : (
           <motion.div
             layout
-            className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6"
+            className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6"
           >
             <AnimatePresence mode="popLayout">
               {filtered.map(product => (

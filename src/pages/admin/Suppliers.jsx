@@ -272,10 +272,10 @@ export default function AdminSuppliers() {
 		                  )}
 		                </td>
 	                <td className="p-3 text-right whitespace-nowrap">
-	                  <Button variant="ghost" size="icon" onClick={() => openView(s)} title="Ver">
+	                  <Button variant="ghost" size="icon" onClick={() => openView(s)} aria-label="Ver fornecedor" title="Ver">
 	                    <Eye className="w-4 h-4" />
 	                  </Button>
-		                  <Button variant="ghost" size="icon" onClick={() => openEdit(s)} title="Editar">
+		                  <Button variant="ghost" size="icon" onClick={() => openEdit(s)} aria-label="Editar fornecedor" title="Editar">
 		                    <Pencil className="w-4 h-4" />
 		                  </Button>
 		                  <Button

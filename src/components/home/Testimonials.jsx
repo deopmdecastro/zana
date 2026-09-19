@@ -76,7 +76,7 @@ export default function Testimonials() {
           <h2 className="font-heading text-3xl md:text-5xl font-light">As Nossas Clientes</h2>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {testimonials.map((t, i) => (
             <motion.div
               key={`${t.name}-${i}`}

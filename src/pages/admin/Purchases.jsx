@@ -1073,7 +1073,7 @@ export default function AdminPurchases() {
                 </td>
                 <td className="p-3 font-body text-sm font-semibold whitespace-nowrap">{(p.total ?? 0).toFixed(2)} €</td>
                 <td className="p-3 text-right whitespace-nowrap">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Editar">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(p)} aria-label="Editar compra" title="Editar">
                     <Pencil className="w-4 h-4" />
                   </Button>
                 </td>

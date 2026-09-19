@@ -65,7 +65,7 @@ export default function Cart() {
                       <Plus className="w-3 h-3" />
                     </button>
                   </div>
-                  <button onClick={() => removeItem(item.product_id, item.color, item.size)} className="text-muted-foreground hover:text-destructive" title="Remover">
+                  <button onClick={() => removeItem(item.product_id, item.color, item.size)} className="text-muted-foreground hover:text-destructive" aria-label="Remover item do carrinho" title="Remover">
                     <DeleteIcon className="text-current" />
                   </button>
                 </div>

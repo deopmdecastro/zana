@@ -615,10 +615,10 @@ export default function AdminOrders() {
                 </td>
                 <td className="p-3 text-right">
                   <div className="inline-flex items-center justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => printInvoice(order)} title="Imprimir fatura">
+                    <Button variant="ghost" size="icon" onClick={() => printInvoice(order)} aria-label="Imprimir fatura" title="Imprimir fatura">
                       <Printer className="w-4 h-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setSelected(order)} title="Ver detalhes">
+                    <Button variant="ghost" size="icon" onClick={() => setSelected(order)} aria-label="Ver detalhes da encomenda" title="Ver detalhes">
                       <Eye className="w-4 h-4" />
                     </Button>
                   </div>

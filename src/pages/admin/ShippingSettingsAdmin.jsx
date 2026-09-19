@@ -176,7 +176,7 @@ export default function ShippingSettingsAdmin() {
                       ...p,
                       methods: (p.methods ?? []).map((x) => (x.id === m.id ? { ...x, enabled: v } : x)),
                     }))} />
-                    <Button variant="ghost" size="icon" onClick={() => removeMethod(m.id)} title="Remover">
+                    <Button variant="ghost" size="icon" onClick={() => removeMethod(m.id)} aria-label="Remover método de envio" title="Remover">
                       <DeleteIcon className="text-destructive" />
                     </Button>
                   </div>
